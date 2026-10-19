@@ -1,0 +1,5 @@
+[
+  {"method":"0092","inputs":{"F":2,"t":8,"n":250,"ask":0},"selections":{"16":[1]}},
+  {"method":"0086","inputs":{"Qn":60,"an":1000,"n1":10},"selections":{"16":[1],"27":[1]}},
+  {"method":"0093","inputs":{"B":1000,"B1":10,"t":8,"ask":0},"selections":{"15":[1]}}
+]

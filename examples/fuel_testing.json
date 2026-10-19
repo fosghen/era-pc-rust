@@ -1,0 +1,6 @@
+{
+  "method": "0093",
+  "inputs": {"B": 1000, "B1": 10, "t": 8, "ask": 0},
+  "selections": {"15": [1]},
+  "trace": true
+}

@@ -1,0 +1,6 @@
+{
+  "method": "0086",
+  "inputs": {"n": 100, "S": 0.2, "t": 3600},
+  "selections": {"16": [2]},
+  "trace": true
+}

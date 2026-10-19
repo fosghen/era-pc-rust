@@ -1,0 +1,6 @@
+{
+  "method": "0087",
+  "inputs": {"n": 250, "t": 8, "Ns": 2, "Ns1": 1},
+  "selections": {"13": [1]},
+  "trace": true
+}
