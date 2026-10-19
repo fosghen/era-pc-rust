@@ -199,6 +199,179 @@ class StartupModelTests(unittest.TestCase):
                 self.assertEqual(self.call(name, module=module), (False, None))
         self.assertEqual(self.call('CloseHandle', 0x76000000, module=contract), (False, None))
 
+    def test_suspended_thread_fixture_is_opt_in_and_bool_validated(self):
+        self.assertFalse(self.model.profile['suspended_threads'])
+        self.assertEqual(self.call('CreateThread', 0, 0, 0xdeadbeef, 0, 4, 0), (False, None))
+        self.assertEqual(self.call('CreateRemoteThreadEx', 0xffffffff, 0, 0, 0xdeadbeef, 0, 4, 0, 0),
+                         (False, None))
+        self.assertEqual(self.model.events, [])
+        self.assertEqual(self.model.thread_objects, {})
+        for flag in (None, 0, 1, 'true', [], 0.0):
+            with self.subTest(flag=flag):
+                machine = uc.Uc(uc.UC_ARCH_X86, uc.UC_MODE_32)
+                with self.assertRaisesRegex(ValueError, 'must be a bool'):
+                    StartupModel(machine, suspended_threads=flag)
+                self.assertEqual(list(machine.mem_regions()), [])
+
+    def test_suspended_thread_creation_records_identity_without_execution_or_stack(self):
+        for api in ('CreateThread', 'CreateRemoteThreadEx'):
+            for start in (0, 0xdeadbeef, 0xffffffff):
+                for output in (0, 0x11000):
+                    with self.subTest(api=api, start=start, output=output):
+                        self.explicit_fixture(suspended_threads=True)
+                        self.model.last_error = 321
+                        regions = list(self.machine.mem_regions())
+                        args = (0, 0, start, 0xfefefefe, 4, output)
+                        if api == 'CreateRemoteThreadEx':
+                            args = (0xffffffff, 0, 0, start, 0xfefefefe, 4, 0, output)
+                        ok, event = self.call(api, *args)
+                        self.assertTrue(ok, event)
+                        self.assertEqual(self.machine.reg_read(x86.UC_X86_REG_EAX), 0x76000000)
+                        self.assertEqual(self.machine.reg_read(x86.UC_X86_REG_ESP), 0x10800 + 4 * (len(args) + 1))
+                        self.assertEqual(self.machine.reg_read(x86.UC_X86_REG_EIP), 0x12345678)
+                        self.assertEqual(list(self.machine.mem_regions()), regions)
+                        self.assertEqual(self.model.thread_objects['thread:0'], dict(start_address=hex(start),
+                            parameter='0xfefefefe', thread_id=4098, suspend_count=1,
+                            state='suspended', execution_started=False))
+                        self.assertEqual(self.model.object_handles[0x76000000],
+                                         dict(object='thread:0', inheritable=False, active=True))
+                        self.assertEqual(event['thread_id'], 4098)
+                        self.assertIsNone(event['last_error'])
+                        if output:
+                            self.assertEqual(struct.unpack('<I', self.machine.mem_read(output, 4))[0], 4098)
+                            self.assertEqual(event['memory_writes'], [dict(address=hex(output), size=4)])
+                        else:
+                            self.assertNotIn('memory_writes', event)
+                        self.assertFalse(self.call('GetLastError')[0])
+
+    def test_thread_argument_restrictions_never_create_runnable_threads(self):
+        cases = []
+        thread = [0, 0, 0xdeadbeef, 0, 4, 0x11000]
+        remote = [0xffffffff, 0, 0, 0xdeadbeef, 0, 4, 0, 0x11000]
+        for index, value in ((0, 1), (1, 4096), (4, 0), (4, 1), (4, 0x10004), (4, 0xffffffff)):
+            args = thread.copy(); args[index] = value
+            cases.append(('CreateThread', args))
+        for index, value in ((0, 0), (0, 0x76000000), (1, 1), (2, 4096), (5, 0), (5, 0x10004), (6, 1)):
+            args = remote.copy(); args[index] = value
+            cases.append(('CreateRemoteThreadEx', args))
+        for api, args in cases:
+            with self.subTest(api=api, args=args):
+                self.explicit_fixture(suspended_threads=True)
+                self.machine.mem_write(0x11000, b'keep')
+                self.model.last_error = 321
+                ok, event = self.call(api, *args)
+                self.assertFalse(ok, event)
+                self.assertNotIn('memory_writes', event)
+                self.assertNotIn('result', event)
+                self.assertEqual(self.model.thread_objects, {})
+                self.assertEqual(self.model.object_handles, {})
+                self.assertEqual(bytes(self.machine.mem_read(0x11000, 4)), b'keep')
+                self.assertEqual(self.model.last_error, 321)
+
+    def test_thread_id_pointer_preflight_has_no_partial_state(self):
+        for api in ('CreateThread', 'CreateRemoteThreadEx'):
+            for output, mode in ((0x50000, 'unmapped'), (0x12ffe, 'boundary'),
+                                 (0xfffffffe, 'wrap'), (0x11000, 'readonly'), (0x11002, 'lock')):
+                with self.subTest(api=api, output=output, mode=mode):
+                    self.explicit_fixture(suspended_threads=True)
+                    self.model.last_error = 321
+                    if mode == 'readonly':
+                        self.machine.mem_protect(0x11000, 4096, uc.UC_PROT_READ)
+                    if mode == 'lock':
+                        self.result('InitializeCriticalSection', 0x11000)
+                    args = (0, 0, 0xdeadbeef, 0, 4, output)
+                    if api == 'CreateRemoteThreadEx':
+                        args = (0xffffffff, 0, 0, 0xdeadbeef, 0, 4, 0, output)
+                    before = bytes(self.machine.mem_read(0x11000, 0x2000))
+                    self.machine.reg_write(x86.UC_X86_REG_EAX, 0xdeadbeef)
+                    ok, event = self.call(api, *args)
+                    self.assertFalse(ok, event)
+                    self.assertNotIn('memory_writes', event)
+                    self.assertEqual(self.model.thread_objects, {})
+                    self.assertEqual(self.model.object_handles, {})
+                    self.assertEqual(bytes(self.machine.mem_read(0x11000, 0x2000)), before)
+                    self.assertEqual(self.machine.reg_read(x86.UC_X86_REG_EAX), 0xdeadbeef)
+                    self.assertEqual(self.machine.reg_read(x86.UC_X86_REG_ESP), 0x10800)
+                    self.assertEqual(self.model.last_error, 321)
+
+    def test_thread_duplicate_last_close_retains_suspended_live_object_and_unique_ids(self):
+        self.explicit_fixture(suspended_threads=True)
+        first = self.result('CreateThread', 0, 0, 0xdeadbeef, 0, 4, 0)
+        self.result('DuplicateHandle', 0xffffffff, first, 0xffffffff, 0x11000, 0, 1, 2)
+        duplicate = struct.unpack('<I', self.machine.mem_read(0x11000, 4))[0]
+        self.assertEqual(self.model.object_handles[duplicate]['object'], 'thread:0')
+        self.assertEqual(self.model.report()['thread_objects']['thread:0']['live_handle_count'], 2)
+        state = dict(self.model.thread_objects['thread:0'])
+        self.result('CloseHandle', first)
+        self.result('CloseHandle', duplicate)
+        self.assertEqual(self.model.thread_objects['thread:0'], state)
+        self.assertEqual(self.model.report()['thread_objects']['thread:0']['live_handle_count'], 0)
+        second = self.result('CreateRemoteThreadEx', 0xffffffff, 0, 0, 0, 0, 4, 0, 0x11000)
+        self.assertEqual(self.model.object_handles[second]['object'], 'thread:1')
+        self.assertEqual(struct.unpack('<I', self.machine.mem_read(0x11000, 4))[0], 4099)
+        self.assertFalse(self.call('DuplicateHandle', 0xffffffff, first, 0xffffffff, 0x11000, 0, 0, 2)[0])
+
+    def test_thread_id_output_cannot_overlap_active_api_frame(self):
+        for api, argc in [('CreateThread', 6), ('CreateRemoteThreadEx', 8)]:
+            for offset in (-2, 0, 1, 4 * (argc + 1) - 1):
+                with self.subTest(api=api, offset=offset):
+                    self.explicit_fixture(suspended_threads=True)
+                    output = 0x10800 + offset
+                    args = [0, 0, 0xdeadbeef, 0, 4, output]
+                    if api == 'CreateRemoteThreadEx':
+                        args = [0xffffffff, 0, 0, 0xdeadbeef, 0, 4, 0, output]
+                    self.machine.mem_write(0x10800, struct.pack('<' + 'I' * (argc + 1), 0x12345678, *args))
+                    self.machine.reg_write(x86.UC_X86_REG_ESP, 0x10800)
+                    before = bytes(self.machine.mem_read(0x10000, 0x3000))
+                    ok, event = self.model.handle('KERNEL32.dll!' + api)
+                    self.assertFalse(ok)
+                    self.assertIn('active API call frame', event['model_error'])
+                    self.assertNotIn('memory_writes', event)
+                    self.assertEqual(bytes(self.machine.mem_read(0x10000, 0x3000)), before)
+                    self.assertEqual(self.model.thread_objects, {})
+                    self.assertEqual(self.model.object_handles, {})
+            # The exclusive end is outside the frame and can be a valid output.
+            self.explicit_fixture(suspended_threads=True)
+            output = 0x10800 + 4 * (argc + 1)
+            args = [0, 0, 0xdeadbeef, 0, 4, output]
+            if api == 'CreateRemoteThreadEx':
+                args = [0xffffffff, 0, 0, 0xdeadbeef, 0, 4, 0, output]
+            self.assertTrue(self.call(api, *args)[0])
+            self.assertEqual(struct.unpack('<I', self.machine.mem_read(output, 4))[0], 4098)
+
+    def test_thread_events_and_duplicates_share_budget_without_failure_writes(self):
+        self.explicit_fixture(suspended_threads=True)
+        for index in range(128):
+            if index % 3 == 0:
+                self.result('CreateThread', 0, 0, 0xdeadbeef, 0, 4, 0)
+            elif index % 3 == 1:
+                self.result('CreateEventA', 0, 1, 0, 0)
+            else:
+                self.result('DuplicateHandle', 0xffffffff, 0x76000000, 0xffffffff, 0x11000, 0, 0, 2)
+        before = self.model.report()['thread_objects']
+        self.machine.mem_write(0x11000, b'keep')
+        ok, event = self.call('CreateThread', 0, 0, 0xdeadbeef, 0, 4, 0x11000)
+        self.assertFalse(ok)
+        self.assertIn('budget', event['model_error'])
+        self.assertEqual(self.model.report()['thread_objects'], before)
+        self.assertEqual(len(self.model.object_handles), 128)
+        self.assertEqual(bytes(self.machine.mem_read(0x11000, 4)), b'keep')
+
+    def test_suspended_thread_allowlist_cannot_resume_wait_or_query_exit(self):
+        self.explicit_fixture(suspended_threads=True)
+        contract = 'api-ms-win-core-processthreads-l1-1-0.dll'
+        for module in ('KERNEL32.dll', 'KERNELBASE.dll', contract.upper()):
+            self.assertTrue(self.call('CreateThread', 0, 0, 0, 0, 4, 0, module=module)[0])
+            self.assertTrue(self.call('CreateRemoteThreadEx', 0xffffffff, 0, 0, 0, 0, 4, 0, 0, module=module)[0])
+        for module in ('other.dll', 'api-ms-win-core-processthreads-l1-1-1.dll', 'api-ms-win-core-synch-l1-1-0.dll'):
+            self.assertEqual(self.call('CreateThread', 0, 0, 0, 0, 4, 0, module=module), (False, None))
+        for api in ('ResumeThread', 'SuspendThread', 'WaitForSingleObject', 'WaitForMultipleObjects',
+                    'GetExitCodeThread', 'TerminateThread', 'CreateRemoteThread', 'SetThreadContext'):
+            for module in ('KERNEL32.dll', contract):
+                self.assertEqual(self.call(api, module=module), (False, None))
+        self.assertTrue(all(t['state'] == 'suspended' and not t['execution_started']
+                            for t in self.model.thread_objects.values()))
+
     def test_computer_name_is_opt_in_without_host_identity_lookup(self):
         self.assertIsNone(self.model.report()['profile']['computer_name'])
         for name in ('GetComputerNameA', 'GetComputerNameW'):

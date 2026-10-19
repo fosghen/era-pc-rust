@@ -844,3 +844,85 @@ API-set `api-ms-win-core-synch-l1-1-0.dll` для CreateEventA/W, не wildcard.
 ошибочного DuplicateHandle, смешанный бюджет, ограничения модулей и
 Python/Rust parity на синтетическом PE. Результат следующего реального
 опыта учитывается отдельно.
+
+### Семь событий и частично исполненный CreateThread
+
+`perv_event_4b_01.json`: **3 507 199 786 инструкций за 243,0066 с**.
+Созданы семь синтетических безымянных событий: manual-reset по порядку
+TRUE, TRUE, TRUE, FALSE, TRUE, FALSE, FALSE; все nonsignaled и с одним живым
+дескриптором. Последний CreateEvent возвращается в `0x1000da78`.
+
+Далее GrdPrepare(0x13) возвращается в `0x1000daa9`; его дисковая ветка
+возвращает `0x10001980`. Трасса останавливается на `0x6b8211bb` внутри
+справочной kernel32.dll. Это **CreateThread + 11**, а не вход экспорта
+(`0x6b8211b0`). Пролог уже соответствует состоянию ESP=`0x70007f68`,
+EBP=`0x70007f6c`, EAX=4. На вершине стека находится не адрес возврата,
+а копия указателя thread ID. Простое переименование этой остановки в
+обычный stdcall CreateThread дало бы неправильные аргументы и стек.
+
+Восстановленный исходный вызов: return=`0x1000daab`, security=NULL,
+stack size=0, start=`0x1000f950`, parameter=`0x0d25a97d`, flags=4,
+thread ID output=`0x103661d4`. Флаг 4 — CREATE_SUSPENDED: поток не должен
+исполняться до ResumeThread; см.
+[CreateThread](https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createthread).
+Ни поток, ни его дескриптор ещё не созданы даже в модели.
+
+Отдельный `create_thread_frame_probe_01.json` проверил интерпретацию:
+5 исходных инструкций reference-пролога восстановили **все 9 регистров и
+9 слов стека** остановки; следующие 8 инструкций довели до call@`0x6b8211d1`,
+но сам вызов не исполнялся. Аргументы следующего CreateRemoteThreadEx:
+`[0xffffffff, 0, 0, 0x1000f950, 0x0d25a97d, 4, 0, 0x103661d4]`.
+Таким образом речь идёт о текущем процессе, не о внедрении в другой процесс.
+
+Это отдельный bounded reference-code probe, **не разрешение исполнения
+reference DLL в основном трассировщике**. Image RX, IAT неизменна, записи
+только в собственный стек, лимиты каждой стадии 100 инструкций / 1 секунда;
+нативного Windows-вызова нет. Все входы неизменны. Хвост основной трассы
+подтверждает вычисляемый переход через DLL `0x10002cc0..0x10002cd1`, но
+место исполнения эквивалента пролога текущий короткий хвост не показывает.
+
+SHA-256 probe source:
+`9d2f28eadd87562853362432ed5ebd0badfe8213f24a8be60ce37caf6a1af847`;
+probe report: `fd6071ed089986aef500b9096af22381635216610879f3088e4aa8fa331f8c07`.
+Обход лицензии и взаимодействие с ключом не установлены.
+
+### Модель только приостановленного потока и нормализация входа
+
+`--suspended-threads` требует `--startup-model`; по умолчанию CreateThread
+и CreateRemoteThreadEx остаются остановками. Разрешена только identity
+CREATE_SUSPENDED (flags ровно 4), NULL security и stack size=0; RemoteThreadEx
+дополнительно требует текущий процесс `0xffffffff` и NULL attributes.
+Никакого запуска, стека потока, TLS, DLL_THREAD_ATTACH, планировщика или
+нативного объекта ОС нет. Начальный адрес хранится как аргумент, не как
+доказанно исполняемый код. ResumeThread/Wait/GetExitCodeThread не реализованы.
+
+Синтетический ID начинается с 4098. Необязательный thread-ID DWORD пишется
+только после проверки границ, permissions, opaque locks и отсутствия
+пересечения активного API frame. Ошибки не создают объект или дескриптор.
+Лимит 128 дескрипторов общий с событиями и DuplicateHandle; дубликаты
+сохраняют identity. Последний CloseHandle **не завершает** приостановленный
+поток. Last-error успешного создания отмечается неизвестным. Основание:
+[CreateThread](https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createthread),
+[CreateRemoteThreadEx](https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createremotethreadex).
+
+Отдельный opt-in `--create-thread-interior` требует эту fixture и явный
+reference kernel32.dll. Он принимает только точный структурный пролог из
+5 инструкций/11 байт у non-forwarded CreateThread, без другого экспорта
+на внутреннем адресе. Проверяются EIP, EBP=ESP+4, 36 байт в границах стека,
+права чтения, копия thread-ID pointer и EAX=creation flags. Вывод thread ID
+не может пересекать весь частичный frame, включая сохранённый EBP.
+
+Только после проверки ESP/EBP временно приводятся к исходному API-вызову;
+успешная модель возвращает их в состояние caller. При отказе CPU context
+восстанавливается, фактическая остановка остаётся на внутреннем адресе.
+Reference-код основным трассировщиком не исполняется. Это конкретный
+структурный профиль, не общий alias всех внутренних API и не заявление
+эквивалентности Windows. Hash helper и данные нормализации записываются
+в отчёт. Исходник worker `0x1000f950` на диске сразу уходит в защитный
+обработчик; роль worker в проверке лицензии пока не определена.
+
+Перед новым реальным опытом прошёл **341 тест**: 15 focused-тестов interior
+profile, сценарии suspended identity и Python/Rust integration parity.
+Prefix и его READ/no-WRITE permissions перепроверяются при каждом входе,
+не только при создании модели. Отдельные проверки меняют prefix/permissions
+после инициализации и требуют отказа без изменения CPU/объектов.

@@ -48,10 +48,11 @@ class StartupModel:
                  'GetUserDefaultLangID': 0, 'DuplicateHandle': 7, 'CloseHandle': 1,
                  'VirtualAlloc': 4, 'VirtualFree': 3, 'GetSystemTime': 1,
                  'GetComputerNameA': 2, 'GetComputerNameW': 2, 'GetVersion': 0,
-                 'CreateEventA': 4, 'CreateEventW': 4}
+                 'CreateEventA': 4, 'CreateEventW': 4,
+                 'CreateThread': 6, 'CreateRemoteThreadEx': 8}
 
     def __init__(self, machine, nls_codepage=None, nls_sort=None, nls_case=None, critical_section_layout=None,
-                 memory_hooks=None, computer_name=None, get_version_result=None):
+                 memory_hooks=None, computer_name=None, get_version_result=None, suspended_threads=False):
         if critical_section_layout not in (None, 'win10-x86-19041'):
             raise ValueError('Unknown critical-section layout profile')
         if computer_name is not None and (not isinstance(computer_name, str)
@@ -60,6 +61,8 @@ class StartupModel:
         if get_version_result is not None and (type(get_version_result) is not int
                 or not 0 <= get_version_result <= 0x7fffffff):
             raise ValueError('GetVersion fixture must be an integer packed NT DWORD in 0..0x7fffffff')
+        if type(suspended_threads) is not bool:
+            raise ValueError('Suspended-thread fixture flag must be a bool')
         self.critical_section_layout = critical_section_layout
         self.machine = machine
         self.nls = NlsModel(nls_codepage, nls_sort, nls_case)
@@ -68,6 +71,7 @@ class StartupModel:
                             process_id=4096, thread_id=4097, tick_count=123456,
                             computer_name=computer_name,
                             get_version_result=get_version_result,
+                            suspended_threads=suspended_threads,
                             pointer_xor_fixture=0x5a39c6e1,
                             command_line='C:\\era-lab\\host.exe', environment={},
                             startup_flags=0, inherited_handles=False, standard_handles='absent',
@@ -104,6 +108,7 @@ class StartupModel:
         self.environment_blocks = set()
         self.object_handles = {}
         self.event_objects = {}
+        self.thread_objects = {}
         self.virtual_allocations = {}
         self.virtual_cursor = VIRTUAL_BASE
 
@@ -144,6 +149,37 @@ class StartupModel:
         return 0x76000000 + 4 * len(self.object_handles)
 
     def object_handle_call(self, function, args, event):
+        if function in ('CreateThread', 'CreateRemoteThreadEx'):
+            # https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createthread
+            # https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createremotethreadex
+            if not self.profile['suspended_threads']:
+                raise ValueError('Suspended-thread fixture is not explicitly selected')
+            if function == 'CreateRemoteThreadEx':
+                process, security, stack_size, start, parameter, flags, attributes, output = args
+                if process != 0xffffffff or attributes:
+                    raise ValueError('Only current-process remote threads with NULL attribute list are modeled')
+            else:
+                security, stack_size, start, parameter, flags, output = args
+            if security or stack_size or flags != 4:
+                raise ValueError('Only CREATE_SUSPENDED with NULL security and default stack size is modeled')
+            handle = self.next_object_handle()
+            identity = 'thread:' + str(len(self.thread_objects))
+            thread_id = 4098 + len(self.thread_objects)
+            # Validate and perform optional DWORD output before committing any
+            # object/handle state. write() rejects opaque-lock overlap too.
+            if output:
+                frame = self.machine.reg_read(x86.UC_X86_REG_ESP)
+                frame_end = frame + 4 * (len(args) + 1)
+                if output < frame_end and output + 4 > frame:
+                    raise ValueError('Thread-ID output overlaps the active API call frame')
+                self.write(output, struct.pack('<I', thread_id), event)
+            self.thread_objects[identity] = dict(start_address=hex(start), parameter=hex(parameter),
+                thread_id=thread_id, suspend_count=1, state='suspended', execution_started=False)
+            self.object_handles[handle] = dict(object=identity, inheritable=False, active=True)
+            self.last_error = None
+            event.update(object_handle=hex(handle), object_id=identity, thread_id=thread_id,
+                assumption='Explicit suspended-thread identity only; start address not validated or executed; no OS thread, stack, TLS, DllMain or scheduling; success last-error unspecified')
+            return handle
         if function in ('CreateEventA', 'CreateEventW'):
             # https://learn.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-createeventa
             security, manual_reset, initial_signaled, name = args
@@ -439,7 +475,8 @@ class StartupModel:
             return self.computer_name_call(function, args, event)
         if function in ('VirtualAlloc', 'VirtualFree'):
             return self.virtual_memory_call(function, args, event)
-        if function in ('DuplicateHandle', 'CloseHandle', 'CreateEventA', 'CreateEventW'):
+        if function in ('DuplicateHandle', 'CloseHandle', 'CreateEventA', 'CreateEventW',
+                        'CreateThread', 'CreateRemoteThreadEx'):
             return self.object_handle_call(function, args, event)
         if function == 'GetUserDefaultLangID':
             return self.profile['user_language']
@@ -661,11 +698,15 @@ class StartupModel:
             allowed_module = True
         if module.lower() == 'api-ms-win-core-synch-l1-1-0.dll' and function in ('CreateEventA', 'CreateEventW'):
             allowed_module = True
+        if module.lower() == 'api-ms-win-core-processthreads-l1-1-0.dll' and function in ('CreateThread', 'CreateRemoteThreadEx'):
+            allowed_module = True
         if not allowed_module or function not in self.ARGUMENTS:
             return False, None
         if function in ('GetComputerNameA', 'GetComputerNameW') and self.profile['computer_name'] is None:
             return False, None
         if function == 'GetVersion' and self.profile['get_version_result'] is None:
+            return False, None
+        if function in ('CreateThread', 'CreateRemoteThreadEx') and not self.profile['suspended_threads']:
             return False, None
         event = dict(api=name, basis='Explicit synthetic startup profile; not a native Windows observation')
         if len(self.events) >= 4096:
@@ -702,6 +743,10 @@ class StartupModel:
                         record['active'] and record['object'] == identity for record in self.object_handles.values()))
                         for identity, item in self.event_objects.items()},
                     event_object_limitations='Unnamed identity/initial-state model only; common 128-handle lifetime budget, no handle reuse; no named objects, security descriptors, signaling, waits, threads or scheduling',
+                    thread_objects={identity: dict(item, live_handle_count=sum(
+                        record['active'] and record['object'] == identity for record in self.object_handles.values()))
+                        for identity, item in self.thread_objects.items()},
+                    thread_object_limitations='Opt-in current-process CREATE_SUSPENDED identity only; NULL security, default stack size, no extended attributes; thread-ID output must not overlap the active API frame; no start-address validation, thread execution, stack allocation, TLS, DllMain, waits, resumption, termination or scheduling; last handle closure does not terminate the thread; common 128-handle lifetime budget',
                     virtual_allocations={hex(p): item for p, item in self.virtual_allocations.items()},
                     virtual_arena=dict(base=hex(VIRTUAL_BASE), capacity=VIRTUAL_CAPACITY,
                         used=self.virtual_cursor - VIRTUAL_BASE, page_size=4096, allocation_granularity=65536,

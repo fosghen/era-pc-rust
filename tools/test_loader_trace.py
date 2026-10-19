@@ -716,6 +716,65 @@ class LoaderTraceTests(unittest.TestCase):
             self.assertEqual(result['reason'], 'external_import')
             self.assertEqual(result['external_import'], 'KERNEL32.dll!' + api)
 
+    def test_suspended_thread_identity_requires_explicit_opt_in_and_no_execution(self):
+        for api, args in (('CreateThread', [0, 0, 0x4010c0, 123, 4, 0x401210]),
+                          ('CreateRemoteThreadEx', [0xffffffff, 0, 0, 0x4010c0, 123, 4, 0, 0x401210])):
+            data = stopped_api_caller(api, args)
+            with self.assertRaisesRegex(ValueError, 'requires the explicit startup model'):
+                self.run_image(data, suspended_threads=True)
+            disabled = self.run_image(data, startup_model=True)
+            self.assertEqual(disabled['reason'], 'external_import')
+            result = self.run_image(data, startup_model=True, suspended_threads=True,
+                                    watch=[(0x401210, 4)], observe=[0x4010c0])
+            self.assertEqual(result['reason'], 'CPU_interrupt')
+            self.assertEqual(result['registers']['eax'], '0x76000000')
+            self.assertEqual(result['registers']['esp'], '0x70008000')
+            self.assertEqual(result['execution_observations'], [])
+            thread = result['startup_model']['thread_objects']['thread:0']
+            self.assertEqual(thread['thread_id'], 4098)
+            self.assertEqual(thread['state'], 'suspended')
+            self.assertFalse(thread['execution_started'])
+            self.assertGreater(result['watched_ranges'][0]['changed_byte_count'], 0)
+            self.assertTrue(result['input_unchanged'])
+
+    def test_partial_create_thread_frame_is_explicit_and_restores_caller_ebp(self):
+        with self.assertRaisesRegex(ValueError, 'Interior CreateThread profile requires'):
+            self.run_image(synthetic_pe(b'\xc3'), create_thread_interior=True)
+        with tempfile.TemporaryDirectory() as directory:
+            reference = Path(directory) / 'kernel32.dll'
+            module = synthetic_module()
+            name = b'CreateThread\0'
+            module[0x3e0:0x3e0+len(name)] = name
+            prefix = bytes.fromhex('8bff558becff751c8b4518')
+            module[0x220:0x220+len(prefix)] = prefix
+            reference.write_bytes(module)
+            data = stopped_api_caller('CreateThread', [0, 0, 0x4010c0, 123, 4, 0x401210])
+            # Our guest executes the reference-compatible prologue itself,
+            # then transfers to the reference's +11 boundary. No reference
+            # instructions may run in this integration test.
+            data[542:548] = b'\xe8' + struct.pack('<i', 0x1060 - (0x1000 + 30 + 5)) + b'\x90'
+            data[0x260:0x260+len(prefix)+6] = prefix + bytes.fromhex('682b100060 c3')
+            options = dict(modules=[reference], startup_model=True, suspended_threads=True)
+            disabled = self.run_image(data, **options)
+            self.assertEqual(disabled['external_import'], 'mapped_module!0x6000102b')
+            enabled = self.run_image(data, create_thread_interior=True, **options)
+            self.assertEqual(enabled['reason'], 'CPU_interrupt')
+            self.assertEqual(enabled['registers']['esp'], '0x70008000')
+            self.assertEqual(enabled['registers']['ebp'], '0x0')
+            self.assertEqual(enabled['registers']['eax'], '0x76000000')
+            self.assertIn('interior_frame', enabled['startup_model']['events'][0])
+            self.assertIn('interior_api_model_sha256', enabled)
+            self.assertTrue(enabled['module_model']['modules'][0]['input_unchanged'])
+            # A runnable thread is unsupported. Roll back normalization so
+            # the stop report retains the actual partial-frame registers.
+            struct.pack_into('<I', data, 518, 0)  # second push is creation flags
+            rejected = self.run_image(data, create_thread_interior=True, **options)
+            self.assertEqual(rejected['reason'], 'external_import')
+            self.assertEqual(rejected['registers']['esp'], '0x70007fdc')
+            self.assertEqual(rejected['registers']['ebp'], '0x70007fe0')
+            self.assertEqual(rejected['startup_model']['thread_objects'], {})
+            self.assertIn('unresolved_interior_call', rejected)
+
     def test_create_file_arguments_are_metadata_only(self):
         arguments = [0x401200, 0xc0000000, 3, 0x12345000, 3, 0x40000080, 0xffffffff]
         for api, filename, encoding in [('CreateFileA', r'\\.\SyntheticDevice', 'ascii'),

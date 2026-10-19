@@ -53,7 +53,7 @@ def trace(path, export, argument, max_instructions, max_seconds, modules=(), thr
           dll_attach=False, observe=(), watch=(), startup_model=False, nls_codepage=None, nls_sort=None, nls_case=None,
           after_attach_export=None, reference_import_markers=False, host_after_attach=None, critical_section_layout=None,
           observer='python', memory_observer=None, module_bases=(), api_set_schema=None, computer_name=None,
-          get_version_result=None):
+          get_version_result=None, suspended_threads=False, create_thread_interior=False):
     validate_limits(max_instructions, max_seconds)
     if observer not in ('python', 'rust'):
         raise ValueError('Observer must be python or rust')
@@ -67,6 +67,12 @@ def trace(path, export, argument, max_instructions, max_seconds, modules=(), thr
         raise ValueError('Computer-name fixture requires the explicit startup model')
     if get_version_result is not None and not startup_model:
         raise ValueError('GetVersion fixture requires the explicit startup model')
+    if type(suspended_threads) is not bool or type(create_thread_interior) is not bool:
+        raise ValueError('Thread model switches must be bool')
+    if suspended_threads and not startup_model:
+        raise ValueError('Suspended-thread fixture requires the explicit startup model')
+    if create_thread_interior and not (startup_model and suspended_threads and modules):
+        raise ValueError('Interior CreateThread profile requires startup model, suspended threads and reference modules')
     if host_after_attach and (not dll_attach or after_attach_export or export):
         raise ValueError('Host continuation requires DLL attach without an explicit export call')
     if reference_import_markers and not modules:
@@ -158,7 +164,11 @@ def trace(path, export, argument, max_instructions, max_seconds, modules=(), thr
         memory_hooks = NativeMemoryHooks(machine)
     startup = StartupModel(machine, nls_codepage, nls_sort, nls_case, critical_section_layout,
                            memory_hooks=memory_hooks, computer_name=computer_name,
-                           get_version_result=get_version_result) if startup_model else None
+                           get_version_result=get_version_result, suspended_threads=suspended_threads) if startup_model else None
+    interior = None
+    if create_thread_interior:
+        from interior_api_model import CreateThreadInteriorModel
+        interior = CreateThreadInteriorModel(machine, module_model, stack, 0x10000)
     if startup:
         startup.primary_region = (base, mapped_size)
         if host:
@@ -244,6 +254,8 @@ def trace(path, export, argument, max_instructions, max_seconds, modules=(), thr
     observed = set(observe)
     if api_set_schema is not None:
         state['api_set_model_sha256'] = hashlib.sha256(Path(__file__).with_name('api_set_model.py').read_bytes()).hexdigest()
+    if interior is not None:
+        state['interior_api_model_sha256'] = hashlib.sha256(Path(__file__).with_name('interior_api_model.py').read_bytes()).hexdigest()
     observations = []
     watched = [(address, bytes(machine.mem_read(address, size))) for address, size in watch]
     watch_writes = [deque(maxlen=8) for _ in watched]
@@ -317,6 +329,13 @@ def trace(path, export, argument, max_instructions, max_seconds, modules=(), thr
         if modules and external_name is None and module_model.contains(address):
             names = module_model.address_names.get(address, [])
             external_name = names[0] if names else 'mapped_module!' + hex(address)
+        if external_name and interior:
+            handled, observation = interior.handle(address, startup)
+            if handled:
+                m.emu_stop()
+                return
+            if observation:
+                state['unresolved_interior_call'] = observation
         if external_name and (modules or host):
             handled, observation = module_model.handle(external_name)
             if handled:
@@ -552,6 +571,8 @@ def trace(path, export, argument, max_instructions, max_seconds, modules=(), thr
     if startup:
         state['startup_model'] = startup.report()
         state['environment'] += '; opt-in synthetic startup APIs including TLS/FLS (not a native Windows process)'
+    if interior is not None:
+        state['interior_api_model'] = interior.report()
     if observed:
         state['execution_observations'] = observations
     if watched:
@@ -591,6 +612,10 @@ def main():
                         help='Explicit synthetic GetComputerNameA/W fixture: 1..15 uppercase ASCII letters, digits or hyphens; requires startup model')
     parser.add_argument('--get-version-result', type=integer,
                         help='Explicit synthetic NT GetVersion packed DWORD (0..0x7fffffff); no manifest or host OS inference; requires startup model')
+    parser.add_argument('--suspended-threads', action='store_true',
+                        help='Opt-in synthetic CREATE_SUSPENDED identities only; no thread execution, resume or scheduling')
+    parser.add_argument('--create-thread-interior', action='store_true',
+                        help='Opt-in validated kernel32 CreateThread +11 partial-frame profile; requires suspended threads and reference modules')
     parser.add_argument('--critical-section-layout', choices=['win10-x86-19041'],
                         help='Opt-in measured uncontended x86 lock layout fixture; direct guest writes still stop')
     parser.add_argument('--nls-codepage', type=Path, help='Explicit read-only SBCS CP1251 reference file')
@@ -624,7 +649,8 @@ def main():
                    args.module, args.thread_model, args.dll_attach, args.observe, args.watch, args.startup_model,
                    args.nls_codepage, args.nls_sort, args.nls_case, args.after_attach_export, args.reference_import_markers,
                    args.host_after_attach, args.critical_section_layout, args.observer, args.memory_observer,
-                   args.module_base, args.api_set_schema, args.computer_name, args.get_version_result)
+                   args.module_base, args.api_set_schema, args.computer_name, args.get_version_result,
+                   args.suspended_threads, args.create_thread_interior)
     with args.report.open('x', encoding='utf-8') as output:
         json.dump(result, output, indent=2, ensure_ascii=False)
         output.write('\n')
