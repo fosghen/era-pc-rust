@@ -47,7 +47,8 @@ class StartupModel:
                  'GetCurrentProcess': 0, 'FlushInstructionCache': 3,
                  'GetUserDefaultLangID': 0, 'DuplicateHandle': 7, 'CloseHandle': 1,
                  'VirtualAlloc': 4, 'VirtualFree': 3, 'GetSystemTime': 1,
-                 'GetComputerNameA': 2, 'GetComputerNameW': 2, 'GetVersion': 0}
+                 'GetComputerNameA': 2, 'GetComputerNameW': 2, 'GetVersion': 0,
+                 'CreateEventA': 4, 'CreateEventW': 4}
 
     def __init__(self, machine, nls_codepage=None, nls_sort=None, nls_case=None, critical_section_layout=None,
                  memory_hooks=None, computer_name=None, get_version_result=None):
@@ -102,6 +103,7 @@ class StartupModel:
         machine.mem_protect(STRINGS_BASE, 4096, uc.UC_PROT_READ)
         self.environment_blocks = set()
         self.object_handles = {}
+        self.event_objects = {}
         self.virtual_allocations = {}
         self.virtual_cursor = VIRTUAL_BASE
 
@@ -136,12 +138,37 @@ class StartupModel:
             event['compatibility'] = 'NULL-address MEM_COMMIT implicit reservation, documented Windows compatibility behavior'
         return address
 
+    def next_object_handle(self):
+        if len(self.object_handles) >= 128:
+            raise ValueError('Object handle model budget exceeded')
+        return 0x76000000 + 4 * len(self.object_handles)
+
     def object_handle_call(self, function, args, event):
+        if function in ('CreateEventA', 'CreateEventW'):
+            # https://learn.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-createeventa
+            security, manual_reset, initial_signaled, name = args
+            if security or name:
+                raise ValueError('Only unnamed events with NULL security attributes are modeled')
+            handle = self.next_object_handle()
+            identity = 'event:' + str(len(self.event_objects))
+            self.event_objects[identity] = dict(manual_reset=bool(manual_reset),
+                initial_signaled=bool(initial_signaled), destroyed=False)
+            self.object_handles[handle] = dict(object=identity, inheritable=False, active=True)
+            # The new-unnamed-object case does not document a LastError value.
+            self.last_error = None
+            event.update(object_handle=hex(handle), object_id=identity,
+                assumption='Synthetic unnamed event identity and initial state only; no host object, waits, signaling or scheduling; success last-error unspecified')
+            return handle
         if function == 'CloseHandle':
             record = self.object_handles.get(args[0])
             if not record or not record['active']:
                 raise ValueError('Only live model-owned real handles can be closed')
             record['active'] = False
+            identity = record['object']
+            if identity in self.event_objects and not any(
+                    item['active'] and item['object'] == identity for item in self.object_handles.values()):
+                self.event_objects[identity]['destroyed'] = True
+            event.update(object_handle=hex(args[0]), object_id=identity)
             return 1
         source_process, source, target_process, output, desired_access, inherit, options = args
         if source_process != 0xffffffff or target_process != 0xffffffff or options != 2 or inherit not in (0, 1):
@@ -151,16 +178,15 @@ class StartupModel:
         else:
             record = self.object_handles.get(source)
             if not record or not record['active']:
-                raise ValueError('Source is not a known live process/thread handle')
+                raise ValueError('Source is not a known live model-owned object handle')
             obj = record['object']
-        if len(self.object_handles) >= 128:
-            raise ValueError('Object handle model budget exceeded')
-        handle = 0x76000000 + 4 * len(self.object_handles)
+        handle = self.next_object_handle()
         # Validate/write before changing the ownership registry. The desired
         # access argument is ignored by the explicit SAME_ACCESS contract.
         self.write(output, struct.pack('<I', handle), event)
         self.object_handles[handle] = dict(object=obj, inheritable=bool(inherit), active=True)
         event['object_handle'] = hex(handle)
+        event['object_id'] = obj
         return 1
 
     def guard_critical_section_access(self, machine, kind, pointer, size, value, _):
@@ -413,7 +439,7 @@ class StartupModel:
             return self.computer_name_call(function, args, event)
         if function in ('VirtualAlloc', 'VirtualFree'):
             return self.virtual_memory_call(function, args, event)
-        if function in ('DuplicateHandle', 'CloseHandle'):
+        if function in ('DuplicateHandle', 'CloseHandle', 'CreateEventA', 'CreateEventW'):
             return self.object_handle_call(function, args, event)
         if function == 'GetUserDefaultLangID':
             return self.profile['user_language']
@@ -633,6 +659,8 @@ class StartupModel:
             allowed_module = True
         if module.lower() == 'api-ms-win-core-sysinfo-l1-1-0.dll' and function == 'GetSystemTime':
             allowed_module = True
+        if module.lower() == 'api-ms-win-core-synch-l1-1-0.dll' and function in ('CreateEventA', 'CreateEventW'):
+            allowed_module = True
         if not allowed_module or function not in self.ARGUMENTS:
             return False, None
         if function in ('GetComputerNameA', 'GetComputerNameW') and self.profile['computer_name'] is None:
@@ -670,6 +698,10 @@ class StartupModel:
                                        for p, lock in self.locks.items()},
                     heaps={hex(h): data for h, data in self.heaps.items()},
                     object_handles={hex(h): data for h, data in self.object_handles.items()},
+                    event_objects={identity: dict(item, live_handle_count=sum(
+                        record['active'] and record['object'] == identity for record in self.object_handles.values()))
+                        for identity, item in self.event_objects.items()},
+                    event_object_limitations='Unnamed identity/initial-state model only; common 128-handle lifetime budget, no handle reuse; no named objects, security descriptors, signaling, waits, threads or scheduling',
                     virtual_allocations={hex(p): item for p, item in self.virtual_allocations.items()},
                     virtual_arena=dict(base=hex(VIRTUAL_BASE), capacity=VIRTUAL_CAPACITY,
                         used=self.virtual_cursor - VIRTUAL_BASE, page_size=4096, allocation_granularity=65536,

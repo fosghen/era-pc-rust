@@ -1,0 +1,91 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-19",
+  "parent_commit": "2a6330fa0252c322bdc619e846b82cff8f3b2e43",
+  "path_base": "workspace root containing era-rust and reverse_engineering",
+  "status": "State hashing executed; next boundary is unnamed manual-reset CreateEventA.",
+  "files": [
+    {
+      "path": "era-rust/tools/loader_trace.py",
+      "sha256": "2c0ecf2d9979cc519e68d8b89af7793d226060e4290708bdcd38f53152ebb83b"
+    },
+    {
+      "path": "era-rust/tools/test_loader_trace.py",
+      "sha256": "675a72041e2ffba3fb94ee101f8201457a67aa9f91e555d00a6af7b70435547b"
+    },
+    {
+      "path": "era-rust/tools/startup_model.py",
+      "sha256": "535a817e9d52e512ef11a32bbb07b7c808214e446cf7b9a9a1da82f642b00e08"
+    },
+    {
+      "path": "era-rust/tools/test_startup_model.py",
+      "sha256": "63f290c6f7efa183695416bec4d0372556062332bdac684550c07bdcb3606edd"
+    },
+    {
+      "path": "era-rust/tools/pe_module_model.py",
+      "sha256": "5f9a7221a66e96ef577b142ae6b314db59dac32c624439261ca93d69c191c705"
+    },
+    {
+      "path": "era-rust/tools/api_set_model.py",
+      "sha256": "e20cbe35f772b4a5ad5b025b54ec4db2a56f9d742b3385ef7cb5febbe25b863e"
+    },
+    {
+      "path": "era-rust/tools/native_observer.py",
+      "sha256": "a366daa8829f79054e79ff220748b8710672056b7a8e8f9d195801ef8f9a666c"
+    },
+    {
+      "path": "era-rust/tools/trace_observer.rs",
+      "sha256": "e7511d3a288ac27cc73b9d0f2718f937d82cf5368600cc48c3d75adce9a55adf"
+    },
+    {
+      "path": "era-rust/tools/x86_thread_model.py",
+      "sha256": "add7d065ee124b441184629cdd9d87fead60ce3639e310c2bbccc1d0037b4b8a"
+    },
+    {
+      "path": "era-rust/tools/nls_model.py",
+      "sha256": "8849236f1ddef7da6c24844933c8e051f1164b6785768347f74149acca5cee49"
+    },
+    {
+      "path": "era-rust/tools/requirements-research.txt",
+      "sha256": "0052d0d49b9d27a7f6f0f7420dcd299548bd66b9aa16402938bce076cc064d3b"
+    },
+    {
+      "path": "era-rust/tools/verify_checkpoint.py",
+      "sha256": "235a1c96268395f8e2bcd240403de5864929dcd796e9d667ae26fca3f1040696"
+    },
+    {
+      "path": "era-rust/docs/HOST_LINKED_RESEARCH.md",
+      "sha256": "3157cd279a84ae2aa3fad74821f57d8d637806f5a108f4765d14a198096f952b"
+    },
+    {
+      "path": "reverse_engineering/perv_version_4b_01.json",
+      "sha256": "29811875b396bd6306ccd99c029d4c99ece7b2f880cf205a64d86fadd4334b80"
+    }
+  ],
+  "experiment": {
+    "report": "perv_version_4b_01.json",
+    "instructions": 3521513114,
+    "elapsed_seconds": 248.5355,
+    "reason": "external_import",
+    "external_import": "api-ms-win-core-synch-l1-1-0.dll!CreateEventA",
+    "return_address": "0x1000d9f4",
+    "arguments": [
+      "0x0",
+      "0x1",
+      "0x0",
+      "0x0"
+    ],
+    "computer_name_fixture": "ERA-RE-LAB",
+    "get_version_result_fixture": "0x4a61000a",
+    "state_watch": "0x1036add0:32",
+    "state_changed_bytes": 32,
+    "tests_passed": 292
+  },
+  "limitations": [
+    "Synthetic identity and version, no native Windows compatibility claim",
+    "RDTSC and residual stack bytes uncontrolled",
+    "No event handle or thread created, no native or USB interaction",
+    "No license success or bypass established",
+    "Own source and metadata only, no vendor image bytes or memory dumps"
+  ]
+}

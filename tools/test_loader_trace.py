@@ -696,6 +696,26 @@ class LoaderTraceTests(unittest.TestCase):
             self.assertEqual(result['startup_model']['events'][0]['arguments'], [])
             self.assertNotIn('memory_writes', result['startup_model']['events'][0])
 
+    def test_unnamed_event_creation_is_model_owned_without_thread_execution(self):
+        for api in ('CreateEventA', 'CreateEventW'):
+            data = stopped_api_caller(api, [0, 1, 0, 0])
+            disabled = self.run_image(data)
+            self.assertEqual(disabled['reason'], 'external_import')
+            result = self.run_image(data, startup_model=True)
+            self.assertEqual(result['reason'], 'CPU_interrupt')
+            self.assertEqual(result['registers']['eax'], '0x76000000')
+            self.assertEqual(result['registers']['esp'], '0x70008000')
+            self.assertTrue(result['input_unchanged'])
+            self.assertTrue(result['startup_model']['object_handles']['0x76000000']['active'])
+            event = result['startup_model']['events'][0]
+            self.assertEqual(event['arguments'], ['0x0', '0x1', '0x0', '0x0'])
+            self.assertNotIn('memory_writes', event)
+        for api, args in (('CreateThread', [0, 0, 0x401000, 0, 0, 0]),
+                          ('WaitForSingleObject', [0x76000000, 0])):
+            result = self.run_image(stopped_api_caller(api, args), startup_model=True)
+            self.assertEqual(result['reason'], 'external_import')
+            self.assertEqual(result['external_import'], 'KERNEL32.dll!' + api)
+
     def test_create_file_arguments_are_metadata_only(self):
         arguments = [0x401200, 0xc0000000, 3, 0x12345000, 3, 0x40000080, 0xffffffff]
         for api, filename, encoding in [('CreateFileA', r'\\.\SyntheticDevice', 'ascii'),

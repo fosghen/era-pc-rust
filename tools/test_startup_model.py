@@ -86,6 +86,119 @@ class StartupModelTests(unittest.TestCase):
         self.assertEqual(self.model.events, [])
         self.assertTrue(self.call('GetVersion', module='KERNELBASE.dll')[0])
 
+    def test_create_event_ansi_unicode_boolean_state_and_stdcall(self):
+        for api in ('CreateEventA', 'CreateEventW'):
+            for manual, initial in ((0, 0), (1, 1), (2, 0xffffffff), (0, 3)):
+                with self.subTest(api=api, manual=manual, initial=initial):
+                    self.explicit_fixture()
+                    self.model.last_error = 321
+                    ok, event = self.call(api, 0, manual, initial, 0)
+                    self.assertTrue(ok, event)
+                    handle = self.machine.reg_read(x86.UC_X86_REG_EAX)
+                    self.assertEqual(handle, 0x76000000)
+                    self.assertEqual(self.machine.reg_read(x86.UC_X86_REG_ESP), 0x10814)
+                    self.assertEqual(self.machine.reg_read(x86.UC_X86_REG_EIP), 0x12345678)
+                    self.assertEqual(self.model.object_handles[handle],
+                                     dict(object='event:0', inheritable=False, active=True))
+                    self.assertEqual(self.model.event_objects['event:0'],
+                                     dict(manual_reset=bool(manual), initial_signaled=bool(initial), destroyed=False))
+                    self.assertEqual(event['object_id'], 'event:0')
+                    self.assertNotIn('memory_writes', event)
+                    self.assertIsNone(event['last_error'])
+                    self.assertIsNone(self.model.last_error)
+                    self.assertFalse(self.call('GetLastError')[0])
+
+    def test_event_duplicates_share_identity_and_last_close_destroys_only_one_object(self):
+        first = self.result('CreateEventA', 0, 1, 0, 0)
+        other = self.result('CreateEventW', 0, 1, 0, 0)
+        self.assertNotEqual(self.model.object_handles[first]['object'], self.model.object_handles[other]['object'])
+        self.result('DuplicateHandle', 0xffffffff, first, 0xffffffff, 0x11000, 0, 1, 2)
+        second = struct.unpack('<I', self.machine.mem_read(0x11000, 4))[0]
+        self.assertEqual(self.model.object_handles[second], dict(object='event:0', inheritable=True, active=True))
+        self.assertEqual(self.model.report()['event_objects']['event:0']['live_handle_count'], 2)
+        self.result('CloseHandle', first)
+        self.assertFalse(self.model.event_objects['event:0']['destroyed'])
+        self.assertEqual(self.model.report()['event_objects']['event:0']['live_handle_count'], 1)
+        self.assertFalse(self.call('DuplicateHandle', 0xffffffff, first, 0xffffffff, 0x11000, 0, 0, 2)[0])
+        self.result('CloseHandle', second)
+        self.assertTrue(self.model.event_objects['event:0']['destroyed'])
+        self.assertEqual(self.model.report()['event_objects']['event:0']['live_handle_count'], 0)
+        self.assertFalse(self.call('CloseHandle', second)[0])
+        self.assertFalse(self.model.event_objects['event:1']['destroyed'])
+        self.assertTrue(self.model.object_handles[other]['active'])
+        third = self.result('CreateEventA', 0, 0, 0, 0)
+        self.assertEqual(self.model.object_handles[third]['object'], 'event:2')
+
+    def test_create_event_unsupported_arguments_do_not_mutate_registries_or_last_error(self):
+        for api in ('CreateEventA', 'CreateEventW'):
+            for security, name in ((1, 0), (0, 1), (0x11000, 0x12000)):
+                with self.subTest(api=api, security=security, name=name):
+                    self.explicit_fixture()
+                    self.machine.reg_write(x86.UC_X86_REG_EAX, 0xdeadbeef)
+                    self.model.last_error = 321
+                    ok, event = self.call(api, security, 1, 0, name)
+                    self.assertFalse(ok, event)
+                    self.assertIn('model_error', event)
+                    self.assertNotIn('result', event)
+                    self.assertEqual(self.model.object_handles, {})
+                    self.assertEqual(self.model.event_objects, {})
+                    self.assertEqual(self.machine.reg_read(x86.UC_X86_REG_EAX), 0xdeadbeef)
+                    self.assertEqual(self.machine.reg_read(x86.UC_X86_REG_ESP), 0x10800)
+                    self.assertEqual(self.model.last_error, 321)
+
+    def test_event_duplicate_bad_output_has_no_partial_ownership_changes(self):
+        first = self.result('CreateEventA', 0, 1, 0, 0)
+        self.model.last_error = 321
+        before_handles = {h: dict(record) for h, record in self.model.object_handles.items()}
+        before_objects = {identity: dict(record) for identity, record in self.model.event_objects.items()}
+        self.machine.mem_protect(0x11000, 4096, uc.UC_PROT_READ)
+        for output in (0, 0x50000, 0x11000, 0x12ffe):
+            with self.subTest(output=output):
+                ok, event = self.call('DuplicateHandle', 0xffffffff, first, 0xffffffff, output, 0, 0, 2)
+                self.assertFalse(ok, event)
+                self.assertNotIn('memory_writes', event)
+                self.assertEqual(self.model.object_handles, before_handles)
+                self.assertEqual(self.model.event_objects, before_objects)
+                self.assertEqual(self.model.last_error, 321)
+
+    def test_events_and_duplicates_share_lifetime_handle_budget(self):
+        event_handle = self.result('CreateEventA', 0, 0, 0, 0)
+        for index in range(127):
+            if index % 2:
+                self.result('CreateEventW', 0, 1, 0, 0)
+            else:
+                source = event_handle if index % 4 == 0 else 0xffffffff
+                self.result('DuplicateHandle', 0xffffffff, source, 0xffffffff, 0x11000, 0, 0, 2)
+        self.assertEqual(len(self.model.object_handles), 128)
+        self.assertEqual(sorted(self.model.object_handles), [0x76000000 + 4 * i for i in range(128)])
+        before_handles = {h: dict(record) for h, record in self.model.object_handles.items()}
+        before_objects = {identity: dict(record) for identity, record in self.model.event_objects.items()}
+        before_output = bytes(self.machine.mem_read(0x11000, 4))
+        for name, args in [('CreateEventA', (0, 1, 0, 0)),
+                           ('DuplicateHandle', (0xffffffff, event_handle, 0xffffffff, 0x11000, 0, 0, 2))]:
+            with self.subTest(name=name):
+                ok, event = self.call(name, *args)
+                self.assertFalse(ok)
+                self.assertIn('budget', event['model_error'])
+                self.assertEqual(self.model.object_handles, before_handles)
+                self.assertEqual(self.model.event_objects, before_objects)
+                self.assertEqual(bytes(self.machine.mem_read(0x11000, 4)), before_output)
+        self.result('CloseHandle', event_handle)
+        self.assertFalse(self.call('CreateEventA', 0, 1, 0, 0)[0])
+
+    def test_create_event_allowlist_does_not_enable_waits_signals_or_threads(self):
+        contract = 'api-ms-win-core-synch-l1-1-0.dll'
+        for module in ('KERNEL32.dll', 'KERNELBASE.dll', contract.upper()):
+            for api in ('CreateEventA', 'CreateEventW'):
+                self.assertTrue(self.call(api, 0, 1, 0, 0, module=module)[0])
+        for module in ('other.dll', 'api-ms-win-core-synch-l1-2-0.dll', 'api-ms-win-core-handle-l1-1-0.dll'):
+            self.assertEqual(self.call('CreateEventA', 0, 1, 0, 0, module=module), (False, None))
+        for name in ('SetEvent', 'ResetEvent', 'PulseEvent', 'WaitForSingleObject',
+                     'WaitForMultipleObjects', 'CreateThread', 'CreateEventExW', 'OpenEventA'):
+            for module in ('KERNEL32.dll', contract):
+                self.assertEqual(self.call(name, module=module), (False, None))
+        self.assertEqual(self.call('CloseHandle', 0x76000000, module=contract), (False, None))
+
     def test_computer_name_is_opt_in_without_host_identity_lookup(self):
         self.assertIsNone(self.model.report()['profile']['computer_name'])
         for name in ('GetComputerNameA', 'GetComputerNameW'):
