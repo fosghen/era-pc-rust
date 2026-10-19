@@ -44,6 +44,8 @@ jobs:
       - run: cargo +1.90.0 test --locked
       - name: Test offline native metadata correlation
         run: cargo +1.90.0 test --locked --example native_trace_report
+      - name: Test saved archive source parameter comparisons
+        run: cargo +1.90.0 test --locked --example archive_source_compare
       - run: cargo +1.90.0 run --locked -- demo
       - name: Build Windows x64 release
         if: matrix.os == 'windows-latest'

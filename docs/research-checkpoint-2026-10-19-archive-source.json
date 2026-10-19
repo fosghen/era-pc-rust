@@ -1,0 +1,173 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-19",
+  "parent_commit": "f71d18ffc3828e4abb5db02703d3395368c054bb",
+  "path_base": "workspace root containing era-rust and reverse_engineering",
+  "status": "Offline comparison with saved source parameter exports: 18/19 cases, 56/57 metrics passed printed-resolution intervals. One unresolved Cm discrepancy. No native launch or licensing bypass.",
+  "files": [
+    {
+      "path": "era-rust/tools/archive_source_fixture.py",
+      "sha256": "ec4e4b122db1ae40e9eae6eb6d1670e33608301a52d28d418ffa54354d9fbdb3"
+    },
+    {
+      "path": "era-rust/tools/test_archive_source_fixture.py",
+      "sha256": "2aef762432c155ebb52e66e6a9bf13fb59b6948817e963547c8288f630091207"
+    },
+    {
+      "path": "era-rust/examples/archive_source_compare.rs",
+      "sha256": "4f65d53c70cf624ac4ad5ed845445df7129ba203109b9d7319fb2690ffb721a8"
+    },
+    {
+      "path": "era-rust/docs/ARCHIVE_SOURCE_VALIDATION.md",
+      "sha256": "4c26d19f2dfb6fa4661a3186d92eb467336fd95b64d3154380bb215de0215654"
+    },
+    {
+      "path": "era-rust/docs/HOST_LINKED_RESEARCH.md",
+      "sha256": "2c0908a276c486319eeee1a8020d5e1b8c485002e4be5ef6e5adc5cd3e29826a"
+    },
+    {
+      "path": "era-rust/tools/verify_checkpoint.py",
+      "sha256": "235a1c96268395f8e2bcd240403de5864929dcd796e9d667ae26fca3f1040696"
+    },
+    {
+      "path": "era-rust/.github/workflows/ci.yml",
+      "sha256": "36cd5add4df161565835404badad60b83590b85128f3d2a1ceb148a18a7726a4"
+    },
+    {
+      "path": "era-rust/Cargo.toml",
+      "sha256": "00a9e49290cd2c690dcfa1551642e51c0c0b6be1d34fb2e7c59947e8543baaed"
+    },
+    {
+      "path": "era-rust/Cargo.lock",
+      "sha256": "eddc4aa9c82ff1ce3b27402d40c483a0d1528b9e896d758651f8f0c21760adb2"
+    },
+    {
+      "path": "era-rust/src/dispersion.rs",
+      "sha256": "6dd1960477840c0d1566ddeb0d5c02bf37f7916d67f3b8c02317de20bb982fd4"
+    },
+    {
+      "path": "reverse_engineering/archive_source_baseline_dispersion_01.rs",
+      "sha256": "5213851ba5e7965b79f17865b57e88be380e3ec328f3a7120101248bc4570da5"
+    },
+    {
+      "path": "reverse_engineering/archive_source_baseline_Cargo_01.toml",
+      "sha256": "88cfe4e2f912c38091634907c8b95ebc4b4465eaf25796485008e40395cb0cf9"
+    },
+    {
+      "path": "reverse_engineering/archive_source_cases_2023_1_1_01.json",
+      "sha256": "4df3466922c69a588bb7f1619bccac7246f6ee59edecb17649cf2712dace3215"
+    },
+    {
+      "path": "reverse_engineering/archive_source_comparison_2023_1_1_01.json",
+      "sha256": "d90763f479cf6c5ac06ed3fa74d21c36d5220eebaf4b79142208451b3cd32b8a"
+    },
+    {
+      "path": "reverse_engineering/archive_source_comparison_2023_1_1_baseline_01.json",
+      "sha256": "d90763f479cf6c5ac06ed3fa74d21c36d5220eebaf4b79142208451b3cd32b8a"
+    },
+    {
+      "path": "reverse_engineering/archive_source_cases_2023_1_2_01.json",
+      "sha256": "2c9d421abcdcd9c7aeada3b6826d55aadd46b57cf99d663bde7da4c957302a39"
+    },
+    {
+      "path": "reverse_engineering/archive_source_comparison_2023_1_2_01.json",
+      "sha256": "5413580e41d527731f079fd70a8c64f11fa461d16a2a52acb978753f94e4ff60"
+    },
+    {
+      "path": "reverse_engineering/archive_source_comparison_2023_1_2_baseline_01.json",
+      "sha256": "5413580e41d527731f079fd70a8c64f11fa461d16a2a52acb978753f94e4ff60"
+    },
+    {
+      "path": "reverse_engineering/archive_source_cases_2025_1_1_01.json",
+      "sha256": "2fe0e513c4981a4e9120f64cafbebfb2eee00e9994509d90b95465fd09bdff8a"
+    },
+    {
+      "path": "reverse_engineering/archive_source_comparison_2025_1_1_01.json",
+      "sha256": "c9b25030a965a7de7fd97439450749ee66b13f6a10b9179815a99dd2f59cbf7d"
+    },
+    {
+      "path": "reverse_engineering/archive_source_comparison_2025_1_1_baseline_01.json",
+      "sha256": "c9b25030a965a7de7fd97439450749ee66b13f6a10b9179815a99dd2f59cbf7d"
+    },
+    {
+      "path": "reverse_engineering/archive_source_cases_2025_1_3_01.json",
+      "sha256": "f4a364997ff387f7756bd6c081b4c3e843856ee933629d01f0be213e0fb0bec8"
+    },
+    {
+      "path": "reverse_engineering/archive_source_comparison_2025_1_3_01.json",
+      "sha256": "12c9bdc5493b573febe6be5865beee3b89687988fc41eb1d47fc1bd3b6d0a375"
+    },
+    {
+      "path": "reverse_engineering/archive_source_comparison_2025_1_3_baseline_01.json",
+      "sha256": "12c9bdc5493b573febe6be5865beee3b89687988fc41eb1d47fc1bd3b6d0a375"
+    }
+  ],
+  "toolchain": "rustc 1.90.0 (1159e78c4 2025-09-14)",
+  "input_archive": {
+    "name": "_example.era",
+    "sha256": "e8d37660e66051de8cf39e54a76236ae3a6d09ad037aac08a15c37610feaae10",
+    "included_in_checkpoint": false
+  },
+  "tests": {
+    "python": 457,
+    "rust_main_workspace": 58,
+    "rust_archive_example": 9,
+    "rust_native_trace_example": 15,
+    "javascript_observer": 17,
+    "fmt": "PASS",
+    "clippy_all_targets": "PASS -D warnings"
+  },
+  "variants": [
+    {
+      "variant": "2023_1_1",
+      "compared": 6,
+      "passed": 6,
+      "failed": 0,
+      "skip_records": 12
+    },
+    {
+      "variant": "2023_1_2",
+      "compared": 4,
+      "passed": 4,
+      "failed": 0,
+      "skip_records": 3
+    },
+    {
+      "variant": "2025_1_1",
+      "compared": 3,
+      "passed": 3,
+      "failed": 0,
+      "skip_records": 12
+    },
+    {
+      "variant": "2025_1_3",
+      "compared": 6,
+      "passed": 5,
+      "failed": 1,
+      "skip_records": 0
+    }
+  ],
+  "coverage": {
+    "physical_configurations": 7,
+    "branches": {
+      "warm_3": 12,
+      "warm_low_wind_13_14a": 7
+    },
+    "failed_case": "2025_1_3/2936/0102010004:3",
+    "failed_metric": "cm_pdk"
+  },
+  "baseline_check": {
+    "commit": "f71d18ffc3828e4abb5db02703d3395368c054bb",
+    "change": "Only examples/archive_source_compare.rs added to clean exported tree",
+    "all_four_report_json_values_identical": true
+  },
+  "workspace_note": "Pre-existing Cargo.toml, dispersion kernel/tests and documentation changes are preserved and not included in this research commit. Current and baseline Cargo/kernel snapshots are retained privately for provenance.",
+  "limitations": [
+    "Saved exports are not a live licensed oracle and may be stale or rounded.",
+    "Printed values use half-decimal-step intervals, not proven ERA formatter semantics.",
+    "19 cases represent only seven physical configurations and two branches.",
+    "27 skip records mix report-level and source-level exclusions; none counts as validated.",
+    "Small Cm discrepancy remains FAIL; loss of input emission precision is only a hypothesis.",
+    "Original archives/PDFs/binaries excluded; derived fixtures and reports remain private."
+  ]
+}
