@@ -1,0 +1,105 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-19",
+  "parent_commit": "1569e7f06d1e0c090b5b0296b9706e75acab1637",
+  "path_base": "workspace root containing era-rust and reverse_engineering",
+  "status": "Whole-buffer return observed for .text and .itext; next boundary requests unmapped oleaut32.dll. Eight synthetic inputs match SHA-256.",
+  "files": [
+    {
+      "path": "era-rust/tools/native_observer.py",
+      "sha256": "a366daa8829f79054e79ff220748b8710672056b7a8e8f9d195801ef8f9a666c"
+    },
+    {
+      "path": "era-rust/tools/trace_observer.rs",
+      "sha256": "e7511d3a288ac27cc73b9d0f2718f937d82cf5368600cc48c3d75adce9a55adf"
+    },
+    {
+      "path": "era-rust/tools/pe_module_model.py",
+      "sha256": "c7aa5e5775eaf36b88a08ead627d7fbe60b3bbd1809b6613e414bee808531a2a"
+    },
+    {
+      "path": "era-rust/tools/x86_thread_model.py",
+      "sha256": "add7d065ee124b441184629cdd9d87fead60ce3639e310c2bbccc1d0037b4b8a"
+    },
+    {
+      "path": "era-rust/tools/startup_model.py",
+      "sha256": "8827efba8402f9d135e3ce865b736ee534ce7cf038df625f1567041677f3a3f5"
+    },
+    {
+      "path": "era-rust/tools/nls_model.py",
+      "sha256": "8849236f1ddef7da6c24844933c8e051f1164b6785768347f74149acca5cee49"
+    },
+    {
+      "path": "era-rust/tools/requirements-research.txt",
+      "sha256": "0052d0d49b9d27a7f6f0f7420dcd299548bd66b9aa16402938bce076cc064d3b"
+    },
+    {
+      "path": "era-rust/tools/verify_checkpoint.py",
+      "sha256": "235a1c96268395f8e2bcd240403de5864929dcd796e9d667ae26fca3f1040696"
+    },
+    {
+      "path": "reverse_engineering/sources/perv_after_init_4b_01/loader_trace.py",
+      "sha256": "b33dd59ac3bc8f60167041bdabf53dce9aa5b87c14cb1f1ea9456067bdcc5919"
+    },
+    {
+      "path": "reverse_engineering/perv_after_init_4b_01.json",
+      "sha256": "ba9e4b7d5d3eebf0061d545714e2a31b727fc22117550280c1167b55d05b5e2d"
+    },
+    {
+      "path": "reverse_engineering/perv_after_init_4b_02.json",
+      "sha256": "b40f186ca0a4d281885e7b93d38a19aca3f60e99db10098e873c18a4f3520808"
+    },
+    {
+      "path": "reverse_engineering/probe_sha256_wrapper.py",
+      "sha256": "1d941cde71bc509068c6e264993c2bb354a3c3bf416aaf3f33e1a1b7bb33309a"
+    },
+    {
+      "path": "reverse_engineering/sha256_wrapper_probe_01.json",
+      "sha256": "f664897254e5ed681f5ac0dfb9e6d05c9b4d3634d0c181c55c04cf294608118b"
+    }
+  ],
+  "experiments": {
+    "long_trace": {
+      "report": "perv_after_init_4b_02.json",
+      "instructions": 3407867979,
+      "elapsed_seconds": 238.9212,
+      "reason": "external_import",
+      "external_import": "api-ms-win-core-libraryloader-l1-2-0.dll!GetModuleHandleA",
+      "requested_module": "oleaut32.dll",
+      "host_text": {
+        "entry": 1291304655,
+        "return": 1950098905,
+        "address": "0x401000",
+        "length": 5291520,
+        "write_events": 6614400
+      },
+      "host_itext": {
+        "entry": 3404390068,
+        "return": 3404836286,
+        "address": "0x90d000",
+        "length": 3584,
+        "write_events": 4480
+      }
+    },
+    "observation_budget_experiment": {
+      "report": "perv_after_init_4b_01.json",
+      "reason": "observation_limit",
+      "instructions": 315654512,
+      "interpretation": "Frequent hash-wrapper observations exhausted 256 events; not a license stop"
+    },
+    "sha256_probe": {
+      "report": "sha256_wrapper_probe_01.json",
+      "original_entry": "0x0d2562c8",
+      "cases": 8,
+      "all_matched": true,
+      "limitations": "Synthetic input equivalence only, not purpose or license state"
+    }
+  },
+  "limitations": [
+    "No vendor bytes, binaries, memory dumps, or keys included",
+    "Original input hashes unchanged",
+    "Original trace source archived separately; no file/device argument decoder in these two traces",
+    "Synthetic Windows environment, no native process or device interaction",
+    "No license success or bypass established"
+  ]
+}
