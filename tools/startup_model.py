@@ -4,6 +4,7 @@ Values are test assumptions, NOT observations of Windows. Unsupported calls
 stop. Each completed call records its arguments, result and memory effects.
 """
 import struct
+from bisect import bisect_left
 
 import unicorn as uc
 from unicorn import x86_const as x86
@@ -68,6 +69,13 @@ class StartupModel:
         self.slots = {'Tls': {}, 'Fls': {}}
         self.last_error = self.profile['initial_last_error']
         self.locks = {}
+        self.lock_addresses = []
+        # Range-filtered Unicorn hooks only test the start of an access. A
+        # global guard is necessary to catch a write starting before an object.
+        lock_accesses = uc.UC_HOOK_MEM_WRITE
+        if critical_section_layout is None:
+            lock_accesses |= uc.UC_HOOK_MEM_READ
+        machine.hook_add(lock_accesses, self.guard_critical_section_access)
         self.trace_state = {}
         self.primary_region = None
         self.additional_image_regions = []
@@ -138,6 +146,19 @@ class StartupModel:
         event['object_handle'] = hex(handle)
         return 1
 
+    def guard_critical_section_access(self, machine, kind, pointer, size, value, _):
+        addresses = self.lock_addresses
+        if not addresses or pointer >= addresses[-1] + 24 or pointer + size <= addresses[0]:
+            return
+        # The last object beginning before the access end is the only possible
+        # highest-address overlap; active objects are disjoint.
+        index = bisect_left(addresses, pointer + size) - 1
+        if index >= 0 and addresses[index] + 24 > pointer:
+            self.trace_state.update(reason='unsupported_critical_section_memory',
+                critical_section_access=dict(address=hex(pointer), size=size,
+                    operation='write' if kind == uc.UC_MEM_WRITE else 'read'))
+            machine.emu_stop()
+
     def sync_critical_section(self, address, lock, event):
         if self.critical_section_layout is None:
             return
@@ -164,17 +185,8 @@ class StartupModel:
             if self.critical_section_layout and spin not in (0, 4000):
                 raise ValueError('Spin count not measured for the selected layout fixture')
 
-            def direct_access(machine, kind, pointer, size, value, _):
-                if self.critical_section_layout and kind == uc.UC_MEM_READ:
-                    return
-                self.trace_state.update(reason='unsupported_critical_section_memory',
-                                        critical_section_access=dict(address=hex(pointer), size=size,
-                                            operation='write' if kind == uc.UC_MEM_WRITE else 'read'))
-                machine.emu_stop()
-
-            hook = self.machine.hook_add(uc.UC_HOOK_MEM_READ | uc.UC_HOOK_MEM_WRITE,
-                                         direct_access, begin=address, end=address + 23)
-            self.locks[address] = dict(depth=0, spin=spin, hook=hook)
+            self.locks[address] = dict(depth=0, spin=spin)
+            self.lock_addresses = sorted(self.locks)
             self.sync_critical_section(address, self.locks[address], event)
             return 1 if len(args) == 2 else None
         lock = self.locks.get(address)
@@ -197,8 +209,8 @@ class StartupModel:
         if lock['depth']:
             raise ValueError('Deleting an owned critical section is not modeled')
         self.sync_critical_section(address, None, event)
-        self.machine.hook_del(lock['hook'])
         del self.locks[address]
+        self.lock_addresses = sorted(self.locks)
         return None
 
     def local_storage_call(self, function, args, event):

@@ -309,6 +309,38 @@ class StartupModelTests(unittest.TestCase):
             self.assertEqual(self.model.locks, {})
             self.assertEqual(bytes(self.machine.mem_read(0x11000, 24)), bytes(24))
 
+    def test_lock_guard_catches_accesses_starting_before_the_object(self):
+        for layout in (False, True):
+            for operation in ('read', 'write'):
+                if layout:
+                    self.enable_measured_lock_layout()
+                else:
+                    self.setUp()
+                self.result('InitializeCriticalSection', 0x11000)
+                # mov eax,[10ffe] / mov [10ffe],eax; starts two bytes before.
+                opcode = 'a1' if operation == 'read' else 'a3'
+                self.machine.mem_write(0x10000, bytes.fromhex(opcode + 'fe0f0100 90'))
+                self.machine.emu_start(0x10000, 0x10006)
+                if layout and operation == 'read':
+                    self.assertEqual(self.model.trace_state, {})
+                else:
+                    self.assertEqual(self.model.trace_state['critical_section_access'],
+                                     dict(address='0x10ffe', size=4, operation=operation))
+
+    def test_lock_guard_does_not_reject_adjacent_accesses_or_deleted_objects(self):
+        self.enable_measured_lock_layout()
+        self.result('InitializeCriticalSection', 0x11000)
+        for address in (0x10ffc, 0x11018):
+            self.machine.mem_write(0x10000, b'\xa3' + struct.pack('<I', address))
+            self.machine.ctl_remove_cache(0x10000, 0x10005)
+            self.machine.emu_start(0x10000, 0x10005)
+            self.assertEqual(self.model.trace_state, {})
+        self.result('DeleteCriticalSection', 0x11000)
+        self.machine.mem_write(0x10000, bytes.fromhex('a300100100'))
+        self.machine.ctl_remove_cache(0x10000, 0x10005)
+        self.machine.emu_start(0x10000, 0x10005)
+        self.assertEqual(self.model.trace_state, {})
+
     def test_measured_lock_rejects_readonly_storage_without_changing_depth(self):
         self.enable_measured_lock_layout()
         self.result('InitializeCriticalSection', 0x11000)
