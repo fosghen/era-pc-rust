@@ -101,7 +101,8 @@ class StartupModelTests(unittest.TestCase):
                     self.assertEqual(self.model.object_handles[handle],
                                      dict(object='event:0', inheritable=False, active=True))
                     self.assertEqual(self.model.event_objects['event:0'],
-                                     dict(manual_reset=bool(manual), initial_signaled=bool(initial), destroyed=False))
+                                     dict(manual_reset=bool(manual), initial_signaled=bool(initial),
+                                          signaled=bool(initial), destroyed=False))
                     self.assertEqual(event['object_id'], 'event:0')
                     self.assertNotIn('memory_writes', event)
                     self.assertIsNone(event['last_error'])
@@ -212,6 +213,154 @@ class StartupModelTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, 'must be a bool'):
                     StartupModel(machine, suspended_threads=flag)
                 self.assertEqual(list(machine.mem_regions()), [])
+
+    def test_event_state_is_opt_in_and_constructor_requires_bool(self):
+        self.assertFalse(self.model.profile['event_state'])
+        for api, args in [('SetEvent', (0x76000000,)), ('ResetEvent', (0x76000000,)),
+                          ('WaitForSingleObject', (0x76000000, 0))]:
+            self.assertEqual(self.call(api, *args), (False, None))
+        self.assertEqual(self.model.events, [])
+        for flag in (None, 0, 1, 'true', [], 0.0):
+            with self.subTest(flag=flag):
+                machine = uc.Uc(uc.UC_ARCH_X86, uc.UC_MODE_32)
+                with self.assertRaisesRegex(ValueError, 'Event-state fixture flag must be a bool'):
+                    StartupModel(machine, event_state=flag)
+                self.assertEqual(list(machine.mem_regions()), [])
+
+    def test_event_set_reset_idempotence_and_state_snapshots_are_independent(self):
+        self.explicit_fixture(event_state=True)
+        handle = self.result('CreateEventA', 0, 1, 0, 0)
+        events = []
+        for api, before, after in [('SetEvent', False, True), ('SetEvent', True, True),
+                                   ('ResetEvent', True, False), ('ResetEvent', False, False)]:
+            self.model.last_error = 321
+            ok, event = self.call(api, handle)
+            self.assertTrue(ok, event)
+            self.assertEqual(event['event_state_before']['signaled'], before)
+            self.assertEqual(event['event_state_after']['signaled'], after)
+            self.assertFalse(event['automatic_reset'])
+            self.assertFalse(event['waited'])
+            self.assertIsNone(event['last_error'])
+            self.assertEqual(self.machine.reg_read(x86.UC_X86_REG_EAX), 1)
+            self.assertEqual(self.machine.reg_read(x86.UC_X86_REG_ESP), 0x10808)
+            self.assertEqual(self.machine.reg_read(x86.UC_X86_REG_EIP), 0x12345678)
+            self.assertNotIn('memory_writes', event)
+            events.append(event)
+        self.assertTrue(events[0]['event_state_after']['signaled'])
+        self.assertFalse(events[0]['event_state_before']['signaled'])
+        self.assertIsNot(events[0]['event_state_after'], self.model.event_objects['event:0'])
+        self.assertIsNot(events[0]['event_state_after'], events[1]['event_state_before'])
+        self.assertFalse(self.model.event_objects['event:0']['initial_signaled'])
+        self.assertFalse(self.call('GetLastError')[0])
+
+    def test_signaled_wait_manual_and_auto_reset_for_any_timeout(self):
+        for manual in (0, 1):
+            for timeout in (0, 1, 1000, 0xffffffff):
+                with self.subTest(manual=manual, timeout=timeout):
+                    self.explicit_fixture(event_state=True)
+                    handle = self.result('CreateEventA', 0, manual, 1, 0)
+                    ok, event = self.call('WaitForSingleObject', handle, timeout)
+                    self.assertTrue(ok, event)
+                    self.assertEqual(event['result'], '0x0')
+                    self.assertEqual(event['automatic_reset'], not bool(manual))
+                    self.assertEqual(event['wait_timeout_ms'], timeout)
+                    self.assertEqual(event['event_state_after']['signaled'], bool(manual))
+                    self.assertTrue(self.model.event_objects['event:0']['initial_signaled'])
+                    self.assertFalse(event['waited'])
+                    self.assertIsNone(event['last_error'])
+                    self.assertEqual(self.machine.reg_read(x86.UC_X86_REG_ESP), 0x1080c)
+                    self.assertEqual(self.result('WaitForSingleObject', handle, 0), 0 if manual else 0x102)
+
+    def test_nonsignaled_event_poll_and_blocking_wait_rejection_are_atomic(self):
+        self.explicit_fixture(event_state=True)
+        handle = self.result('CreateEventA', 0, 0, 0, 0)
+        self.assertEqual(self.result('WaitForSingleObject', handle, 0), 0x102)
+        self.assertIsNone(self.model.last_error)
+        for timeout in (1, 1000, 0xffffffff):
+            with self.subTest(timeout=timeout):
+                self.model.last_error = 321
+                self.machine.reg_write(x86.UC_X86_REG_EAX, 0xdeadbeef)
+                objects = {identity: dict(record) for identity, record in self.model.event_objects.items()}
+                before_memory = bytes(self.machine.mem_read(0x11000, 0x2000))
+                ok, event = self.call('WaitForSingleObject', handle, timeout)
+                self.assertFalse(ok, event)
+                self.assertIn('unsupported waiting', event['model_error'])
+                self.assertNotIn('event_state_after', event)
+                self.assertNotIn('result', event)
+                self.assertEqual(self.model.event_objects, objects)
+                self.assertEqual(bytes(self.machine.mem_read(0x11000, 0x2000)), before_memory)
+                self.assertEqual(self.model.last_error, 321)
+                self.assertEqual(self.machine.reg_read(x86.UC_X86_REG_EAX), 0xdeadbeef)
+                self.assertEqual(self.machine.reg_read(x86.UC_X86_REG_ESP), 0x10800)
+
+    def test_event_duplicate_state_and_auto_reset_are_shared_not_counted(self):
+        self.explicit_fixture(event_state=True)
+        handle = self.result('CreateEventA', 0, 0, 0, 0)
+        self.result('DuplicateHandle', 0xffffffff, handle, 0xffffffff, 0x11000, 0, 0, 2)
+        duplicate = struct.unpack('<I', self.machine.mem_read(0x11000, 4))[0]
+        self.result('SetEvent', handle)
+        self.result('SetEvent', handle)
+        self.assertEqual(self.result('WaitForSingleObject', duplicate, 0xffffffff), 0)
+        self.assertEqual(self.result('WaitForSingleObject', handle, 0), 0x102)
+        self.result('CloseHandle', handle)
+        self.assertEqual(self.result('SetEvent', duplicate), 1)
+        self.assertFalse(self.call('ResetEvent', handle)[0])
+        self.result('CloseHandle', duplicate)
+        self.assertTrue(self.model.event_objects['event:0']['destroyed'])
+        self.assertFalse(self.call('SetEvent', duplicate)[0])
+
+    def test_event_state_rejects_non_event_unknown_and_destroyed_handles(self):
+        self.explicit_fixture(event_state=True, suspended_threads=True)
+        live = self.result('CreateEventA', 0, 1, 1, 0)
+        dead = self.result('CreateEventA', 0, 1, 1, 0)
+        self.result('CloseHandle', dead)
+        thread = self.result('CreateThread', 0, 0, 0, 0, 4, 0)
+        self.result('DuplicateHandle', 0xffffffff, 0xffffffff, 0xffffffff, 0x11000, 0, 0, 2)
+        process = struct.unpack('<I', self.machine.mem_read(0x11000, 4))[0]
+        for handle in (0, 0xffffffff, 0xfffffffe, 0x12345678, dead, thread, process):
+            for api in ('SetEvent', 'ResetEvent', 'WaitForSingleObject'):
+                with self.subTest(handle=handle, api=api):
+                    self.model.last_error = 321
+                    before = {identity: dict(record) for identity, record in self.model.event_objects.items()}
+                    args = (handle, 0) if api == 'WaitForSingleObject' else (handle,)
+                    ok, event = self.call(api, *args)
+                    self.assertFalse(ok, event)
+                    self.assertNotIn('result', event)
+                    self.assertEqual(self.model.event_objects, before)
+                    self.assertEqual(self.model.last_error, 321)
+        self.assertEqual(self.result('WaitForSingleObject', live, 0), 0)
+
+    def test_event_state_refuses_any_executed_or_nonsuspended_worker(self):
+        for execution_started, state in ((True, 'suspended'), (False, 'running'), (False, 'terminated')):
+            for api in ('SetEvent', 'ResetEvent', 'WaitForSingleObject'):
+                with self.subTest(execution_started=execution_started, state=state, api=api):
+                    self.explicit_fixture(event_state=True, suspended_threads=True)
+                    handle = self.result('CreateEventA', 0, 1, 1, 0)
+                    self.result('CreateThread', 0, 0, 0, 0, 4, 0)
+                    self.model.thread_objects['thread:0'].update(execution_started=execution_started, state=state)
+                    self.model.last_error = 321
+                    before = self.model.report()['event_objects']
+                    args = (handle, 0) if api == 'WaitForSingleObject' else (handle,)
+                    ok, event = self.call(api, *args)
+                    self.assertFalse(ok)
+                    self.assertIn('workers', event['model_error'])
+                    self.assertEqual(self.model.report()['event_objects'], before)
+                    self.assertEqual(self.model.last_error, 321)
+
+    def test_event_state_allowlist_keeps_other_waits_and_resume_unhandled(self):
+        self.explicit_fixture(event_state=True)
+        handle = self.result('CreateEventA', 0, 1, 0, 0)
+        contract = 'api-ms-win-core-synch-l1-1-0.dll'
+        for module in ('KERNEL32.dll', 'KERNELBASE.dll', contract.upper()):
+            self.assertTrue(self.call('SetEvent', handle, module=module)[0])
+            self.assertTrue(self.call('WaitForSingleObject', handle, 0xffffffff, module=module)[0])
+            self.assertTrue(self.call('ResetEvent', handle, module=module)[0])
+        for module in ('other.dll', 'api-ms-win-core-synch-l1-2-0.dll', 'api-ms-win-core-handle-l1-1-0.dll'):
+            for api, args in [('SetEvent', (handle,)), ('ResetEvent', (handle,)), ('WaitForSingleObject', (handle, 0))]:
+                self.assertEqual(self.call(api, *args, module=module), (False, None))
+        for api in ('PulseEvent', 'WaitForSingleObjectEx', 'WaitForMultipleObjects', 'SignalObjectAndWait',
+                    'ResumeThread', 'SuspendThread', 'Sleep'):
+            self.assertEqual(self.call(api), (False, None))
 
     def test_suspended_thread_creation_records_identity_without_execution_or_stack(self):
         for api in ('CreateThread', 'CreateRemoteThreadEx'):

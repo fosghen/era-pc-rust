@@ -49,10 +49,12 @@ class StartupModel:
                  'VirtualAlloc': 4, 'VirtualFree': 3, 'GetSystemTime': 1,
                  'GetComputerNameA': 2, 'GetComputerNameW': 2, 'GetVersion': 0,
                  'CreateEventA': 4, 'CreateEventW': 4,
-                 'CreateThread': 6, 'CreateRemoteThreadEx': 8}
+                 'CreateThread': 6, 'CreateRemoteThreadEx': 8,
+                 'SetEvent': 1, 'ResetEvent': 1, 'WaitForSingleObject': 2}
 
     def __init__(self, machine, nls_codepage=None, nls_sort=None, nls_case=None, critical_section_layout=None,
-                 memory_hooks=None, computer_name=None, get_version_result=None, suspended_threads=False):
+                 memory_hooks=None, computer_name=None, get_version_result=None, suspended_threads=False,
+                 event_state=False):
         if critical_section_layout not in (None, 'win10-x86-19041'):
             raise ValueError('Unknown critical-section layout profile')
         if computer_name is not None and (not isinstance(computer_name, str)
@@ -63,6 +65,8 @@ class StartupModel:
             raise ValueError('GetVersion fixture must be an integer packed NT DWORD in 0..0x7fffffff')
         if type(suspended_threads) is not bool:
             raise ValueError('Suspended-thread fixture flag must be a bool')
+        if type(event_state) is not bool:
+            raise ValueError('Event-state fixture flag must be a bool')
         self.critical_section_layout = critical_section_layout
         self.machine = machine
         self.nls = NlsModel(nls_codepage, nls_sort, nls_case)
@@ -72,6 +76,7 @@ class StartupModel:
                             computer_name=computer_name,
                             get_version_result=get_version_result,
                             suspended_threads=suspended_threads,
+                            event_state=event_state,
                             pointer_xor_fixture=0x5a39c6e1,
                             command_line='C:\\era-lab\\host.exe', environment={},
                             startup_flags=0, inherited_handles=False, standard_handles='absent',
@@ -188,7 +193,7 @@ class StartupModel:
             handle = self.next_object_handle()
             identity = 'event:' + str(len(self.event_objects))
             self.event_objects[identity] = dict(manual_reset=bool(manual_reset),
-                initial_signaled=bool(initial_signaled), destroyed=False)
+                initial_signaled=bool(initial_signaled), signaled=bool(initial_signaled), destroyed=False)
             self.object_handles[handle] = dict(object=identity, inheritable=False, active=True)
             # The new-unnamed-object case does not document a LastError value.
             self.last_error = None
@@ -224,6 +229,51 @@ class StartupModel:
         event['object_handle'] = hex(handle)
         event['object_id'] = obj
         return 1
+
+    def event_state_call(self, function, args, event):
+        """Immediate event effects only, never a wait, worker run, or OS call.
+
+        https://learn.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-setevent
+        https://learn.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-resetevent
+        https://learn.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-waitforsingleobject
+        """
+        if not self.profile['event_state']:
+            raise ValueError('Event-state fixture is not explicitly selected')
+        if any(thread.get('execution_started') is not False or thread.get('state') != 'suspended'
+               for thread in self.thread_objects.values()):
+            raise ValueError('Event-state fixture requires all modeled workers to remain unexecuted and suspended')
+        handle = args[0]
+        record = self.object_handles.get(handle)
+        if not record or not record['active']:
+            raise ValueError('Event-state operation requires a live model-owned event handle')
+        identity = record['object']
+        obj = self.event_objects.get(identity)
+        if not obj or obj['destroyed']:
+            raise ValueError('Handle does not refer to a live modeled event object')
+        reset = False
+        if function == 'SetEvent':
+            after, result = True, 1
+        elif function == 'ResetEvent':
+            after, result = False, 1
+        elif function == 'WaitForSingleObject':
+            if obj['signaled']:
+                reset = not obj['manual_reset']
+                after, result = not reset, 0  # WAIT_OBJECT_0, immediate.
+            elif args[1] == 0:
+                after, result = False, 0x102  # WAIT_TIMEOUT, zero-time poll.
+            else:
+                raise ValueError('Nonsignaled event with nonzero timeout requires unsupported waiting or scheduling')
+        else:
+            raise ValueError('Unsupported event-state operation')
+        before = dict(obj)
+        obj['signaled'] = after
+        self.last_error = None
+        event.update(object_handle=hex(handle), object_id=identity,
+            event_state_before=before, event_state_after=dict(obj), automatic_reset=reset, waited=False,
+            assumption='Explicit immediate event-state transition or zero-time poll only; all modeled workers suspended; no OS signaling, waiting, time progression or scheduling; success last-error unspecified')
+        if function == 'WaitForSingleObject':
+            event['wait_timeout_ms'] = args[1]
+        return result
 
     def guard_critical_section_access(self, machine, kind, pointer, size, value, _):
         addresses = self.lock_addresses
@@ -459,6 +509,8 @@ class StartupModel:
         return 1
 
     def invoke(self, function, args, event):
+        if function in ('SetEvent', 'ResetEvent', 'WaitForSingleObject'):
+            return self.event_state_call(function, args, event)
         if function == 'GetVersion':
             # https://learn.microsoft.com/en-us/windows/win32/api/sysinfoapi/nf-sysinfoapi-getversion
             # Manifest-sensitive on Windows. This is an explicitly supplied
@@ -696,7 +748,8 @@ class StartupModel:
             allowed_module = True
         if module.lower() == 'api-ms-win-core-sysinfo-l1-1-0.dll' and function == 'GetSystemTime':
             allowed_module = True
-        if module.lower() == 'api-ms-win-core-synch-l1-1-0.dll' and function in ('CreateEventA', 'CreateEventW'):
+        if module.lower() == 'api-ms-win-core-synch-l1-1-0.dll' and function in (
+                'CreateEventA', 'CreateEventW', 'SetEvent', 'ResetEvent', 'WaitForSingleObject'):
             allowed_module = True
         if module.lower() == 'api-ms-win-core-processthreads-l1-1-0.dll' and function in ('CreateThread', 'CreateRemoteThreadEx'):
             allowed_module = True
@@ -707,6 +760,8 @@ class StartupModel:
         if function == 'GetVersion' and self.profile['get_version_result'] is None:
             return False, None
         if function in ('CreateThread', 'CreateRemoteThreadEx') and not self.profile['suspended_threads']:
+            return False, None
+        if function in ('SetEvent', 'ResetEvent', 'WaitForSingleObject') and not self.profile['event_state']:
             return False, None
         event = dict(api=name, basis='Explicit synthetic startup profile; not a native Windows observation')
         if len(self.events) >= 4096:
@@ -742,7 +797,7 @@ class StartupModel:
                     event_objects={identity: dict(item, live_handle_count=sum(
                         record['active'] and record['object'] == identity for record in self.object_handles.values()))
                         for identity, item in self.event_objects.items()},
-                    event_object_limitations='Unnamed identity/initial-state model only; common 128-handle lifetime budget, no handle reuse; no named objects, security descriptors, signaling, waits, threads or scheduling',
+                    event_object_limitations='Unnamed model-owned objects only; opt-in SetEvent/ResetEvent and immediate signaled waits or nonsignaled zero-time polls; all modeled workers must remain unexecuted and suspended; no blocking waits, OS signaling, time progression, named objects, security descriptors or scheduling; common 128-handle lifetime budget, no handle reuse',
                     thread_objects={identity: dict(item, live_handle_count=sum(
                         record['active'] and record['object'] == identity for record in self.object_handles.values()))
                         for identity, item in self.thread_objects.items()},

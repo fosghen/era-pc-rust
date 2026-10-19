@@ -53,7 +53,7 @@ def trace(path, export, argument, max_instructions, max_seconds, modules=(), thr
           dll_attach=False, observe=(), watch=(), startup_model=False, nls_codepage=None, nls_sort=None, nls_case=None,
           after_attach_export=None, reference_import_markers=False, host_after_attach=None, critical_section_layout=None,
           observer='python', memory_observer=None, module_bases=(), api_set_schema=None, computer_name=None,
-          get_version_result=None, suspended_threads=False, create_thread_interior=False):
+          get_version_result=None, suspended_threads=False, create_thread_interior=False, event_state=False):
     validate_limits(max_instructions, max_seconds)
     if observer not in ('python', 'rust'):
         raise ValueError('Observer must be python or rust')
@@ -67,10 +67,12 @@ def trace(path, export, argument, max_instructions, max_seconds, modules=(), thr
         raise ValueError('Computer-name fixture requires the explicit startup model')
     if get_version_result is not None and not startup_model:
         raise ValueError('GetVersion fixture requires the explicit startup model')
-    if type(suspended_threads) is not bool or type(create_thread_interior) is not bool:
+    if any(type(flag) is not bool for flag in (suspended_threads, create_thread_interior, event_state)):
         raise ValueError('Thread model switches must be bool')
     if suspended_threads and not startup_model:
         raise ValueError('Suspended-thread fixture requires the explicit startup model')
+    if event_state and not startup_model:
+        raise ValueError('Event-state fixture requires the explicit startup model')
     if create_thread_interior and not (startup_model and suspended_threads and modules):
         raise ValueError('Interior CreateThread profile requires startup model, suspended threads and reference modules')
     if host_after_attach and (not dll_attach or after_attach_export or export):
@@ -164,7 +166,8 @@ def trace(path, export, argument, max_instructions, max_seconds, modules=(), thr
         memory_hooks = NativeMemoryHooks(machine)
     startup = StartupModel(machine, nls_codepage, nls_sort, nls_case, critical_section_layout,
                            memory_hooks=memory_hooks, computer_name=computer_name,
-                           get_version_result=get_version_result, suspended_threads=suspended_threads) if startup_model else None
+                           get_version_result=get_version_result, suspended_threads=suspended_threads,
+                           event_state=event_state) if startup_model else None
     interior = None
     if create_thread_interior:
         from interior_api_model import CreateThreadInteriorModel
@@ -259,6 +262,8 @@ def trace(path, export, argument, max_instructions, max_seconds, modules=(), thr
     observations = []
     watched = [(address, bytes(machine.mem_read(address, size))) for address, size in watch]
     watch_writes = [deque(maxlen=8) for _ in watched]
+    handle_image_writes = deque(maxlen=128)
+    handle_image_write_count = 0
     sections = [(base + s.VirtualAddress, base + s.VirtualAddress + max(s.Misc_VirtualSize, s.SizeOfRawData),
                  s.Name.rstrip(b'\0').decode(errors='replace') + '@' + hex(base + s.VirtualAddress)) for s in pe.sections]
     if host:
@@ -469,7 +474,17 @@ def trace(path, export, argument, max_instructions, max_seconds, modules=(), thr
         m.emu_stop()
 
     def written(m, access, address, size, value, _):
+        nonlocal handle_image_write_count
         if any(start <= address < start + length for start, length in image_ranges):
+            if startup and size == 4:
+                handle = value & 0xffffffff
+                record = startup.object_handles.get(handle)
+                if record and record['active']:
+                    sync_observer()
+                    handle_image_write_count += 1
+                    handle_image_writes.append(dict(address=hex(address), size=4,
+                        instruction=hex(m.reg_read(x86.UC_X86_REG_EIP)), instruction_index=state['instructions'],
+                        value=hex(handle), object_id=record['object']))
             state['image_write_events'] += 1
             name = next((n for start, end, n in sections if start <= address < end), 'headers_or_gap')
             writes[name] += 1
@@ -570,6 +585,11 @@ def trace(path, export, argument, max_instructions, max_seconds, modules=(), thr
         state['thread_model'] = thread.report()
     if startup:
         state['startup_model'] = startup.report()
+        state['model_handle_image_writes'] = dict(total_matches=handle_image_write_count,
+            retained_events=list(handle_image_writes), retained_limit=128,
+            scope='Pre-write CPU DWORD store attempts starting in input images whose value equals a live synthetic handle; '
+                  'no completion or final-memory validation; candidate references only, equality is not proof of ownership; '
+                  'excludes stack and API-side writes')
         state['environment'] += '; opt-in synthetic startup APIs including TLS/FLS (not a native Windows process)'
     if interior is not None:
         state['interior_api_model'] = interior.report()
@@ -614,6 +634,8 @@ def main():
                         help='Explicit synthetic NT GetVersion packed DWORD (0..0x7fffffff); no manifest or host OS inference; requires startup model')
     parser.add_argument('--suspended-threads', action='store_true',
                         help='Opt-in synthetic CREATE_SUSPENDED identities only; no thread execution, resume or scheduling')
+    parser.add_argument('--event-state', action='store_true',
+                        help='Opt-in local event Set/Reset and immediately decidable waits only; no blocking or scheduling')
     parser.add_argument('--create-thread-interior', action='store_true',
                         help='Opt-in validated kernel32 CreateThread +11 partial-frame profile; requires suspended threads and reference modules')
     parser.add_argument('--critical-section-layout', choices=['win10-x86-19041'],
@@ -650,7 +672,7 @@ def main():
                    args.nls_codepage, args.nls_sort, args.nls_case, args.after_attach_export, args.reference_import_markers,
                    args.host_after_attach, args.critical_section_layout, args.observer, args.memory_observer,
                    args.module_base, args.api_set_schema, args.computer_name, args.get_version_result,
-                   args.suspended_threads, args.create_thread_interior)
+                   args.suspended_threads, args.create_thread_interior, args.event_state)
     with args.report.open('x', encoding='utf-8') as output:
         json.dump(result, output, indent=2, ensure_ascii=False)
         output.write('\n')

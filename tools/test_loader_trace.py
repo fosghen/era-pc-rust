@@ -737,6 +737,76 @@ class LoaderTraceTests(unittest.TestCase):
             self.assertGreater(result['watched_ranges'][0]['changed_byte_count'], 0)
             self.assertTrue(result['input_unchanged'])
 
+    def test_model_handle_cpu_stores_are_bounded_candidate_metadata(self):
+        data = stopped_api_caller('CreateEventA', [0, 1, 0, 0])
+        # Our own caller stores the returned handle, with no API output write.
+        data[538:544] = bytes.fromhex('a310124000 cc')
+        result = self.run_image(data, startup_model=True)
+        self.assertEqual(result['reason'], 'CPU_interrupt')
+        metadata = result['model_handle_image_writes']
+        self.assertEqual(metadata['total_matches'], 1)
+        store = metadata['retained_events'][0]
+        self.assertEqual(store['address'], '0x401210')
+        self.assertEqual(store['value'], '0x76000000')
+        self.assertEqual(store['object_id'], 'event:0')
+        self.assertEqual(store['instruction'], '0x40101a')
+        self.assertNotIn('memory_writes', result['startup_model']['events'][0])
+        repeated = stopped_api_caller('CreateEventA', [0, 1, 0, 0])
+        loop = bytes.fromhex('b98c000000 a310124000 e2f9 cc')
+        repeated[538:538+len(loop)] = loop
+        many = self.run_image(repeated, startup_model=True, limit=400)['model_handle_image_writes']
+        self.assertEqual(many['total_matches'], 140)
+        self.assertEqual(len(many['retained_events']), 128)
+        self.assertEqual(many['retained_limit'], 128)
+        for code in ('31c0 a310124000 cc', '66a310124000 cc'):
+            skipped = stopped_api_caller('CreateEventA', [0, 1, 0, 0])
+            skipped[538:538+len(bytes.fromhex(code))] = bytes.fromhex(code)
+            result = self.run_image(skipped, startup_model=True)
+            self.assertEqual(result['model_handle_image_writes']['total_matches'], 0)
+
+    def test_event_state_option_requires_startup_and_keeps_unknown_handles_stopped(self):
+        data = stopped_api_caller('SetEvent', [0x76000000])
+        with self.assertRaisesRegex(ValueError, 'requires the explicit startup model'):
+            self.run_image(data, event_state=True)
+        result = self.run_image(data, startup_model=True, event_state=True)
+        self.assertEqual(result['reason'], 'external_import')
+        self.assertEqual(result['external_import'], 'KERNEL32.dll!SetEvent')
+        self.assertIn('model_error', result['unresolved_startup_call'])
+        self.assertEqual(result['startup_model']['event_objects'], {})
+
+    def test_event_state_full_caller_sequence_resets_auto_event(self):
+        data = stopped_api_caller('CreateEventA', [0, 0, 0, 0])
+        # Own PE with three imports and a preserved handle in ESI.
+        struct.pack_into('<IIIII', data, 0x300, 0x1200, 0, 0, 0x1150, 0x1220)
+        for table in (0x400, 0x420):
+            struct.pack_into('<4I', data, table, 0x1240, 0x1260, 0x1280, 0)
+        for offset, name in ((0x440, 'CreateEventA'), (0x460, 'SetEvent'),
+                             (0x480, 'WaitForSingleObject')):
+            encoded = b'\0\0' + name.encode() + b'\0'
+            data[offset:offset+len(encoded)] = encoded
+        code = bytes.fromhex('6a00 6a00 6a00 6a00 ff1520124000 89c6 a310144000 '
+                             '56 ff1524124000 '
+                             '6a00 56 ff1528124000 '
+                             '6a00 56 ff1528124000 cc')
+        data[512:512+len(code)] = code
+        disabled = self.run_image(data, startup_model=True)
+        self.assertEqual(disabled['external_import'], 'KERNEL32.dll!SetEvent')
+        result = self.run_image(data, startup_model=True, event_state=True)
+        self.assertEqual(result['reason'], 'CPU_interrupt')
+        self.assertEqual(result['registers']['esp'], '0x70008000')
+        self.assertEqual(result['registers']['eax'], '0x102')
+        events = result['startup_model']['events']
+        self.assertEqual([item['api'].split('!')[-1] for item in events],
+                         ['CreateEventA', 'SetEvent', 'WaitForSingleObject', 'WaitForSingleObject'])
+        self.assertEqual([item['result'] for item in events], ['0x76000000', '0x1', '0x0', '0x102'])
+        self.assertTrue(events[1]['event_state_after']['signaled'])
+        self.assertTrue(events[2]['automatic_reset'])
+        self.assertFalse(events[3]['event_state_before']['signaled'])
+        self.assertFalse(result['startup_model']['event_objects']['event:0']['signaled'])
+        self.assertEqual(result['model_handle_image_writes']['total_matches'], 1)
+        self.assertEqual(result['model_handle_image_writes']['retained_events'][0]['address'], '0x401410')
+        self.assertTrue(result['input_unchanged'])
+
     def test_partial_create_thread_frame_is_explicit_and_restores_caller_ebp(self):
         with self.assertRaisesRegex(ValueError, 'Interior CreateThread profile requires'):
             self.run_image(synthetic_pe(b'\xc3'), create_thread_interior=True)

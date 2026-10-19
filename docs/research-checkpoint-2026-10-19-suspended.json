@@ -1,0 +1,95 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-19",
+  "parent_commit": "a5692e4000d6174e48f43a825aa012d6510ba1c9",
+  "path_base": "workspace root containing era-rust and reverse_engineering",
+  "status": "Validated partial-frame normalization created only a suspended thread identity; next boundary SetEvent.",
+  "files": [
+    {
+      "path": "era-rust/tools/loader_trace.py",
+      "sha256": "7504c6a7046c81abcf961c5c1e5c5cacdb7de1827b508702bee20bfa39601c66"
+    },
+    {
+      "path": "era-rust/tools/test_loader_trace.py",
+      "sha256": "6ccc733fa671d35435ba8c68820c854cbca6074d61563fa158dd92d0cccba9e7"
+    },
+    {
+      "path": "era-rust/tools/startup_model.py",
+      "sha256": "163fb90481bd66271d0f7ca9aa7179e731f6fd2e3887573e1eedb71dcf70d04d"
+    },
+    {
+      "path": "era-rust/tools/test_startup_model.py",
+      "sha256": "c033204ad8314007dd658e75cc9a0d1d4c0249fbe832b0ca4ac542226db4f07a"
+    },
+    {
+      "path": "era-rust/tools/interior_api_model.py",
+      "sha256": "a73eb6d72b4feea0c3cb0b11d25027ab91c0053a60f5a08485a2e0b82120001b"
+    },
+    {
+      "path": "era-rust/tools/test_interior_api_model.py",
+      "sha256": "36b7717c214a7e6dc07ba03a77b4974dc4f3a481f9229b858949e088895c39ba"
+    },
+    {
+      "path": "era-rust/tools/pe_module_model.py",
+      "sha256": "5f9a7221a66e96ef577b142ae6b314db59dac32c624439261ca93d69c191c705"
+    },
+    {
+      "path": "era-rust/tools/api_set_model.py",
+      "sha256": "e20cbe35f772b4a5ad5b025b54ec4db2a56f9d742b3385ef7cb5febbe25b863e"
+    },
+    {
+      "path": "era-rust/tools/native_observer.py",
+      "sha256": "a366daa8829f79054e79ff220748b8710672056b7a8e8f9d195801ef8f9a666c"
+    },
+    {
+      "path": "era-rust/tools/trace_observer.rs",
+      "sha256": "e7511d3a288ac27cc73b9d0f2718f937d82cf5368600cc48c3d75adce9a55adf"
+    },
+    {
+      "path": "era-rust/tools/x86_thread_model.py",
+      "sha256": "add7d065ee124b441184629cdd9d87fead60ce3639e310c2bbccc1d0037b4b8a"
+    },
+    {
+      "path": "era-rust/tools/nls_model.py",
+      "sha256": "8849236f1ddef7da6c24844933c8e051f1164b6785768347f74149acca5cee49"
+    },
+    {
+      "path": "era-rust/tools/requirements-research.txt",
+      "sha256": "0052d0d49b9d27a7f6f0f7420dcd299548bd66b9aa16402938bce076cc064d3b"
+    },
+    {
+      "path": "era-rust/tools/verify_checkpoint.py",
+      "sha256": "235a1c96268395f8e2bcd240403de5864929dcd796e9d667ae26fca3f1040696"
+    },
+    {
+      "path": "era-rust/docs/HOST_LINKED_RESEARCH.md",
+      "sha256": "39a18b9c59b4d556747799c884dd52729bc8dcb080800bd31055a895734ea2f1"
+    },
+    {
+      "path": "reverse_engineering/perv_suspended_4b_01.json",
+      "sha256": "06f9c52361ed847cc7c1692624752337492cf6291a956bdc5f324b1db4f0af1a"
+    }
+  ],
+  "experiment": {
+    "report": "perv_suspended_4b_01.json",
+    "instructions": 3494734091,
+    "elapsed_seconds": 240.7507,
+    "reason": "external_import",
+    "external_import": "api-ms-win-core-synch-l1-1-0.dll!SetEvent",
+    "return_address": "0x1000daec",
+    "event_handle": "0x76000008",
+    "event_identity": "event:1",
+    "thread_handle": "0x76000020",
+    "thread_id": 4098,
+    "thread_state": "suspended",
+    "thread_execution_started": false,
+    "tests_passed": 341
+  },
+  "limitations": [
+    "Synthetic identity only, no worker execution or scheduling",
+    "SetEvent not performed; seven events remain nonsignaled",
+    "Interior profile structural, not a proof of Windows implementation equivalence",
+    "No license success, bypass or USB interaction established",
+    "Own source and metadata only; no vendor bytes or memory dumps"
+  ]
+}
