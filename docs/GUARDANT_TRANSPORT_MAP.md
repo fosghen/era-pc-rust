@@ -82,3 +82,50 @@ the current worker reaches transport. Previously identified `GrdPrepare`
 selectors for module/thread startup are not relabeled as key-operation codes.
 The connection from the current worker to these candidate modules, the actual
 device path, IOCTL, payload and licensing decision remain unestablished.
+
+## Focused `ERA_RB/grdvkc32.dll` follow-up
+
+The same read-only inspection was narrowed to this DLL. Its identity is the
+`0eb1003d…` SHA-256 above; the IAT entries and both GRDKEY pointer values below
+were independently rechecked. Addresses remain preferred VA, not runtime evidence.
+
+| API | IAT slot | Import thunk | Static reference findings |
+| --- | --- | --- | --- |
+| `DeviceIoControl` | `0x1034a2dc` | `0x103423ec` | The only on-disk DWORD occurrence of the IAT address is the thunk operand at `0x103423ee`. No ordinary direct IAT call, relative `E8/E9` reference to the thunk, or absolute DWORD reference to the thunk was found. |
+| `CreateFileA` | `0x1034a2bc` | `0x103423bc` | Direct IAT call sites `0x1030eeeb`, `0x1033be50`; relative-call scan candidates `0x10108617`, `0x10108672`, `0x101086ca`, `0x1010aeab`, `0x1010f5e7`. |
+| `CreateFileW` | `0x1034a204` | `0x103422a8` | Nine direct-IAT opcode matches; examples `0x10025212`, `0x10025282`, `0x10340fb9`. Relative-call scan candidate `0x1010c8ca`. |
+
+Opcode matches in executable sections are **xref candidates**, not automatically
+reachable instructions: protected code and embedded data can produce matches.
+Local readable windows support specific examples, not an entire recovered
+callgraph. In particular, `0x10108617/0x10108672/0x101086ca` belong to readable
+file-opening logic distinguishing modes `r`, `w`, `a`; `0x10340fb9` passes
+`CONOUT$` from `0x10353978`. Those are not evidence of opening a dongle device.
+
+There is a more specific, but incomplete, GRDKEY preparation chain:
+
+1. ASCII `\\.\GRDKEY` is at `0x10045188` and `0x10045198`, with stored pointers
+   at `0x10045194` and `0x100451a4`, respectively. Additional literal copies occur
+   at `0x1041323c` and `0x1041324c`.
+2. Readable code at `0x100fdec2` reads `[0x100451a4]` and counts the string length.
+   At `0x100fdf17` it reads the pointer again; call
+   `0x100fdf25 -> 0x10125cb7` copies the string into a local buffer. The latter
+   helper is an ordinary byte-copy routine.
+3. `0x100fdf2d` stores `0xe1b10014` in another local field. The field's purpose is
+   unknown: **the constant has not been identified as an IOCTL**.
+4. Call `0x100fdf42 -> 0x100fbd0c` passes the caller argument and a pointer to the
+   local structure. `0x100fbd0c` enters protected code via `0x102b9180`; the
+   downstream callgraph is unresolved.
+
+Thus there is a readable preparation fragment involving the device-name string,
+but no resolved `CreateFile -> DeviceIoControl` caller in this DLL and no proven
+link from the current worker to that fragment. Absence of ordinary static xrefs
+does not exclude dynamically resolved, indirect or unpacked calls.
+
+Network-related leads are also present: `grdnetagent-x64` at `0x10045838` and
+`grdnetagent-x86` at `0x10045848`, copied by readable code at `0x1010b002` and
+`0x1010b033`; UTF-16 diagnostic text mentioning `GrdSrv.exe`/Guardant Net at
+`0x103bbddc` and `0x103bcbc4`; `localhost` at `0x1034ee80`, referenced by
+`0x10040513`; and WININET imports including `InternetConnectW`,
+`HttpOpenRequestW`, `HttpSendRequestW`. These are leads, not proof of a network
+licensing path. No `GRDUSB` literal was found in the checked ASCII/UTF-16LE forms.

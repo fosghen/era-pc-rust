@@ -79,6 +79,16 @@ def stopped_api_caller(api, arguments, payload=b''):
 
 
 class LoaderTraceTests(unittest.TestCase):
+    def test_worker_budgets_are_bounded_and_require_explicit_probe(self):
+        for options in (dict(worker_max_instructions=0), dict(worker_max_instructions=1000001),
+                        dict(worker_max_instructions=True), dict(worker_max_seconds=True),
+                        dict(worker_max_seconds=0), dict(worker_max_seconds=11),
+                        dict(worker_max_seconds=float('nan')), dict(worker_max_seconds=float('inf'))):
+            with self.subTest(options=options), self.assertRaisesRegex(ValueError, 'Worker probe budgets:'):
+                self.run_image(synthetic_pe(b'\xc3'), **options)
+        with self.assertRaisesRegex(ValueError, 'budgets require the explicit'):
+            self.run_image(synthetic_pe(b'\xc3'), worker_max_instructions=1000000)
+
     def test_worker_rdtsc_sequence_is_explicit_and_bounded(self):
         self.assertEqual(rdtsc_sequence('0x100000000:2:3'), (0x100000000, 0x100000002, 0x100000004))
         self.assertEqual(len(rdtsc_sequence('1:1:1024')), 1024)
@@ -843,7 +853,8 @@ class LoaderTraceTests(unittest.TestCase):
         data[0x280:0x287] = bytes.fromhex('8b442404 c20400')  # EAX=parameter; ret 4.
         options = dict(startup_model=True, thread_model=True, suspended_threads=True)
         parent = self.run_image(data, **options)
-        probed = self.run_image(data, worker_entry_probe=True, **options)
+        probed = self.run_image(data, worker_entry_probe=True,
+                                worker_max_instructions=1000000, worker_max_seconds=10, **options)
         self.assertEqual(probed['external_import'], 'KERNEL32.dll!ResumeThread')
         self.assertEqual(probed['registers'], parent['registers'])
         self.assertEqual(probed['instructions'], parent['instructions'])
@@ -854,6 +865,8 @@ class LoaderTraceTests(unittest.TestCase):
         self.assertFalse(child['parent_thread_execution_started'])
         self.assertEqual(child['reason'], 'returned')
         self.assertEqual(child['registers']['eax'], '0x2a')
+        self.assertEqual(child['limits']['instructions'], 1000000)
+        self.assertEqual(child['limits']['seconds'], 10)
         self.assertTrue(probed['input_unchanged'])
         data[0x280:0x285] = bytes.fromhex('0f31 c20400')
         matrix = self.run_image(data, worker_entry_probe=True,

@@ -1,0 +1,143 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-19",
+  "parent_commit": "6f2c4ec830a6007a0f4349669eb5894677d0add7",
+  "path_base": "workspace root containing era-rust and reverse_engineering",
+  "status": "First isolated worker external boundary: GetTickCount with explicit timestamp sequence, no USB or license success.",
+  "files": [
+    {
+      "path": "era-rust/tools/loader_trace.py",
+      "sha256": "90658180714fb59c3aeb074a58286ca0481f47bf7ef85c0e2be54eabc919cb09"
+    },
+    {
+      "path": "era-rust/tools/test_loader_trace.py",
+      "sha256": "6ba7660fea2e776d47c0d2f8ab51dbbe52df2a94ef9c02f110384a50fb17d04c"
+    },
+    {
+      "path": "era-rust/tools/startup_model.py",
+      "sha256": "cb18f9f642a7bb0167c3719be5b3e4bc2ff3a41f793e99ab92234b2d0bedf637"
+    },
+    {
+      "path": "era-rust/tools/test_startup_model.py",
+      "sha256": "a1d4a141e53df293bf52df90c4acb4111aca6aa4227d57b53bd396a4cad11a5a"
+    },
+    {
+      "path": "era-rust/tools/interior_api_model.py",
+      "sha256": "a73eb6d72b4feea0c3cb0b11d25027ab91c0053a60f5a08485a2e0b82120001b"
+    },
+    {
+      "path": "era-rust/tools/test_interior_api_model.py",
+      "sha256": "36b7717c214a7e6dc07ba03a77b4974dc4f3a481f9229b858949e088895c39ba"
+    },
+    {
+      "path": "era-rust/tools/pe_module_model.py",
+      "sha256": "5f9a7221a66e96ef577b142ae6b314db59dac32c624439261ca93d69c191c705"
+    },
+    {
+      "path": "era-rust/tools/api_set_model.py",
+      "sha256": "e20cbe35f772b4a5ad5b025b54ec4db2a56f9d742b3385ef7cb5febbe25b863e"
+    },
+    {
+      "path": "era-rust/tools/native_observer.py",
+      "sha256": "a366daa8829f79054e79ff220748b8710672056b7a8e8f9d195801ef8f9a666c"
+    },
+    {
+      "path": "era-rust/tools/trace_observer.rs",
+      "sha256": "e7511d3a288ac27cc73b9d0f2718f937d82cf5368600cc48c3d75adce9a55adf"
+    },
+    {
+      "path": "era-rust/tools/x86_thread_model.py",
+      "sha256": "add7d065ee124b441184629cdd9d87fead60ce3639e310c2bbccc1d0037b4b8a"
+    },
+    {
+      "path": "era-rust/tools/nls_model.py",
+      "sha256": "8849236f1ddef7da6c24844933c8e051f1164b6785768347f74149acca5cee49"
+    },
+    {
+      "path": "era-rust/tools/requirements-research.txt",
+      "sha256": "0052d0d49b9d27a7f6f0f7420dcd299548bd66b9aa16402938bce076cc064d3b"
+    },
+    {
+      "path": "era-rust/tools/verify_checkpoint.py",
+      "sha256": "235a1c96268395f8e2bcd240403de5864929dcd796e9d667ae26fca3f1040696"
+    },
+    {
+      "path": "era-rust/docs/HOST_LINKED_RESEARCH.md",
+      "sha256": "179de6ba0359d0f1a7459bf6840ff0ec9b777dde468769c823bf58423fe9fb2b"
+    },
+    {
+      "path": "era-rust/tools/worker_entry_probe.py",
+      "sha256": "c06bd8d0ffd891c5d24325e4f0f0c6eb6d273f4f2f32cbc1a33bf955bbf8dc3d"
+    },
+    {
+      "path": "era-rust/tools/test_worker_entry_probe.py",
+      "sha256": "beccbbc5d37f777811dfb678ee8f825b98134bef080c5a60a532c9a73dc5e14c"
+    },
+    {
+      "path": "era-rust/tools/pe_tls_metadata.py",
+      "sha256": "7ce3cd2220121e4d6145d7234bc8173b8b57de3afa94ed378bdd6d60605d9e6c"
+    },
+    {
+      "path": "era-rust/tools/test_pe_tls_metadata.py",
+      "sha256": "6462a153f31665888096f3f5154c9fcd62675b96499ec93f385edf965d546ece"
+    },
+    {
+      "path": "era-rust/tools/test_native_observer.py",
+      "sha256": "b281244600781d02b4fb839ab5ee0903e0dd9f41d7617f120f5aa4e2e14bb7c8"
+    },
+    {
+      "path": "reverse_engineering/static_tls_metadata_01.json",
+      "sha256": "06ad6764a241e922c71b7bf51013a706617a4ce530687416e2008a39e5abe458"
+    },
+    {
+      "path": "era-rust/docs/GUARDANT_TRANSPORT_MAP.md",
+      "sha256": "ad98a78cbeb470e54e3da9a8d70fe00ba5d425737c93ca0e4ea36619331281e0"
+    },
+    {
+      "path": "reverse_engineering/perv_worker_budget_4b_01.json",
+      "sha256": "e2eeff67910b9b4a92fe32897b99d2831535ae66437301fec6ff09e291214ccc"
+    }
+  ],
+  "experiment": {
+    "report": "perv_worker_budget_4b_01.json",
+    "instructions": 3495855247,
+    "elapsed_seconds": 241.1726,
+    "external_import": "api-ms-win-core-processthreads-l1-1-0.dll!ResumeThread",
+    "child_limits": {
+      "instructions": 1000000,
+      "seconds": 10
+    },
+    "seed": 123456789,
+    "steps": [
+      1,
+      100,
+      100000
+    ],
+    "sequence_length": 1024,
+    "child_instructions": [
+      1000000,
+      1000000,
+      745911
+    ],
+    "child_reasons": [
+      "instruction_limit",
+      "instruction_limit",
+      "external_boundary"
+    ],
+    "used_rdtsc": [
+      187,
+      187,
+      248
+    ],
+    "child_external_boundary": "KERNEL32.dll!GetTickCount",
+    "child_stack_first_word": "0x1000f9b2",
+    "clone_manifests_equal": true,
+    "tests_passed": 414
+  },
+  "limitations": [
+    "Child artificial entry, omitted TLS/DllMain and scheduler",
+    "Parent RDTSC uncontrolled, child sequences synthetic",
+    "GetTickCount not executed, no ResumeThread success, license success or USB interaction",
+    "Own source and metadata only; no vendor bytes or memory dumps"
+  ]
+}

@@ -116,7 +116,7 @@ class WorkerProbeTests(unittest.TestCase):
                 self.run_probe(b'\xc3')
 
     def test_invalid_configuration(self):
-        for options in (dict(thread_id=0), dict(max_instructions=100001), dict(max_seconds=float('nan')),
+        for options in (dict(thread_id=0), dict(max_instructions=1000001), dict(max_seconds=float('nan')),
                         dict(image_ranges=((0x10000, 0),)), dict(stop_addresses={probe.SENTINEL: 'bad'})):
             with self.subTest(options=options), self.assertRaises(ValueError):
                 self.run_probe(b'\xc3', **options)
@@ -220,6 +220,62 @@ class WorkerProbeTests(unittest.TestCase):
             self.assertEqual(result['reason'], 'unsupported_instruction')
             self.assertEqual(result['rdtsc_events'], [])
             self.assertEqual(result['instructions'], 0)
+
+    def compare_decoder_modes(self, code, **options):
+        results = [self.run_probe(code, decode_cache=mode, **options) for mode in (False, True)]
+        ignored = {'elapsed_seconds', 'setup_seconds', 'decoder_cache'}
+        self.assertEqual(*[{key: value for key, value in result.items() if key not in ignored}
+                           for result in results])
+        return results
+
+    def test_decode_cache_parity_and_hits(self):
+        reference, cached = self.compare_decoder_modes(bytes.fromhex('40 ebfd'), max_instructions=21)
+        self.assertEqual(reference['decoder_cache'], dict(mode='disabled', hits=0, misses=21,
+                         limit=4096, resets=0, entries=0))
+        self.assertEqual(cached['decoder_cache'], dict(mode='exact_bytes', hits=19, misses=2,
+                         limit=4096, resets=0, entries=2))
+        # Identical bytes at distinct addresses share only a classification;
+        # address-dependent operands and execution remain Unicorn's concern.
+        self.compare_decoder_modes(bytes.fromhex('90 90 c20400'))
+
+    def test_decode_cache_parity_for_boundaries_and_rdtsc(self):
+        for code, options in [
+                ('0f31 ebfc', dict(rdtsc_values=(1, 2))),
+                ('0fc7f0', {}), ('fa', {}), ('0f0b', {}),
+                ('b801000000', dict(protected_ranges=((0x10002, 4),))),
+                ('90 90', dict(stop_addresses={0x10001: 'fixture!boundary'}))]:
+            with self.subTest(code=code):
+                self.compare_decoder_modes(bytes.fromhex(code), **options)
+
+    def test_decode_cache_self_modification_cannot_hide_rdtsc(self):
+        # First classify a 2-byte NOP; overwrite it with forbidden RDTSC and
+        # jump back to the exact same address, preserving instruction length.
+        code = bytes.fromhex('6690 66c705') + struct.pack('<IH', 0x10000, 0x310f)
+        code += b'\xe9' + struct.pack('<i', -16)
+        reference, cached = self.compare_decoder_modes(code)
+        self.assertEqual(cached['reason'], 'unsupported_instruction')
+        self.assertEqual(cached['instruction_kind'], 'rdtsc')
+        self.assertEqual(cached['registers']['eip'], '0x10000')
+        self.assertEqual(cached['registers']['eax'], '0x0')
+        self.assertEqual(cached['rdtsc_events'], [])
+
+    def test_decode_cache_is_bounded_and_resets(self):
+        self.source.mem_map(0x12000, 0x5000)
+        code = b''.join(b'\xb8' + struct.pack('<I', value) for value in range(4097))
+        code += bytes.fromhex('c20400')
+        reference, cached = self.compare_decoder_modes(code, image_ranges=((0x10000, 0x7000),))
+        self.assertEqual(cached['reason'], 'returned')
+        self.assertEqual(cached['decoder_cache'], dict(mode='exact_bytes', hits=0, misses=4098,
+                         limit=4096, resets=1, entries=2))
+
+    def test_decode_cache_strict_bool_and_expanded_budget(self):
+        for value in (None, 0, 1, 'yes', [], {}):
+            with self.subTest(value=value), self.assertRaisesRegex(ValueError, 'bool'):
+                self.run_probe(b'\xc3', decode_cache=value)
+        for value in (100001, 1000000):
+            result = self.run_probe(bytes.fromhex('c20400'), max_instructions=value)
+            self.assertEqual(result['reason'], 'returned')
+            self.assertEqual(result['limits']['instructions'], value)
 
 
 if __name__ == '__main__':

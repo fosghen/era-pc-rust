@@ -1,0 +1,140 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-19",
+  "parent_commit": "6f2c4ec830a6007a0f4349669eb5894677d0add7",
+  "path_base": "workspace root containing era-rust and reverse_engineering",
+  "status": "Equal-seed timestamp step comparison reaches computation limits after 145 modeled RDTSC instructions; no child external API.",
+  "files": [
+    {
+      "path": "era-rust/tools/loader_trace.py",
+      "sha256": "3736a38ed0ada48e135619114d47a973d7106fb4d2c8ad7817c751c468931140"
+    },
+    {
+      "path": "era-rust/tools/test_loader_trace.py",
+      "sha256": "cac7ed8c5a2fc2f6dfa2bcc25e970e7ccf04cc0e4dbaad7845202fc0d05274d0"
+    },
+    {
+      "path": "era-rust/tools/startup_model.py",
+      "sha256": "cb18f9f642a7bb0167c3719be5b3e4bc2ff3a41f793e99ab92234b2d0bedf637"
+    },
+    {
+      "path": "era-rust/tools/test_startup_model.py",
+      "sha256": "a1d4a141e53df293bf52df90c4acb4111aca6aa4227d57b53bd396a4cad11a5a"
+    },
+    {
+      "path": "era-rust/tools/interior_api_model.py",
+      "sha256": "a73eb6d72b4feea0c3cb0b11d25027ab91c0053a60f5a08485a2e0b82120001b"
+    },
+    {
+      "path": "era-rust/tools/test_interior_api_model.py",
+      "sha256": "36b7717c214a7e6dc07ba03a77b4974dc4f3a481f9229b858949e088895c39ba"
+    },
+    {
+      "path": "era-rust/tools/pe_module_model.py",
+      "sha256": "5f9a7221a66e96ef577b142ae6b314db59dac32c624439261ca93d69c191c705"
+    },
+    {
+      "path": "era-rust/tools/api_set_model.py",
+      "sha256": "e20cbe35f772b4a5ad5b025b54ec4db2a56f9d742b3385ef7cb5febbe25b863e"
+    },
+    {
+      "path": "era-rust/tools/native_observer.py",
+      "sha256": "a366daa8829f79054e79ff220748b8710672056b7a8e8f9d195801ef8f9a666c"
+    },
+    {
+      "path": "era-rust/tools/trace_observer.rs",
+      "sha256": "e7511d3a288ac27cc73b9d0f2718f937d82cf5368600cc48c3d75adce9a55adf"
+    },
+    {
+      "path": "era-rust/tools/x86_thread_model.py",
+      "sha256": "add7d065ee124b441184629cdd9d87fead60ce3639e310c2bbccc1d0037b4b8a"
+    },
+    {
+      "path": "era-rust/tools/nls_model.py",
+      "sha256": "8849236f1ddef7da6c24844933c8e051f1164b6785768347f74149acca5cee49"
+    },
+    {
+      "path": "era-rust/tools/requirements-research.txt",
+      "sha256": "0052d0d49b9d27a7f6f0f7420dcd299548bd66b9aa16402938bce076cc064d3b"
+    },
+    {
+      "path": "era-rust/tools/verify_checkpoint.py",
+      "sha256": "235a1c96268395f8e2bcd240403de5864929dcd796e9d667ae26fca3f1040696"
+    },
+    {
+      "path": "era-rust/docs/HOST_LINKED_RESEARCH.md",
+      "sha256": "0e679103ebcb75bbe1eab13b3f724d640ccecf9e05077af565a6830f28385a66"
+    },
+    {
+      "path": "era-rust/tools/worker_entry_probe.py",
+      "sha256": "60422ade5452e5f8f45771fbd5804a2a1cd9f138cc6a0941ab73124dc3a11808"
+    },
+    {
+      "path": "era-rust/tools/test_worker_entry_probe.py",
+      "sha256": "b430a77459895d668c690c1568ffb4372cc9da6bc4aad6d4416f42e4dcb8642c"
+    },
+    {
+      "path": "era-rust/tools/pe_tls_metadata.py",
+      "sha256": "7ce3cd2220121e4d6145d7234bc8173b8b57de3afa94ed378bdd6d60605d9e6c"
+    },
+    {
+      "path": "era-rust/tools/test_pe_tls_metadata.py",
+      "sha256": "6462a153f31665888096f3f5154c9fcd62675b96499ec93f385edf965d546ece"
+    },
+    {
+      "path": "era-rust/tools/test_native_observer.py",
+      "sha256": "b281244600781d02b4fb839ab5ee0903e0dd9f41d7617f120f5aa4e2e14bb7c8"
+    },
+    {
+      "path": "reverse_engineering/static_tls_metadata_01.json",
+      "sha256": "06ad6764a241e922c71b7bf51013a706617a4ce530687416e2008a39e5abe458"
+    },
+    {
+      "path": "era-rust/docs/GUARDANT_TRANSPORT_MAP.md",
+      "sha256": "ad98a78cbeb470e54e3da9a8d70fe00ba5d425737c93ca0e4ea36619331281e0"
+    },
+    {
+      "path": "reverse_engineering/perv_worker_rdtsc_extended_4b_01.json",
+      "sha256": "e7bc25ee980f52d096caa4c640fec49c7b1c8e802787e197a41c1a678499906a"
+    }
+  ],
+  "experiment": {
+    "report": "perv_worker_rdtsc_extended_4b_01.json",
+    "instructions": 3485812389,
+    "elapsed_seconds": 243.3675,
+    "external_import": "api-ms-win-core-processthreads-l1-1-0.dll!ResumeThread",
+    "seed": 123456789,
+    "steps": [
+      1,
+      100,
+      100000
+    ],
+    "sequence_length": 1024,
+    "child_instructions": [
+      99243,
+      98130,
+      100000
+    ],
+    "child_reasons": [
+      "time_limit",
+      "time_limit",
+      "instruction_limit"
+    ],
+    "used_rdtsc": [
+      145,
+      145,
+      145
+    ],
+    "last_rdtsc": "0x10684539",
+    "last_rdtsc_instruction_index": 14115,
+    "clone_manifests_equal": true,
+    "tests_passed": 407
+  },
+  "limitations": [
+    "No child external API reached",
+    "Bounded stops do not establish infinite loops",
+    "Parent RDTSC uncontrolled, child sequences synthetic",
+    "No ResumeThread success, native worker startup, license success or USB interaction",
+    "Own source and metadata only; no vendor bytes or memory dumps"
+  ]
+}

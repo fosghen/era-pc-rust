@@ -26,6 +26,7 @@ STACK_SIZE = 0x10000
 FIXTURES = ((GDT, 0x1000), (TIB, 0x1000), (SENTINEL, 0x1000), (STACK, STACK_SIZE))
 CLONE_LIMIT = 512 * 1024 * 1024
 REGION_LIMIT = 8192
+DECODE_CACHE_LIMIT = 4096
 CHUNK = 1024 * 1024
 MAX_RDTSC_VALUES = 1024
 REGISTERS = {name: getattr(x86, 'UC_X86_REG_' + name.upper()) for name in
@@ -53,7 +54,7 @@ def _overlaps(address, size, ranges):
 def probe_worker_entry(source_machine, *, entry, parameter, thread_id, image_ranges,
                        stop_addresses, reference_ranges, creator_tib_range=None,
                        protected_ranges=(), max_instructions=100000, max_seconds=2,
-                       rdtsc_values=()):
+                       rdtsc_values=(), decode_cache=True):
     """Clone a stopped UC32 and inspect an artificial stdcall entry, stop-only.
 
     All range arguments contain (start, size), not inclusive end addresses.
@@ -66,8 +67,10 @@ def probe_worker_entry(source_machine, *, entry, parameter, thread_id, image_ran
         raise ValueError('Source must be a stopped x86 UC_MODE_32 engine')
     if not all(_dword(v) for v in (entry, parameter, thread_id)) or thread_id == 0:
         raise ValueError('Entry/parameter/TID must be DWORDs, TID nonzero')
-    if type(max_instructions) is not int or not 1 <= max_instructions <= 100000:
-        raise ValueError('Instruction budget must be 1..100000')
+    if type(max_instructions) is not int or not 1 <= max_instructions <= 1000000:
+        raise ValueError('Instruction budget must be 1..1000000')
+    if type(decode_cache) is not bool:
+        raise ValueError('Decode cache switch must be bool')
     if (type(max_seconds) not in (int, float) or not math.isfinite(max_seconds)
             or not 0 < max_seconds <= 10):
         raise ValueError('Execution time budget must be positive and <=10 seconds')
@@ -137,6 +140,9 @@ def probe_worker_entry(source_machine, *, entry, parameter, thread_id, image_ran
     tail = deque(maxlen=24)
     decoder = cs.Cs(cs.CS_ARCH_X86, cs.CS_MODE_32)
     decoder.detail = True
+    classifications = {}
+    cache_stats = dict(mode='exact_bytes' if decode_cache else 'disabled',
+                       hits=0, misses=0, limit=DECODE_CACHE_LIMIT, resets=0)
 
     def stop(reason, **metadata):
         if state['reason'] == 'running':
@@ -180,11 +186,27 @@ def probe_worker_entry(source_machine, *, entry, parameter, thread_id, image_ran
         if state['instructions'] >= max_instructions:
             stop('instruction_limit')
             return
-        decoded = next(decoder.disasm(bytes(machine.mem_read(address, size)), address, count=1), None)
-        if decoded is None:
-            stop('unsupported_instruction')
-            return
-        if decoded.id == cs.x86_const.X86_INS_RDTSC and rdtsc_values:
+        # Read current bytes even on a hit: address-only caching would permit
+        # stale classifications after self-modification. No operands or target
+        # addresses are cached, only address-independent instruction properties.
+        instruction_bytes = bytes(machine.mem_read(address, size))
+        classification = classifications.get(instruction_bytes) if decode_cache else None
+        if classification is None:
+            cache_stats['misses'] += 1
+            decoded = next(decoder.disasm(instruction_bytes, address, count=1), None)
+            if decoded is None:
+                stop('unsupported_instruction')
+                return
+            classification = (decoded.id, decoded.mnemonic, decoded.group(cs.CS_GRP_PRIVILEGE))
+            if decode_cache:
+                if len(classifications) >= DECODE_CACHE_LIMIT:
+                    classifications.clear()
+                    cache_stats['resets'] += 1
+                classifications[instruction_bytes] = classification
+        else:
+            cache_stats['hits'] += 1
+        instruction_id, mnemonic, privileged = classification
+        if instruction_id == cs.x86_const.X86_INS_RDTSC and rdtsc_values:
             if len(rdtsc_events) == len(rdtsc_values):
                 stop('rdtsc_fixture_exhausted', boundary_address=hex(address))
                 return
@@ -201,12 +223,12 @@ def probe_worker_entry(source_machine, *, entry, parameter, thread_id, image_ran
             machine.emu_stop()
             return
         # Do not silently obtain time/CPU/I/O or privileged environment behavior.
-        if decoded.group(cs.CS_GRP_PRIVILEGE) or decoded.mnemonic.split()[-1] in ('syscall', 'sysenter', 'sysret', 'sysexit', 'int', 'int1',
+        if privileged or mnemonic.split()[-1] in ('syscall', 'sysenter', 'sysret', 'sysexit', 'int', 'int1',
                                 'int3', 'into', 'in', 'insb', 'insw', 'insd', 'out',
                                 'outsb', 'outsw', 'outsd', 'hlt', 'rdtsc', 'rdtscp', 'cpuid',
                                 'rdrand', 'rdseed', 'rdmsr', 'wrmsr', 'rdpmc', 'xgetbv', 'xsetbv',
                                 'rdpid', 'rdpkru', 'wrpkru', 'sgdt', 'sidt', 'sldt', 'str', 'smsw'):
-            stop('unsupported_instruction', instruction_kind=decoded.mnemonic)
+            stop('unsupported_instruction', instruction_kind=mnemonic)
             return
         state['instructions'] += 1
         tail.append(hex(address))
@@ -273,6 +295,7 @@ def probe_worker_entry(source_machine, *, entry, parameter, thread_id, image_ran
     stack_observation.update(requested_words=9, captured_words=len(stack_observation['words']),
                              truncated=len(stack_observation['words']) < 9)
     state.update(elapsed_seconds=time.monotonic() - started, setup_seconds=setup_seconds,
+                 decoder_cache=dict(cache_stats, entries=len(classifications)),
                  stack_observation=stack_observation,
                  initial_registers=initial,
                  registers={name: hex(child.reg_read(reg)) for name, reg in REGISTERS.items()},
