@@ -1,7 +1,9 @@
 """Bounded x86 PE loader tracing in Unicorn, without native execution.
 
-No Windows API, licensing server or dongle is emulated. Imported function
-addresses are replaced IN EMULATED MEMORY ONLY by stop markers. An incomplete
+No licensing server or dongle is emulated. Imported function addresses are
+replaced IN EMULATED MEMORY ONLY by stop markers. An optional read-only PE
+module model resolves module/export lookups only (LoadLibraryA requires an
+already mapped module). An incomplete
 process environment means a stop is evidence about this experiment, not proof
 of what a real Windows process would do. No vendor bytes are exported.
 """
@@ -19,12 +21,14 @@ import pefile
 import unicorn as uc
 from unicorn import x86_const as x86
 
+from pe_module_model import ModuleModel
+
 
 def integer(text):
     return int(text, 0)
 
 
-def trace(path, export, argument, max_instructions, max_seconds):
+def trace(path, export, argument, max_instructions, max_seconds, modules=()):
     raw = path.read_bytes()
     digest = hashlib.sha256(raw).hexdigest()
     pe = pefile.PE(data=raw)
@@ -48,6 +52,8 @@ def trace(path, export, argument, max_instructions, max_seconds):
             machine.mem_write(base + section.VirtualAddress, data)
     for address, size in [(stack, 0x10000), (sentinel, 0x1000), (imports_base, 0x10000)]:
         machine.mem_map(address, size)
+    module_model = ModuleModel(machine, modules, [(base, mapped_size), (stack, 0x10000),
+                                                 (sentinel, 0x1000), (imports_base, 0x10000)])
     functions = {}
     iat_map = []
     for descriptor in getattr(pe, 'DIRECTORY_ENTRY_IMPORT', []):
@@ -73,6 +79,7 @@ def trace(path, export, argument, max_instructions, max_seconds):
     machine.reg_write(x86.UC_X86_REG_EFLAGS, 2)
     state = dict(input_name=path.name, input_sha256=digest, input_size=len(raw),
                  tool_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+                 module_model_sha256=hashlib.sha256(Path(__file__).with_name('pe_module_model.py').read_bytes()).hexdigest(),
                  entry=hex(entry), export=export, argument=argument,
                  limits=dict(instructions=max_instructions, seconds=max_seconds),
                  versions=dict(unicorn=version('unicorn'), capstone=version('capstone'), pefile=version('pefile')),
@@ -90,15 +97,27 @@ def trace(path, export, argument, max_instructions, max_seconds):
 
     def instruction(m, address, size, _):
         # Markers are observed but never executed and do not count as instructions.
-        if address == sentinel or address in functions:
+        external_name = functions.get(address)
+        if modules and external_name is None and module_model.contains(address):
+            names = module_model.address_names.get(address, [])
+            external_name = names[0] if names else 'mapped_module!' + hex(address)
+        if external_name and modules:
+            handled, observation = module_model.handle(external_name)
+            if handled:
+                # Resume outside the hook, after the modeled stdcall return.
+                m.emu_stop()
+                return
+            if observation:
+                state['unresolved_module_call'] = observation
+        if address == sentinel or external_name:
             state['reason'] = 'returned' if address == sentinel else 'external_import'
-            if address in functions:
-                state['external_import'] = functions[address]
+            if external_name:
+                state['external_import'] = external_name
                 esp = m.reg_read(x86.UC_X86_REG_ESP)
                 try:
                     words = struct.unpack('<9I', m.mem_read(esp, 36))
                     state['external_stack_words'] = [hex(w) for w in words]
-                    if functions[address].lower().endswith(('!getmodulehandlea', '!loadlibrarya')):
+                    if external_name.lower().endswith(('!getmodulehandlea', '!loadlibrarya')):
                         chars = bytearray()
                         if words[1]:
                             for offset in range(260):
@@ -117,6 +136,26 @@ def trace(path, export, argument, max_instructions, max_seconds):
     def invalid(m, access, address, size, value, _):
         state.update(reason='unmapped_or_protected_memory', access=access,
                      memory_address=hex(address), access_size=size)
+        # Describe the addressing mechanism, not proprietary instruction bytes.
+        pc = m.reg_read(x86.UC_X86_REG_EIP)
+        try:
+            decoder = capstone.Cs(capstone.CS_ARCH_X86, capstone.CS_MODE_32)
+            decoder.detail = True
+            decoded = next(decoder.disasm(bytes(m.mem_read(pc, 15)), pc, count=1), None)
+            if decoded:
+                operands = []
+                for operand in decoded.operands:
+                    if operand.type == capstone.x86_const.X86_OP_MEM:
+                        mem = operand.mem
+                        operands.append(dict(segment=decoded.reg_name(mem.segment),
+                                             base=decoded.reg_name(mem.base),
+                                             index=decoded.reg_name(mem.index),
+                                             scale=mem.scale, displacement=mem.disp,
+                                             operand_size=operand.size))
+                state['fault_instruction'] = dict(address=hex(pc), mnemonic=decoded.mnemonic,
+                                                  memory_operands=operands)
+        except (uc.UcError, capstone.CsError):
+            pass
         return False
 
     def interrupt(m, number, _):
@@ -171,6 +210,9 @@ def trace(path, export, argument, max_instructions, max_seconds):
     # Addresses only: no proprietary bytes or disassembly in this shareable report.
     state['tail_instruction_addresses'] = [hex(a) for a in tail]
     state['input_unchanged'] = hashlib.sha256(path.read_bytes()).hexdigest() == digest
+    if modules:
+        state['module_model'] = module_model.report()
+        state['environment'] += '; opt-in mapped-PE resolver model, no mapped-module code execution'
     if not state['input_unchanged']:
         raise RuntimeError('Input changed during trace')
     return state
@@ -181,6 +223,8 @@ def main():
     parser.add_argument('file', type=Path)
     parser.add_argument('--export')
     parser.add_argument('--argument', type=integer, default=0)
+    parser.add_argument('--module', action='append', type=Path, default=[],
+                        help='Opt-in read-only reference PE for module/export resolution; repeatable')
     parser.add_argument('--max-instructions', type=integer, default=20_000_000)
     parser.add_argument('--max-seconds', type=float, default=45.)
     parser.add_argument('--report', required=True, type=Path)
@@ -189,7 +233,7 @@ def main():
         parser.error('Limits: 1..100000000 instructions; 0..300 seconds')
     if args.report.exists():
         parser.error('Report already exists; choose a new evidence filename')
-    result = trace(args.file, args.export, args.argument, args.max_instructions, args.max_seconds)
+    result = trace(args.file, args.export, args.argument, args.max_instructions, args.max_seconds, args.module)
     with args.report.open('x', encoding='utf-8') as output:
         json.dump(result, output, indent=2, ensure_ascii=False)
         output.write('\n')
