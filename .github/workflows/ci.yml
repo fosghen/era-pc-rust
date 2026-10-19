@@ -42,6 +42,8 @@ jobs:
       - run: cargo +1.90.0 fmt --check
       - run: cargo +1.90.0 clippy --locked --all-targets -- -D warnings
       - run: cargo +1.90.0 test --locked
+      - name: Test offline native metadata correlation
+        run: cargo +1.90.0 test --locked --example native_trace_report
       - run: cargo +1.90.0 run --locked -- demo
       - name: Build Windows x64 release
         if: matrix.os == 'windows-latest'

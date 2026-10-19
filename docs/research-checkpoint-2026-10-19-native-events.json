@@ -1,0 +1,86 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-19",
+  "parent_commit": "70a6f3100937ef96e2be23c7f9a89177660bb523",
+  "path_base": "workspace root containing era-rust and reverse_engineering",
+  "status": "Offline Rust event-handle correlation; no new original execution, licensing bypass or numerical validation.",
+  "files": [
+    {
+      "path": "era-rust/examples/native_trace_report.rs",
+      "sha256": "dad9a42d33fef65dd458ded3b6116dc30bdf4aad756595c2b6b385d2b6105988"
+    },
+    {
+      "path": "era-rust/docs/HOST_LINKED_RESEARCH.md",
+      "sha256": "38cfbb52d3180de9591be9ef59f38481e3e0f1cbffd730274effd47d1a8c3316"
+    },
+    {
+      "path": "era-rust/tools/verify_checkpoint.py",
+      "sha256": "235a1c96268395f8e2bcd240403de5864929dcd796e9d667ae26fca3f1040696"
+    },
+    {
+      "path": "era-rust/Cargo.toml",
+      "sha256": "00a9e49290cd2c690dcfa1551642e51c0c0b6be1d34fb2e7c59947e8543baaed"
+    },
+    {
+      "path": "era-rust/Cargo.lock",
+      "sha256": "eddc4aa9c82ff1ce3b27402d40c483a0d1528b9e896d758651f8f0c21760adb2"
+    },
+    {
+      "path": "era-rust/.github/workflows/ci.yml",
+      "sha256": "ff5e5cc46892700d9b415454a047a174f928016681e17028d140b02b2cbc58bd"
+    },
+    {
+      "path": "reverse_engineering/native_fixture_capture_02.jsonl",
+      "sha256": "4e85ec994d7f60926174aa7c9a6efa52be12f30d33e8a132acd11741bc2217ca"
+    },
+    {
+      "path": "reverse_engineering/native_perv_capture_01.jsonl",
+      "sha256": "0eac3810b4757897396d83f8897797abe847dad56d08c1234d79c4088979fbd5"
+    },
+    {
+      "path": "reverse_engineering/native_perv_capture_02.jsonl",
+      "sha256": "717ccc72ac4da15fe0d4d67149eb314d4bd2dad44a16f2d0a69a8008e4e53589"
+    },
+    {
+      "path": "reverse_engineering/native_fixture_capture_02_correlated_03.json",
+      "sha256": "8fceffeef2d1766079245eb79b6bd0faa2f1e8b51e788c3a21ec1cb23ade589a"
+    },
+    {
+      "path": "reverse_engineering/native_perv_capture_01_correlated_03.json",
+      "sha256": "16b0034a9a85290e48cdabb2c14accd9981dbb30c28d211a0fe3dfcd617a5a34"
+    },
+    {
+      "path": "reverse_engineering/native_perv_capture_02_correlated_03.json",
+      "sha256": "9f016d41be268183df1498ca721e43d176c551ab609a551c463b2a5fec27258b"
+    }
+  ],
+  "toolchain": "rustc 1.90.0 (1159e78c4 2025-09-14)",
+  "tests": {
+    "rust_example": 15,
+    "clippy": "PASS -D warnings"
+  },
+  "workspace_note": "Cargo.toml has pre-existing user changes; snapshotted privately for dependency provenance but not included in this research commit.",
+  "findings": {
+    "original_calls": [
+      196,
+      198
+    ],
+    "fixture_calls": 142,
+    "wait_creation_ordinals_one_based": [
+      6,
+      3,
+      4
+    ],
+    "signaled_creation_ordinal_one_based": 2,
+    "waited_event_set_reset_close_observations": 0,
+    "uncertain_api_calls": 0,
+    "worker_purpose": "unknown",
+    "input_scenario": "Original startup without arguments or a calculation job prepared in the main shell"
+  },
+  "limitations": [
+    "Handle association is observation-order correlation, not OS identity or live signal-state.",
+    "Missing API observations, overlapping close/reuse, aliases and unreadable arrays remain explicit uncertainties.",
+    "Standalone startup cannot establish execution of numerical calculation or licensing success.",
+    "Original PDF manuals and binaries excluded; traces and archive stay private."
+  ]
+}
