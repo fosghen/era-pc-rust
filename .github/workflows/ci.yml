@@ -31,12 +31,5 @@ jobs:
         if: matrix.os == 'windows-latest'
         shell: pwsh
         run: ./scripts/package-windows.ps1
-      - name: Upload Windows portable package
-        if: matrix.os == 'windows-latest'
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: era-pc-rust-windows-x64
-          path: |
-            dist/*.zip
-            dist/*.sha256
-          if-no-files-found: error
+      # Development builds are checked on the runner only, never uploaded.
+      # Public executables require the full-release readiness review.
