@@ -31,6 +31,37 @@ class StartupModelTests(unittest.TestCase):
         self.assertEqual(struct.unpack('<Q', self.machine.mem_read(0x11000, 8))[0], self.model.profile['filetime'])
         self.assertEqual(self.machine.reg_read(x86.UC_X86_REG_ESP), 0x10808)
 
+    def test_system_time_utc_layout_and_void_stdcall(self):
+        self.machine.reg_write(x86.UC_X86_REG_EAX, 0xdeadbeef)
+        ok, event = self.call('GetSystemTime', 0x11000, module='api-ms-win-core-sysinfo-l1-1-0.dll')
+        self.assertTrue(ok)
+        self.assertIsNone(event['result'])
+        self.assertEqual(self.machine.reg_read(x86.UC_X86_REG_EAX), 0xdeadbeef)
+        self.assertEqual(self.machine.reg_read(x86.UC_X86_REG_ESP), 0x10808)
+        self.assertEqual(struct.unpack('<8H', self.machine.mem_read(0x11000, 16)),
+                         (2024, 1, 1, 1, 0, 0, 0, 0))
+        self.assertEqual(self.model.handle('other.dll!GetSystemTime'), (False, None))
+        self.assertEqual(self.model.handle('api-ms-win-core-sysinfo-l1-1-0.dll!GetCurrentProcessId'), (False, None))
+
+    def test_system_time_epoch_leap_day_and_submillisecond_truncation(self):
+        # Integer FILETIME values, independently fixed calendar expectations.
+        for ticks, expected in ((0, (1601, 1, 1, 1, 0, 0, 0, 0)),
+                                (133536836961239999, (2024, 2, 4, 29, 12, 34, 56, 123)),
+                                (2650467743999999999, (9999, 12, 5, 31, 23, 59, 59, 999))):
+            self.model.profile['filetime'] = ticks
+            self.result('GetSystemTime', 0x11000)
+            self.assertEqual(struct.unpack('<8H', self.machine.mem_read(0x11000, 16)), expected)
+
+    def test_system_time_rejects_invalid_output_without_partial_write(self):
+        before = bytes(self.machine.mem_read(0x12000, 4096))
+        self.assertFalse(self.call('GetSystemTime', 0)[0])
+        self.assertFalse(self.call('GetSystemTime', 0x12ff8)[0])
+        self.assertEqual(bytes(self.machine.mem_read(0x12000, 4096)), before)
+        for ticks in (-1, 2650467744000000000):
+            self.model.profile['filetime'] = ticks
+            self.assertFalse(self.call('GetSystemTime', 0x11000)[0])
+        self.assertEqual(self.machine.reg_read(x86.UC_X86_REG_ESP), 0x10800)
+
     def test_counter_and_ids_are_explicit_fixtures(self):
         self.assertTrue(self.call('QueryPerformanceCounter', 0x11000)[0])
         self.assertEqual(self.machine.reg_read(x86.UC_X86_REG_EAX), 1)

@@ -5,6 +5,7 @@ stop. Each completed call records its arguments, result and memory effects.
 """
 import struct
 from bisect import bisect_left
+from datetime import datetime, timedelta
 
 import unicorn as uc
 from unicorn import x86_const as x86
@@ -44,7 +45,7 @@ class StartupModel:
                  'RegOpenKeyExW': 5, 'VirtualProtect': 4,
                  'GetCurrentProcess': 0, 'FlushInstructionCache': 3,
                  'GetUserDefaultLangID': 0, 'DuplicateHandle': 7, 'CloseHandle': 1,
-                 'VirtualAlloc': 4, 'VirtualFree': 3}
+                 'VirtualAlloc': 4, 'VirtualFree': 3, 'GetSystemTime': 1}
 
     def __init__(self, machine, nls_codepage=None, nls_sort=None, nls_case=None, critical_section_layout=None):
         if critical_section_layout not in (None, 'win10-x86-19041'):
@@ -521,6 +522,18 @@ class StartupModel:
         if function == 'GetSystemTimeAsFileTime':
             self.write(args[0], struct.pack('<Q', self.profile['filetime']), event)
             return None  # VOID: do not invent a success code in EAX.
+        if function == 'GetSystemTime':
+            ticks = self.profile['filetime']
+            # Same fixed UTC instant as GetSystemTimeAsFileTime; no wall clock,
+            # timezone conversion, floating-point rounding or time progression.
+            if not 0 <= ticks <= 2650467743999999999:
+                raise ValueError('Clock fixture outside supported calendar years 1601..9999')
+            instant = datetime(1601, 1, 1) + timedelta(microseconds=ticks // 10)
+            fields = (instant.year, instant.month, (instant.weekday() + 1) % 7, instant.day,
+                      instant.hour, instant.minute, instant.second, instant.microsecond // 1000)
+            self.write(args[0], struct.pack('<8H', *fields), event)
+            event['utc_fields'] = list(fields)
+            return None
         if function == 'QueryPerformanceCounter':
             self.write(args[0], struct.pack('<q', self.profile['performance_counter']), event)
             return 1
@@ -538,6 +551,8 @@ class StartupModel:
         if module.lower() == 'api-ms-win-core-handle-l1-1-0.dll' and function in ('DuplicateHandle', 'CloseHandle'):
             allowed_module = True
         if module.lower() == 'api-ms-win-core-memory-l1-1-0.dll' and function in ('VirtualAlloc', 'VirtualFree', 'VirtualProtect'):
+            allowed_module = True
+        if module.lower() == 'api-ms-win-core-sysinfo-l1-1-0.dll' and function == 'GetSystemTime':
             allowed_module = True
         if not allowed_module or function not in self.ARGUMENTS:
             return False, None
