@@ -9,7 +9,7 @@ use std::{collections::BTreeMap, env, fs, hint::black_box, path::PathBuf, time::
 
 fn run() -> Result<()> {
     let args: Vec<String> = env::args().skip(1).collect();
-    const USAGE: &str = "Usage: era-engine demo | run scenario.json | run-batch cases.json [workers] | audit | bench [iterations]\nData commands require ERA_DATA=/path/to/recovered. demo needs no ERA files.";
+    const USAGE: &str = "Usage: era-engine demo | dispersion request.json | run scenario.json | run-batch cases.json [workers] | audit | bench [iterations]\nData commands require ERA_DATA=/path/to/recovered. demo and dispersion need no ERA files.";
     match args.first().map(String::as_str) {
         None | Some("--help" | "-h") => {
             println!("{USAGE}");
@@ -24,6 +24,17 @@ fn run() -> Result<()> {
                 "{}",
                 serde_json::to_string_pretty(&era_engine::demo::run()?)
                     .map_err(|e| e.to_string())?
+            );
+            return Ok(());
+        }
+        Some("dispersion") if args.len() == 2 => {
+            let request: era_engine::dispersion::Request =
+                serde_json::from_slice(&fs::read(&args[1]).map_err(|e| e.to_string())?)
+                    .map_err(|e| e.to_string())?;
+            let result = era_engine::dispersion::calculate(&request)?;
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&result).map_err(|e| e.to_string())?
             );
             return Ok(());
         }

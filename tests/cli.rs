@@ -29,6 +29,17 @@ fn demo_runs_without_local_data() {
 }
 
 #[test]
+fn dispersion_runs_without_local_data() {
+    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/examples/dispersion.json");
+    let output = cli(&["dispersion", path]);
+    assert!(output.status.success(), "{:?}", output);
+    let result: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(result["receptors"].as_array().unwrap().len(), 5);
+    assert!(result["source_parameters"][0]["cm_mg_m3"].as_f64().unwrap() > 0.);
+    assert!(!result["warnings"].as_array().unwrap().is_empty());
+}
+
+#[test]
 fn errors_are_actionable_without_panicking() {
     for args in [
         vec!["unknown"],

@@ -1,0 +1,33 @@
+{
+  "pollutant": "synthetic-demo-only",
+  "coefficient_a": 200.0,
+  "air_temperature_c": 20.0,
+  "max_wind_speed_m_s": 10.0,
+  "sources": [
+    {
+      "id": "stack-1",
+      "x_m": 0.0,
+      "y_m": 0.0,
+      "height_m": 30.0,
+      "outlet": {"shape": "circular", "diameter_m": 1.0},
+      "exit_velocity_m_s": 10.0,
+      "gas_temperature_c": 120.0,
+      "emission_g_s": 1.0,
+      "settling_factor": 1.0
+    }
+  ],
+  "receptors": [
+    {"id": "north-100", "x_m": 0.0, "y_m": 100.0, "height_m": 2.0},
+    {"id": "north-300", "x_m": 0.0, "y_m": 300.0, "height_m": 2.0},
+    {"id": "north-1000", "x_m": 0.0, "y_m": 1000.0, "height_m": 2.0},
+    {"id": "east-100-north-300", "x_m": 100.0, "y_m": 300.0, "height_m": 2.0},
+    {"id": "south-300", "x_m": 0.0, "y_m": -300.0, "height_m": 2.0}
+  ],
+  "winds": [
+    {"from_degrees": 180.0, "speed_m_s": 0.5},
+    {"from_degrees": 180.0, "speed_m_s": 1.0},
+    {"from_degrees": 180.0, "speed_m_s": 2.0},
+    {"from_degrees": 180.0, "speed_m_s": 5.0},
+    {"from_degrees": 0.0, "speed_m_s": 2.0}
+  ]
+}
