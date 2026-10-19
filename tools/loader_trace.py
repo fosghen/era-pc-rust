@@ -44,8 +44,11 @@ def validate_limits(max_instructions, max_seconds):
 
 def trace(path, export, argument, max_instructions, max_seconds, modules=(), thread_model=False,
           dll_attach=False, observe=(), watch=(), startup_model=False, nls_codepage=None, nls_sort=None, nls_case=None,
-          after_attach_export=None, reference_import_markers=False, host_after_attach=None, critical_section_layout=None):
+          after_attach_export=None, reference_import_markers=False, host_after_attach=None, critical_section_layout=None,
+          observer='python'):
     validate_limits(max_instructions, max_seconds)
+    if observer not in ('python', 'rust'):
+        raise ValueError('Observer must be python or rust')
     if critical_section_layout and not startup_model:
         raise ValueError('Critical-section layout requires the explicit startup model')
     if host_after_attach and (not dll_attach or after_attach_export or export):
@@ -222,7 +225,11 @@ def trace(path, export, argument, max_instructions, max_seconds, modules=(), thr
             host['base'] + s.VirtualAddress + max(s.Misc_VirtualSize, s.SizeOfRawData),
             'host:' + s.Name.rstrip(b'\0').decode(errors='replace') + '@' + hex(host['base'] + s.VirtualAddress))
             for s in host['pe'].sections)
-    started = time.monotonic()
+    native = None
+
+    def sync_observer():
+        if native is not None:
+            native.sync()
 
     def instruction(m, address, size, _):
         if address == sentinel:
@@ -327,6 +334,7 @@ def trace(path, export, argument, max_instructions, max_seconds, modules=(), thr
         tail.append(address)
 
     def invalid(m, access, address, size, value, _):
+        sync_observer()
         state.update(reason='unmapped_or_protected_memory', access=access,
                      memory_address=hex(address), access_size=size)
         # Describe the addressing mechanism, not proprietary instruction bytes.
@@ -387,6 +395,7 @@ def trace(path, export, argument, max_instructions, max_seconds, modules=(), thr
         return False
 
     def interrupt(m, number, _):
+        sync_observer()
         state.update(reason='CPU_interrupt', interrupt=number)
         m.emu_stop()
 
@@ -402,36 +411,59 @@ def trace(path, export, argument, max_instructions, max_seconds, modules=(), thr
                 write_ranges[name][1] = max(write_ranges[name][1], address + size)
             for index, (start, initial) in enumerate(watched):
                 if address < start + len(initial) and start < address + size:
+                    sync_observer()
                     watch_writes[index].append(dict(instruction=hex(m.reg_read(x86.UC_X86_REG_EIP)),
                         instruction_index=state['instructions'], address=hex(address), size=size))
 
-    machine.hook_add(uc.UC_HOOK_CODE, instruction)
+    if observer == 'rust':
+        from native_observer import NativeObserver
+        # Keep Python for exactly the addresses that need semantic handling.
+        # A whole reference module is stop-only, including non-export addresses.
+        ranges = [(sentinel, sentinel + 1), (imports_base, imports_base + 0x10000)]
+        ranges += [(address, address + 1) for address in observed]
+        ranges += [(m['base'], m['base'] + m['size']) for m in module_model.modules.values()]
+        if reference_import_markers:
+            ranges += [(start, start + length) for start, length in REFERENCE_IMPORT_REGIONS]
+        native = NativeObserver(machine, ranges, instruction, state, tail)
+        state['instruction_observer'] = native.metadata
+    else:
+        machine.hook_add(uc.UC_HOOK_CODE, instruction)
+        state['instruction_observer'] = dict(mode='python')
     machine.hook_add(uc.UC_HOOK_MEM_INVALID, invalid)
     machine.hook_add(uc.UC_HOOK_INTR, interrupt)
     machine.hook_add(uc.UC_HOOK_MEM_WRITE, written)
+    started = time.monotonic()  # Compilation/setup is excluded from execution timing.
     next_progress = started + 5
-    while state['reason'] == 'running':
-        if state['instructions'] >= max_instructions:
-            state['reason'] = 'instruction_limit'
-            break
-        remaining_seconds = max_seconds - (time.monotonic() - started)
-        if remaining_seconds <= 0:
-            state['reason'] = 'time_limit'
-            break
-        pc = entry if state['instructions'] == 0 else machine.reg_read(x86.UC_X86_REG_EIP)
-        try:
-            machine.emu_start(pc, 0, timeout=max(1, int(min(2., remaining_seconds) * 1_000_000)),
-                              count=min(250_000, max_instructions - state['instructions']))
-        except uc.UcError as error:
-            state['emulator_error'] = str(error)
-            if state['reason'] == 'running':
-                state['reason'] = 'emulator_error'
-        if time.monotonic() >= next_progress:
-            print(json.dumps(dict(progress_instructions=state['instructions'],
-                                  elapsed_seconds=round(time.monotonic() - started, 3),
-                                  eip=hex(machine.reg_read(x86.UC_X86_REG_EIP)),
-                                  image_writes=state['image_write_events'])), flush=True)
-            next_progress = time.monotonic() + 5
+    try:
+        while state['reason'] == 'running':
+            if state['instructions'] >= max_instructions:
+                state['reason'] = 'instruction_limit'
+                break
+            remaining_seconds = max_seconds - (time.monotonic() - started)
+            if remaining_seconds <= 0:
+                state['reason'] = 'time_limit'
+                break
+            pc = entry if state['instructions'] == 0 else machine.reg_read(x86.UC_X86_REG_EIP)
+            try:
+                machine.emu_start(pc, 0, timeout=max(1, int(min(2., remaining_seconds) * 1_000_000)),
+                                  count=min(250_000, max_instructions - state['instructions']))
+            except uc.UcError as error:
+                state['emulator_error'] = str(error)
+                if state['reason'] == 'running':
+                    state['reason'] = 'emulator_error'
+            finally:
+                sync_observer()
+            if native is not None:
+                native.check_error()
+            if time.monotonic() >= next_progress:
+                print(json.dumps(dict(progress_instructions=state['instructions'],
+                                      elapsed_seconds=round(time.monotonic() - started, 3),
+                                      eip=hex(machine.reg_read(x86.UC_X86_REG_EIP)),
+                                      image_writes=state['image_write_events'])), flush=True)
+                next_progress = time.monotonic() + 5
+    finally:
+        if native is not None:
+            native.close()
     state['elapsed_seconds'] = round(time.monotonic() - started, 4)
     state['registers'] = {name: hex(machine.reg_read(reg)) for name, reg in [
         ('eax', x86.UC_X86_REG_EAX), ('ebx', x86.UC_X86_REG_EBX), ('ecx', x86.UC_X86_REG_ECX),
@@ -503,6 +535,8 @@ def main():
                         help='Opt-in read-only reference PE for module/export resolution; repeatable')
     parser.add_argument('--max-instructions', type=integer, default=20_000_000)
     parser.add_argument('--max-seconds', type=float, default=45.)
+    parser.add_argument('--observer', choices=['python', 'rust'], default='python',
+                        help='Instruction observer; rust requires rustc and Linux x86_64, Python remains the reference')
     parser.add_argument('--report', required=True, type=Path)
     args = parser.parse_args()
     try:
@@ -514,7 +548,7 @@ def main():
     result = trace(args.file, args.export, args.argument, args.max_instructions, args.max_seconds,
                    args.module, args.thread_model, args.dll_attach, args.observe, args.watch, args.startup_model,
                    args.nls_codepage, args.nls_sort, args.nls_case, args.after_attach_export, args.reference_import_markers,
-                   args.host_after_attach, args.critical_section_layout)
+                   args.host_after_attach, args.critical_section_layout, args.observer)
     with args.report.open('x', encoding='utf-8') as output:
         json.dump(result, output, indent=2, ensure_ascii=False)
         output.write('\n')

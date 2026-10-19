@@ -19,7 +19,11 @@ jobs:
         run: |
           python3 -m venv .research-venv
           .research-venv/bin/pip install --disable-pip-version-check -r tools/requirements-research.txt
+      - name: Install pinned Rust for native observer parity tests
+        run: rustup toolchain install 1.90.0 --profile minimal
       - name: Test tracing on synthetic PE images only
+        env:
+          RUSTUP_TOOLCHAIN: 1.90.0
         run: .research-venv/bin/python -m unittest discover -s tools -p 'test_*.py' -v
   test:
     strategy:

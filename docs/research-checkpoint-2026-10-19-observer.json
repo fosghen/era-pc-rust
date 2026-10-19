@@ -1,0 +1,121 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-19",
+  "parent_commit": "4c0871e8479162b30eef12f337ab583b5a946261",
+  "path_base": "workspace root containing era-rust and reverse_engineering",
+  "status": "Opt-in Rust observer; synthetic parity and a real 20-million-instruction prefix verified",
+  "files": [
+    {
+      "path": "era-rust/.github/workflows/ci.yml",
+      "sha256": "c515c8236ca75f0d6488412b57f5ba5057503540c978e8d0c9a2a5ec0e50a0c0"
+    },
+    {
+      "path": "era-rust/docs/HOST_LINKED_RESEARCH.md",
+      "sha256": "ed7c176aec0e7123c44af49690fb0cad3eea17a3aa013a7f9866b7eefcb54b9f"
+    },
+    {
+      "path": "era-rust/tools/benchmark_observer.py",
+      "sha256": "8b2b574b8a9a5c9137af7da4133e7af5bde0715d27eb3ec205cfe990293bc2b4"
+    },
+    {
+      "path": "era-rust/tools/loader_trace.py",
+      "sha256": "72680ee416b71d39a71084d4f65d58b4df0ee81a924d84459f5bece7458586f9"
+    },
+    {
+      "path": "era-rust/tools/native_observer.py",
+      "sha256": "0d78fc299c33f2bb46df9bc17c96ba27edeb26f67b71a21e9718c65905f59a0f"
+    },
+    {
+      "path": "era-rust/tools/nls_model.py",
+      "sha256": "8849236f1ddef7da6c24844933c8e051f1164b6785768347f74149acca5cee49"
+    },
+    {
+      "path": "era-rust/tools/pe_module_model.py",
+      "sha256": "c7aa5e5775eaf36b88a08ead627d7fbe60b3bbd1809b6613e414bee808531a2a"
+    },
+    {
+      "path": "era-rust/tools/probe_critical_section.ps1",
+      "sha256": "8681bf5ef7daab036e77eb240d13624a92bdf768de24d5af83077ab354903e9d"
+    },
+    {
+      "path": "era-rust/tools/requirements-research.txt",
+      "sha256": "0052d0d49b9d27a7f6f0f7420dcd299548bd66b9aa16402938bce076cc064d3b"
+    },
+    {
+      "path": "era-rust/tools/startup_model.py",
+      "sha256": "ff385d42228daa97036eb261d904d0ca3d8302838cc3c283a4795481429738e8"
+    },
+    {
+      "path": "era-rust/tools/test_loader_trace.py",
+      "sha256": "cdce1f9b8e537f52833933a6b00afc0e5133d6f03bfc017404ca35f345f09e95"
+    },
+    {
+      "path": "era-rust/tools/test_native_observer.py",
+      "sha256": "bcee08870c5ff2467535c43e2b7afa5bfb2cc0d070aa11af923b268aaae6e0b6"
+    },
+    {
+      "path": "era-rust/tools/test_nls_model.py",
+      "sha256": "480e0fca7e17b11d2fdc817b4a015c8643613af36595e374663026f429f0b389"
+    },
+    {
+      "path": "era-rust/tools/test_startup_model.py",
+      "sha256": "3754aaafacb466c73ba5b103be524dd0bc5269f7798d01ffc19ac5b48ee6622a"
+    },
+    {
+      "path": "era-rust/tools/test_verify_checkpoint.py",
+      "sha256": "c766303ed4a8451a9e2a4037f560c6e5344f1c8438a5bb5aacd19d5702b8b68c"
+    },
+    {
+      "path": "era-rust/tools/trace_observer.rs",
+      "sha256": "fcbf1049570407c438fa16633915109c8f6c7c14bb8e800cc3a0cb37c262863c"
+    },
+    {
+      "path": "era-rust/tools/verify_checkpoint.py",
+      "sha256": "235a1c96268395f8e2bcd240403de5864929dcd796e9d667ae26fca3f1040696"
+    },
+    {
+      "path": "era-rust/tools/x86_thread_model.py",
+      "sha256": "add7d065ee124b441184629cdd9d87fead60ce3639e310c2bbccc1d0037b4b8a"
+    },
+    {
+      "path": "reverse_engineering/observer_benchmark_01.json",
+      "sha256": "54a009441bc450119567ab04a716a33b8f4aea55cf8b7501486ab5361ac49f40"
+    },
+    {
+      "path": "reverse_engineering/perv_observer_python_20m_01.json",
+      "sha256": "dacff70d0079a9c2053d2b2d5b11eb7767e86921a31f874321d544990cd7f859"
+    },
+    {
+      "path": "reverse_engineering/perv_observer_rust_20m_01.json",
+      "sha256": "bc49a6b11f181aaa094fe0cc3088b6249c57a92460c9ec8ee86af5fc0d86ca78"
+    }
+  ],
+  "experiment": {
+    "reports": [
+      "observer_benchmark_01.json",
+      "perv_observer_python_20m_01.json",
+      "perv_observer_rust_20m_01.json"
+    ],
+    "instructions": 20000000,
+    "python_seconds": 30.7878,
+    "rust_seconds": 14.3491,
+    "speedup": 2.1456258580677536,
+    "semantic_reports_equal": true,
+    "excluded_comparison_fields": [
+      "elapsed_seconds",
+      "instruction_observer"
+    ],
+    "input_unchanged": true,
+    "host_input_unchanged": true,
+    "tests_tools": 167,
+    "tests_calculation_project": 59
+  },
+  "limitations": [
+    "One real-input pair, not a dedicated-CPU measurement; brief CLI tests overlapped the Python run",
+    "600-million-instruction trace not rerun; whole-trace speedup not measured",
+    "Native RDTSC remains unfixed; prefix parity is not proof of full determinism",
+    "Memory callbacks and OS models remain in Python",
+    "No new numerical calculation or license success demonstrated",
+    "No vendor files, memory dumps or compiled native libraries included"
+  ]
+}
