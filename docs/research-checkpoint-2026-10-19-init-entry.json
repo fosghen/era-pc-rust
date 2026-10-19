@@ -1,0 +1,83 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-19",
+  "parent_commit": "eeb3a12b10962f641784f01b3a5e9eba4b4e2006",
+  "path_base": "workspace root containing era-rust and reverse_engineering",
+  "status": "Actual guest InitProtApp entered with two host-supplied arguments; stopped at instruction budget, no license or calculation success established",
+  "files": [
+    {
+      "path": "era-rust/tools/loader_trace.py",
+      "sha256": "4ed8975f102e5c21151c51097061d2e115668435391b952bb33d727c29311491"
+    },
+    {
+      "path": "era-rust/tools/pe_module_model.py",
+      "sha256": "c7aa5e5775eaf36b88a08ead627d7fbe60b3bbd1809b6613e414bee808531a2a"
+    },
+    {
+      "path": "era-rust/tools/x86_thread_model.py",
+      "sha256": "add7d065ee124b441184629cdd9d87fead60ce3639e310c2bbccc1d0037b4b8a"
+    },
+    {
+      "path": "era-rust/tools/startup_model.py",
+      "sha256": "ff385d42228daa97036eb261d904d0ca3d8302838cc3c283a4795481429738e8"
+    },
+    {
+      "path": "era-rust/tools/nls_model.py",
+      "sha256": "8849236f1ddef7da6c24844933c8e051f1164b6785768347f74149acca5cee49"
+    },
+    {
+      "path": "era-rust/tools/verify_checkpoint.py",
+      "sha256": "235a1c96268395f8e2bcd240403de5864929dcd796e9d667ae26fca3f1040696"
+    },
+    {
+      "path": "era-rust/docs/HOST_LINKED_RESEARCH.md",
+      "sha256": "d1234083d377527fdb72830a51016476dc02da0b7850e9895c76ba5b00438b49"
+    },
+    {
+      "path": "reverse_engineering/perv_linked_07.json",
+      "sha256": "1731716f44c6a90a3ba0969f7867af39ddb40bbc95d044a942df6e6e7c2938c9"
+    }
+  ],
+  "experiment": {
+    "report": "perv_linked_07.json",
+    "source_commit": "773e6d268a34b9060ba28771d6888791e0cb4fcb",
+    "source_hashes_match_commit": true,
+    "model_hashes": {
+      "tool_sha256": "4ed8975f102e5c21151c51097061d2e115668435391b952bb33d727c29311491",
+      "module_model_sha256": "c7aa5e5775eaf36b88a08ead627d7fbe60b3bbd1809b6613e414bee808531a2a",
+      "thread_model_sha256": "add7d065ee124b441184629cdd9d87fead60ce3639e310c2bbccc1d0037b4b8a",
+      "startup_model_sha256": "ff385d42228daa97036eb261d904d0ca3d8302838cc3c283a4795481429738e8",
+      "nls_model_sha256": "8849236f1ddef7da6c24844933c8e051f1164b6785768347f74149acca5cee49"
+    },
+    "instructions": 600000000,
+    "elapsed_seconds": 743.0251,
+    "reason": "instruction_limit",
+    "limits": {
+      "instructions": 600000000,
+      "seconds": 900
+    },
+    "input_unchanged": true,
+    "host_input_unchanged": true,
+    "init_prot_app": {
+      "instruction_index": 313652334,
+      "address": "0x100095b0",
+      "return_address": "0xd335797",
+      "arguments": [
+        "0xd25a97d",
+        "0x0"
+      ]
+    },
+    "image_writes_by_section": {
+      ".data@0x10361000": 1170,
+      ".text@0x10001000": 69427,
+      ".grd0001@0x1065f000": 86797,
+      "host:.idata@0xd23b000": 454666
+    }
+  },
+  "limitations": [
+    "Entry observation is not observed return or license status",
+    "No hardware or licensing response was synthesized",
+    "No protected numerical calculation demonstrated",
+    "No vendor binaries or memory dumps included"
+  ]
+}
