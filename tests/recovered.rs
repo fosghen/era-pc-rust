@@ -204,6 +204,26 @@ fn filtered_table() {
 }
 
 #[test]
+fn recovered_descending_range_column() {
+    // Local source: method 0050, table 14, row 1, column 3 = 18-14.
+    let mut s = Scenario {
+        method: "0050".into(),
+        ..Scenario::default()
+    };
+    s.initial.insert("_Diap_".into(), Value::Number(0.5));
+    let mut rt = Runtime::new(db(), s);
+    close(
+        rt.eval(&expr::parse("TAB(14,1,3)").unwrap())
+            .unwrap()
+            .number()
+            .unwrap(),
+        16.,
+    );
+    close(rt.variables["_mind_"].number().unwrap(), 14.);
+    close(rt.variables["_maxd_"].number().unwrap(), 18.);
+}
+
+#[test]
 fn parallel_batch_preserves_order_and_numbers() {
     let cases = vec![
         scenario("washing"),

@@ -108,6 +108,12 @@ enum Flow {
     End,
     Value(Value),
 }
+struct TableContext {
+    method: String,
+    table: String,
+    dictionary: bool,
+    row: crate::data::TableRow,
+}
 pub struct Runtime<'a> {
     db: &'a Database,
     method: String,
@@ -117,7 +123,7 @@ pub struct Runtime<'a> {
     selection_cursors: BTreeMap<usize, usize>,
     prompt_cursors: BTreeMap<usize, usize>,
     arrays: BTreeMap<String, (usize, usize, Vec<Value>)>,
-    table_context: Option<Vec<Value>>,
+    table_context: Option<TableContext>,
     pub writes: Vec<OutputWrite>,
     notes: Vec<String>,
 }
@@ -203,12 +209,13 @@ impl<'a> Runtime<'a> {
         let v = match e {
             Expr::Literal(v) => v.clone(),
             Expr::Var(n) => self.get(n)?,
-            Expr::Column(n) => self
-                .table_context
-                .as_ref()
-                .and_then(|v| n.checked_sub(1).and_then(|i| v.get(i)))
-                .cloned()
-                .ok_or("Column reference outside a TAB search")?,
+            Expr::Column(n) => {
+                let ctx = self
+                    .table_context
+                    .as_ref()
+                    .ok_or("Column reference outside a TAB search")?;
+                self.cell(&ctx.method, &ctx.table, ctx.dictionary, &ctx.row, *n)?
+            }
             Expr::Tab(raw) => self.tab(raw)?,
             Expr::Unary(op, x) => {
                 let v = self.eval(x)?;
@@ -219,6 +226,20 @@ impl<'a> Runtime<'a> {
                 }
             }
             Expr::Binary(op, a, b) => {
+                // TAB range membership is not FoxPro string-substring matching.
+                // It does not need _Diap_: only comparisons/returned values do.
+                if op == "$" {
+                    if let Expr::Column(col) = a.as_ref() {
+                        let ctx = self
+                            .table_context
+                            .as_ref()
+                            .ok_or("Column reference outside a TAB search")?;
+                        let range = self
+                            .cell_range(&ctx.method, &ctx.table, ctx.dictionary, &ctx.row, *col)?
+                            .ok_or("TAB membership requires a range-valued column")?;
+                        return Ok(Value::Bool(range.contains(self.eval(b)?.number()?)));
+                    }
+                }
                 let left = self.eval(a)?;
                 if op == "and" && !left.boolean()? {
                     return Ok(Value::Bool(false));
@@ -720,10 +741,40 @@ impl<'a> Runtime<'a> {
                     .map_err(|_| format!("Non-numeric coefficient {raw:?}"))?
             }));
         }
-        if meta.kind == "Д" {
-            return Err("Range-valued table cells are not implemented".into());
+        if let Some(range) = self.cell_range(method, table, dict, row, col)? {
+            let fraction = self
+                .variables
+                .get("_diap_")
+                .ok_or("Range-valued table access requires explicit _Diap_ in 0..=1")?
+                .number()?;
+            return Ok(Value::Number(range.interpolate(fraction)?));
         }
         Ok(Value::Text(raw.clone()))
+    }
+    fn cell_range(
+        &self,
+        method: &str,
+        table: &str,
+        dict: bool,
+        row: &crate::data::TableRow,
+        col: usize,
+    ) -> Result<Option<crate::range::NumericRange>> {
+        if dict || col == 21 {
+            return Ok(None);
+        }
+        let meta = self
+            .db
+            .columns
+            .get(&(method.into(), table.into(), col))
+            .ok_or_else(|| format!("Missing column metadata for {table}:{col}"))?;
+        if meta.kind != "Д" {
+            return Ok(None);
+        }
+        let raw = row
+            .cells
+            .get(col.checked_sub(1).ok_or("Column must be >=1")?)
+            .ok_or("Column out of range")?;
+        Ok(Some(crate::range::NumericRange::parse(raw)?))
     }
     fn tab(&mut self, raw: &str) -> Result<Value> {
         let args = expr::split_top(raw, ',')?;
@@ -808,25 +859,14 @@ impl<'a> Runtime<'a> {
                     r.number >= start
                 }
             }) {
-                let context = (1..=21)
-                    .map(|c| {
-                        if c == 21
-                            || (c <= row.cells.len()
-                                && (dict
-                                    || self.db.columns.contains_key(&(
-                                        method.clone(),
-                                        id.clone(),
-                                        c,
-                                    ))))
-                        {
-                            self.cell(&method, &id, dict, row, c)
-                        } else {
-                            Ok(Value::Text(
-                                row.cells.get(c - 1).cloned().unwrap_or_default(),
-                            ))
-                        }
-                    })
-                    .collect::<Result<_>>()?;
+                // Read only referenced columns. An unrelated blank range cell
+                // must not make a valid predicate fail.
+                let context = TableContext {
+                    method: method.clone(),
+                    table: id.clone(),
+                    dictionary: dict,
+                    row: row.clone(),
+                };
                 let previous = self.table_context.replace(context);
                 let result = self.eval(&expression);
                 self.table_context = previous;
@@ -873,6 +913,12 @@ impl<'a> Runtime<'a> {
             return Ok(Value::Text(String::new()));
         };
         let value = self.cell(&method, &id, dict, row, col)?;
+        if let Some(range) = self.cell_range(&method, &id, dict, row, col)? {
+            self.variables
+                .insert("_mind_".into(), Value::Number(range.min));
+            self.variables
+                .insert("_maxd_".into(), Value::Number(range.max));
+        }
         self.variables.insert(
             "_row_".into(),
             Value::Number(if dict { row.record } else { row.number } as f64),
