@@ -1,0 +1,156 @@
+{
+  "schema_version": 1,
+  "created_at_utc": "2026-10-19 03:07:13 UTC",
+  "path_base": "Local workspace containing era-rust/ and extracted/; vendor inputs and detailed evidence are not distributed",
+  "status": "No working key bypass; independent bounded CPU traces stop at external calls",
+  "experiments": [
+    {
+      "report": "reverse_engineering/perv_trace_extended_01.json",
+      "instructions": 31156019,
+      "dependency": "GRDVKC32.DLL!GrdPrepare",
+      "argument": -1
+    },
+    {
+      "report": "reverse_engineering/perv_trace_checkpoint_01.json",
+      "instructions": 31022427,
+      "dependency": "GRDVKC32.DLL!GrdPrepare",
+      "argument": -1
+    },
+    {
+      "report": "reverse_engineering/era_shell_trace_extended_01.json",
+      "instructions": 30388197,
+      "dependency": "GRDVKC32.DLL!GrdPrepare",
+      "argument": -1
+    },
+    {
+      "report": "reverse_engineering/grd_init_trace_checkpoint_01.json",
+      "instructions": 43813992,
+      "dependency": "KERNEL32.dll!GetModuleHandleA",
+      "argument": "Kernel32.dll"
+    }
+  ],
+  "replay": {
+    "matching": [
+      "input_sha256",
+      "external boundary",
+      "call stack arguments",
+      "writes per section",
+      "input unchanged"
+    ],
+    "not_identical": "p_perv instruction counts differ; cause not established; no assertion of full deterministic replay"
+  },
+  "files": [
+    {
+      "sha256": "fd6926c3cf8e5abcc79448e3cbfb105bd8f7a5420d19613e0efbae83bc14b70d",
+      "path": "extracted/app/0_START/era.exe"
+    },
+    {
+      "sha256": "e4ece1726a1615392ad3e90f2c0c03e49f9b70d50ef7ce1cafa99f9a8385739e",
+      "path": "extracted/app/ERA_RB/p_perv.exe"
+    },
+    {
+      "sha256": "0eb1003dc43a6484f8bba7076a442fad8dad506bb80f6e9047d77c82f4c7ce30",
+      "path": "extracted/app/ERA_RB/grdvkc32.dll"
+    },
+    {
+      "sha256": "0eb1003dc43a6484f8bba7076a442fad8dad506bb80f6e9047d77c82f4c7ce30",
+      "path": "extracted/app/0_START/grdvkc32.dll"
+    },
+    {
+      "sha256": "0991c888b9dd2fda1f830dec30a1028d0425c8e8be3fb75ce5e5150ade2a73ec",
+      "path": "extracted/app/Load/cryGrd.dll"
+    },
+    {
+      "sha256": "40cd1ee70b581b70b289140b8f4d7fc0df62d2c4195ac2bd5fd1368ca334c7f5",
+      "path": "extracted/app/Load/grdDrv.dll"
+    },
+    {
+      "sha256": "179f700867e2c5f513f553cc0aa76edfa70bf5f68d8e4c6a24f1f783524a91c7",
+      "path": "extracted/app/Load/grdAPI32.dll"
+    },
+    {
+      "sha256": "6e8475f40244250ff3aa1682508a5929bed15194286b0bba6010e620a84a0191",
+      "path": "extracted/app/Load/erax5.dll"
+    },
+    {
+      "sha256": "9ec0435a3e2e1dfa8c5e78e45533ff53c75db6c55c77ff9a5c1803f79e572778",
+      "path": "reverse_engineering/inspect_protection.py"
+    },
+    {
+      "sha256": "71aad60b40e37efc0f6f05f4c4e68d1ab6d5a3cef9a76131c0507b50457adde0",
+      "path": "reverse_engineering/probe_loader_cpu.py"
+    },
+    {
+      "sha256": "845ceeab78daf870a8cd2e2853eb9bfec85904297141bcaa86b74d0f854e4ef1",
+      "path": "reverse_engineering/requirements-analysis.txt"
+    },
+    {
+      "sha256": "c3140940fdaf4763546a02c092b8fd7f7996264751b883b5084b396055bac18a",
+      "path": "reverse_engineering/KEY_PROTECTION_RU.txt"
+    },
+    {
+      "sha256": "eac602cfccce91f7e5432fecc385ed858a4b47b6261fcc88ed21570179e1909f",
+      "path": "reverse_engineering/protection_inspection.json"
+    },
+    {
+      "sha256": "5b939b3e6ef3f488fba2b11aeada4fe26f9e1329b10128e634ee66d4fcc44a5e",
+      "path": "reverse_engineering/protection_static_evidence.txt"
+    },
+    {
+      "sha256": "3d0e061e340c94d4e4a8ee908dacd2479f24ccd94ad62ace95f5a6fdcbda2cf1",
+      "path": "reverse_engineering/loader_cpu_probe.json"
+    },
+    {
+      "sha256": "2cb9511188a93f44797c21657efba65950a9d2e056b6827d72232df70d9aafde",
+      "path": "reverse_engineering/loader_cpu_probe_100000.json"
+    },
+    {
+      "sha256": "d7514635f37896e47bc773f9cba11eacf4db9d7ba3e57e1e1a65244537bf57fc",
+      "path": "reverse_engineering/loader_cpu_probe_2000000.json"
+    },
+    {
+      "sha256": "84205bb926f97f54141a1239b13c179bdb5bc1e29139b06c935fb0e7e2753a5b",
+      "path": "reverse_engineering/loader_cpu_probe_5000000.json"
+    },
+    {
+      "sha256": "5c90502247f17555565cb3c954c4b6492d9a3092e65f756ede055ca18120ec10",
+      "path": "reverse_engineering/perv_trace_extended_01.json"
+    },
+    {
+      "sha256": "23681d954e19cc6ee536c72390739c06bb8b6e67760df0191139837ef99c83e7",
+      "path": "reverse_engineering/grd_init_trace_extended_01.json"
+    },
+    {
+      "sha256": "ea21feb6d07c40ac6852b2ec5708f6807787084eb242a8643a60a61d10e82091",
+      "path": "reverse_engineering/grd_init_trace_extended_02.json"
+    },
+    {
+      "sha256": "ec8bc43621464d2a7a49faea45b3f4030d9264868624c5e745cd8fbd98cb4d8a",
+      "path": "reverse_engineering/era_shell_trace_extended_01.json"
+    },
+    {
+      "sha256": "203512ed31b5148e758c094177a228cdffa44d83fa5e123f0ded9fb8e98b0a4d",
+      "path": "reverse_engineering/perv_trace_checkpoint_01.json"
+    },
+    {
+      "sha256": "0095b69c5569e390bbb809209678b9b4f7e1324a003825ab4d06ddecb2354da7",
+      "path": "reverse_engineering/grd_init_trace_checkpoint_01.json"
+    },
+    {
+      "sha256": "4a71949e9d1185afb103d5ac42b0c2320d9b265dcd945ecc99b5317a90c3c4bf",
+      "path": "era-rust/tools/loader_trace.py"
+    },
+    {
+      "sha256": "138ab8cb4f54e822003dde9bae0a9d19a92561a6fb089778d6d7cb7f01792198",
+      "path": "era-rust/tools/test_loader_trace.py"
+    },
+    {
+      "sha256": "0052d0d49b9d27a7f6f0f7420dcd299548bd66b9aa16402938bce076cc064d3b",
+      "path": "era-rust/tools/requirements-research.txt"
+    },
+    {
+      "sha256": "f1b38fcc7deb78ce4d6e7d9678b2fc46c3c38ea1314b1c3dafa5838141838d56",
+      "path": "era-rust/docs/PROTECTION_RESEARCH.md"
+    }
+  ]
+}

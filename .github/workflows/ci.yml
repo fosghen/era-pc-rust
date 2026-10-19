@@ -8,6 +8,19 @@ permissions:
   contents: read
 
 jobs:
+  research-tools:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Install optional analysis dependencies
+        run: |
+          python3 -m venv .research-venv
+          .research-venv/bin/pip install --disable-pip-version-check -r tools/requirements-research.txt
+      - name: Test tracing on synthetic PE images only
+        run: .research-venv/bin/python -m unittest discover -s tools -p 'test_loader_trace.py' -v
   test:
     strategy:
       fail-fast: false
