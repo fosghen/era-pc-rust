@@ -1,10 +1,14 @@
 import struct
+from pathlib import Path
+import tempfile
 import unittest
 
 import unicorn as uc
 from unicorn import x86_const as x86
 
 from startup_model import StartupModel, HEAP_CAPACITY
+from nls_model import NlsModel
+from test_nls_model import synthetic_codepage, synthetic_sort, synthetic_case
 
 
 class StartupModelTests(unittest.TestCase):
@@ -94,6 +98,185 @@ class StartupModelTests(unittest.TestCase):
         moved = self.result('HeapReAlloc', heap, 0, pointer, 4)
         self.assertEqual(bytes(self.machine.mem_read(moved, 4)), b'abcd')
         self.assertEqual(self.model.heaps[heap]['live'], 4)
+
+    def test_tls_lifetime_values_and_last_error(self):
+        self.assertEqual(self.result('GetLastError'), 0)
+        first = self.result('TlsAlloc')
+        second = self.result('TlsAlloc')
+        self.assertNotEqual(first, second)
+        self.result('SetLastError', 123)
+        self.assertEqual(self.result('GetLastError'), 123)
+        self.assertEqual(self.result('TlsGetValue', first), 0)
+        self.assertEqual(self.result('GetLastError'), 0)
+        self.result('TlsSetValue', first, 0xdeadbeef)
+        self.assertEqual(self.result('TlsGetValue', first), 0xdeadbeef)
+        self.assertEqual(self.result('TlsGetValue', second), 0)
+        self.result('TlsFree', first)
+        self.assertFalse(self.call('TlsGetValue', first)[0])
+        self.assertFalse(self.call('TlsFree', first)[0])
+        reused = self.result('TlsAlloc')
+        self.assertEqual(reused, first)
+        self.assertEqual(self.result('TlsGetValue', reused), 0)
+
+    def test_fls_is_separate_and_callbacks_are_not_silently_skipped(self):
+        tls = self.result('TlsAlloc')
+        fls = self.result('FlsAlloc', 0x401000)
+        self.result('TlsSetValue', tls, 10)
+        self.result('FlsSetValue', fls, 20)
+        self.assertEqual(self.result('TlsGetValue', tls), 10)
+        self.assertEqual(self.result('FlsGetValue', fls), 20)
+        self.assertFalse(self.call('GetLastError')[0])
+        ok, event = self.call('FlsFree', fls)
+        self.assertFalse(ok)
+        self.assertEqual(event['pending_callback'], dict(address='0x401000', argument='0x14'))
+        self.assertEqual(self.result('FlsGetValue', fls), 20)
+        self.result('FlsSetValue', fls, 0)
+        self.assertEqual(self.result('FlsFree', fls), 1)
+        self.assertFalse(self.call('FlsGetValue', fls)[0])
+
+    def test_local_storage_budget_does_not_fabricate_failure_code(self):
+        for _ in range(64):
+            self.result('TlsAlloc')
+        self.machine.reg_write(x86.UC_X86_REG_EAX, 123)
+        self.assertFalse(self.call('TlsAlloc')[0])
+        self.assertEqual(self.machine.reg_read(x86.UC_X86_REG_EAX), 123)
+        self.assertEqual(len(self.model.slots['Tls']), 64)
+
+    def test_pointer_encoding_pair_is_reversible_and_nonidentity(self):
+        for pointer in (0, 1, 0x401000, 0x80000000, 0xffffffff):
+            encoded = self.result('EncodePointer', pointer)
+            self.assertNotEqual(encoded, pointer)
+            self.assertEqual(self.result('DecodePointer', encoded), pointer)
+
+    def test_single_thread_critical_section_lifetime_and_recursion(self):
+        self.assertFalse(self.call('EnterCriticalSection', 0x11000)[0])
+        self.assertEqual(self.result('InitializeCriticalSectionAndSpinCount', 0x11000, 4000), 1)
+        self.assertFalse(self.call('InitializeCriticalSection', 0x11004)[0])
+        self.result('EnterCriticalSection', 0x11000)
+        self.assertEqual(self.result('TryEnterCriticalSection', 0x11000), 1)
+        self.assertEqual(self.model.locks[0x11000]['depth'], 2)
+        self.assertFalse(self.call('DeleteCriticalSection', 0x11000)[0])
+        self.result('LeaveCriticalSection', 0x11000)
+        self.result('LeaveCriticalSection', 0x11000)
+        self.assertFalse(self.call('LeaveCriticalSection', 0x11000)[0])
+        self.result('DeleteCriticalSection', 0x11000)
+        self.result('InitializeCriticalSection', 0x11000)
+
+    def test_opaque_lock_storage_cannot_be_read_or_overwritten(self):
+        self.result('InitializeCriticalSection', 0x11000)
+        self.assertFalse(self.call('QueryPerformanceCounter', 0x11000)[0])
+        self.machine.mem_write(0x10000, bytes.fromhex('a100100100 90'))
+        self.machine.emu_start(0x10000, 0x10006)
+        self.assertEqual(self.model.trace_state['reason'], 'unsupported_critical_section_memory')
+
+    def test_interlocked_wraparound_and_compare_exchange(self):
+        pointer = 0x11000
+        self.machine.mem_write(pointer, bytes.fromhex('ffffffff'))
+        self.assertEqual(self.result('InterlockedIncrement', pointer), 0)
+        self.assertEqual(self.result('InterlockedDecrement', pointer), 0xffffffff)
+        self.assertEqual(self.result('InterlockedCompareExchange', pointer, 42, 1), 0xffffffff)
+        self.assertEqual(self.result('InterlockedCompareExchange', pointer, 42, 0xffffffff), 0xffffffff)
+        self.assertEqual(self.result('InterlockedExchange', pointer, 21), 42)
+        self.assertEqual(struct.unpack('<I', self.machine.mem_read(pointer, 4))[0], 21)
+        self.assertFalse(self.call('InterlockedIncrement', pointer + 1)[0])
+        self.machine.mem_protect(pointer, 4096, uc.UC_PROT_READ)
+        self.assertFalse(self.call('InterlockedIncrement', pointer)[0])
+
+    def test_command_line_and_empty_environment_are_explicit_fixtures(self):
+        command = self.result('GetCommandLineA')
+        self.assertEqual(bytes(self.machine.mem_read(command, 20)), b'C:\\era-lab\\host.exe\0')
+        self.assertFalse(self.call('QueryPerformanceCounter', command)[0])
+        first = self.result('GetEnvironmentStringsW')
+        second = self.result('GetEnvironmentStringsW')
+        self.assertNotEqual(first, second)
+        self.assertEqual(bytes(self.machine.mem_read(first, 4)), bytes(4))
+        self.assertEqual(self.result('FreeEnvironmentStringsW', first), 1)
+        self.assertFalse(self.call('FreeEnvironmentStringsW', first)[0])
+        self.assertFalse(self.call('FreeEnvironmentStringsW', command)[0])
+
+    def test_wide_conversion_counts_nul_and_rejects_unmodeled_encoding(self):
+        self.machine.mem_write(0x11000, 'abc\0'.encode('utf-16-le'))
+        self.assertEqual(self.result('WideCharToMultiByte', 0, 0, 0x11000, 0xffffffff, 0, 0, 0, 0), 4)
+        self.assertEqual(self.result('WideCharToMultiByte', 0, 0, 0x11000, 3, 0x12000, 3, 0, 0), 3)
+        self.assertEqual(bytes(self.machine.mem_read(0x12000, 3)), b'abc')
+        self.assertFalse(self.call('WideCharToMultiByte', 0, 0, 0x11000, 4, 0x12000, 3, 0, 0)[0])
+        self.machine.mem_write(0x11000, 'я\0'.encode('utf-16-le'))
+        self.assertFalse(self.call('WideCharToMultiByte', 0, 0, 0x11000, 2, 0, 0, 0, 0)[0])
+
+    def test_process_startup_has_no_inherited_or_standard_handles(self):
+        self.assertEqual(self.result('SetHandleCount', 32), 32)
+        self.machine.mem_write(0x11000, b'\xa5' * 68)
+        self.result('GetStartupInfoW', 0x11000)
+        self.assertEqual(bytes(self.machine.mem_read(0x11000, 68)), struct.pack('<I', 68) + bytes(64))
+        self.assertEqual(self.result('GetStdHandle', 0xfffffff5), 0)
+        self.assertFalse(self.call('GetStdHandle', 123)[0])
+        self.assertEqual(self.result('GetModuleFileNameW', 0, 0x11000, 260), 19)
+        self.assertEqual(bytes(self.machine.mem_read(0x11000, 40)).decode('utf-16-le'), 'C:\\era-lab\\host.exe\0')
+        self.assertFalse(self.call('GetModuleFileNameA', 0x10000000, 0x11000, 260)[0])
+        self.assertFalse(self.call('GetModuleFileNameA', 0, 0x11000, 19)[0])
+
+    def test_codepage_info_is_bounded_to_explicit_single_byte_profile(self):
+        self.assertEqual(self.result('IsValidCodePage', 1251), 1)
+        self.assertFalse(self.call('IsValidCodePage', 932)[0])
+        self.assertEqual(self.result('GetACP'), 1251)
+        self.assertEqual(self.result('GetCPInfo', 1251, 0x11000), 1)
+        self.assertEqual(bytes(self.machine.mem_read(0x11000, 20)), struct.pack('<I', 1) + b'?\0' + bytes(14))
+        self.assertFalse(self.call('GetCPInfo', 932, 0x11000)[0])
+
+    def test_sse2_fixture_matches_basic_emulated_instruction_support(self):
+        self.assertEqual(self.result('IsProcessorFeaturePresent', 10), 1)
+        self.assertFalse(self.call('IsProcessorFeaturePresent', 999)[0])
+        self.machine.mem_write(0x10000, bytes.fromhex('660f76c0 660fefc0'))
+        self.machine.emu_start(0x10000, 0x10008)
+        self.assertEqual(self.machine.reg_read(x86.UC_X86_REG_XMM0), 0)
+
+    def test_virtual_protection_is_scoped_and_enforced(self):
+        self.model.primary_region = (0x11000, 0x2000)
+        self.assertEqual(self.result('VirtualProtect', 0x11fff, 2, 2, 0x10020), 1)
+        self.assertEqual(struct.unpack('<I', self.machine.mem_read(0x10020, 4))[0], 0x40)
+        self.assertFalse(self.call('QueryPerformanceCounter', 0x12000)[0])
+        self.assertFalse(self.call('VirtualProtect', 0x10000, 1, 4, 0x10020)[0])
+        self.assertFalse(self.call('VirtualProtect', 0x11000, 1, 0x104, 0x10020)[0])
+        self.result('VirtualProtect', 0x11000, 0x2000, 4, 0x10020)
+        self.assertEqual(struct.unpack('<I', self.machine.mem_read(0x10020, 4))[0], 2)
+        self.assertTrue(self.call('QueryPerformanceCounter', 0x12000)[0])
+        self.assertEqual(self.result('GetCurrentProcess'), 0xffffffff)
+        self.assertTrue(self.call('FlushInstructionCache', 0xffffffff, 0x11000, 16)[0])
+        self.assertFalse(self.call('FlushInstructionCache', 123, 0x11000, 16)[0])
+
+    def test_registry_fixture_is_exact_not_blanket_missing_keys(self):
+        self.machine.mem_write(0x11000, 'Software\\Aktiv\\Guardant\\SDK7\0'.encode('utf-16-le'))
+        args = (0x80000001, 0x11000, 0, 1, 0x12000)
+        self.machine.mem_write(0x12000, b'keep')
+        self.call('RegOpenKeyExW', *args)  # Sets up stack, wrong DLL is unhandled.
+        ok, event = self.model.handle('ADVAPI32.dll!RegOpenKeyExW')
+        self.assertTrue(ok, event)
+        self.assertEqual(event['result'], '0x2')
+        self.assertEqual(bytes(self.machine.mem_read(0x12000, 4)), b'keep')
+        self.machine.mem_write(0x11000, 'Software\\Unknown\0'.encode('utf-16-le'))
+        self.call('RegOpenKeyExW', *args)
+        self.assertFalse(self.model.handle('ADVAPI32.dll!RegOpenKeyExW')[0])
+
+    def test_nls_api_buffer_sizes_and_reference_data(self):
+        with tempfile.TemporaryDirectory(prefix='era-nls-api-test-') as directory:
+            paths = [Path(directory) / n for n in ('cp', 'sort', 'case')]
+            for path, data in zip(paths, (synthetic_codepage(), synthetic_sort(), synthetic_case())):
+                path.write_bytes(data)
+            self.model.nls = NlsModel(*paths)
+            self.machine.mem_write(0x11000, b'A\0\x80')
+            self.assertEqual(self.result('MultiByteToWideChar', 1251, 1, 0x11000, 3, 0, 0), 3)
+            self.assertEqual(self.result('MultiByteToWideChar', 1251, 1, 0x11000, 3, 0x12000, 3), 3)
+            self.assertEqual(bytes(self.machine.mem_read(0x12000, 6)), b'A\0\0\0\x80\0')
+            self.assertFalse(self.call('MultiByteToWideChar', 1251, 1, 0x11000, 3, 0x12000, 2)[0])
+            self.assertFalse(self.call('MultiByteToWideChar', 1251, 1, 0x11000, 3, 0x11000, 3)[0])
+            self.assertEqual(self.result('WideCharToMultiByte', 1251, 0, 0x12000, 3, 0x11000, 3, 0, 0), 3)
+            self.assertEqual(self.result('GetStringTypeW', 1, 0x12000, 3, 0x11000), 1)
+            self.assertEqual(struct.unpack('<3H', self.machine.mem_read(0x11000, 6)), (10, 1, 1))
+            self.assertEqual(self.result('LCMapStringW', 0, 0x200, 0x12000, 1, 0, 0), 1)
+            self.result('LCMapStringW', 0, 0x200, 0x12000, 1, 0x11000, 1)
+            self.assertEqual(bytes(self.machine.mem_read(0x11000, 2)), b'a\0')
+            self.assertFalse(self.call('LCMapStringW', 0, 0x400, 0x12000, 1, 0, 0)[0])
+            self.assertFalse(self.call('LCMapStringW', 0, 0x200, 0x12000, 1, 0, 0xffffffff)[0])
 
 
 if __name__ == '__main__':

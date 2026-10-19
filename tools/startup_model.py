@@ -7,27 +7,130 @@ import struct
 
 import unicorn as uc
 from unicorn import x86_const as x86
+from nls_model import NlsModel
+from pe_module_model import utf16_z
 
 HEAP_BASE, HEAP_CAPACITY = 0x50000000, 0x1000000
-STARTUP_REGIONS = [(HEAP_BASE, HEAP_CAPACITY)]
+STRINGS_BASE = 0x51000000
+STARTUP_REGIONS = [(HEAP_BASE, HEAP_CAPACITY), (STRINGS_BASE, 4096)]
 
 
 class StartupModel:
     ARGUMENTS = {'GetSystemTimeAsFileTime': 1, 'QueryPerformanceCounter': 1,
                  'GetCurrentProcessId': 0, 'GetCurrentThreadId': 0, 'GetTickCount': 0,
                  'HeapCreate': 3, 'HeapAlloc': 3, 'HeapReAlloc': 4, 'HeapFree': 3,
-                 'HeapSize': 3, 'HeapDestroy': 1, 'GetProcessHeap': 0}
+                 'HeapSize': 3, 'HeapDestroy': 1, 'GetProcessHeap': 0,
+                 'TlsAlloc': 0, 'TlsFree': 1, 'TlsGetValue': 1, 'TlsSetValue': 2,
+                 'FlsAlloc': 1, 'FlsFree': 1, 'FlsGetValue': 1, 'FlsSetValue': 2,
+                 'GetLastError': 0, 'SetLastError': 1,
+                 'EncodePointer': 1, 'DecodePointer': 1,
+                 'InitializeCriticalSection': 1, 'InitializeCriticalSectionAndSpinCount': 2,
+                 'EnterCriticalSection': 1, 'LeaveCriticalSection': 1,
+                 'TryEnterCriticalSection': 1, 'DeleteCriticalSection': 1,
+                 'InterlockedIncrement': 1, 'InterlockedDecrement': 1,
+                 'InterlockedExchange': 2, 'InterlockedCompareExchange': 3,
+                 'GetCommandLineA': 0, 'GetCommandLineW': 0,
+                 'GetEnvironmentStringsW': 0, 'FreeEnvironmentStringsW': 1,
+                 'WideCharToMultiByte': 8, 'GetStartupInfoW': 1,
+                 'GetStdHandle': 1, 'GetModuleFileNameA': 3, 'GetModuleFileNameW': 3,
+                 'SetHandleCount': 1, 'GetACP': 0, 'GetCPInfo': 2, 'IsValidCodePage': 1,
+                 'MultiByteToWideChar': 6, 'GetStringTypeW': 4, 'LCMapStringW': 6,
+                 'IsProcessorFeaturePresent': 1, 'GetUserDefaultUILanguage': 0,
+                 'RegOpenKeyExW': 5, 'VirtualProtect': 4,
+                 'GetCurrentProcess': 0, 'FlushInstructionCache': 3,
+                 'GetUserDefaultLangID': 0}
 
-    def __init__(self, machine):
+    def __init__(self, machine, nls_codepage=None, nls_sort=None, nls_case=None):
         self.machine = machine
+        self.nls = NlsModel(nls_codepage, nls_sort, nls_case)
         self.events = []
         self.profile = dict(filetime=133485408000000000, performance_counter=123456789,
-                            process_id=4096, thread_id=4097, tick_count=123456)
+                            process_id=4096, thread_id=4097, tick_count=123456,
+                            pointer_xor_fixture=0x5a39c6e1,
+                            command_line='C:\\era-lab\\host.exe', environment={},
+                            startup_flags=0, inherited_handles=False, standard_handles='absent',
+                            initial_last_error=0, ansi_code_page=1251,
+                            processor_features={'10': True}, user_ui_language=0x419, user_language=0x419,
+                            absent_registry_keys=['HKCU\\Software\\Aktiv\\Guardant\\SDK7'])
         machine.mem_map(HEAP_BASE, HEAP_CAPACITY, uc.UC_PROT_READ | uc.UC_PROT_WRITE)
         self.heaps = {}
         self.blocks = {}
         self.cursor = HEAP_BASE
         self.process_heap = None
+        self.slots = {'Tls': {}, 'Fls': {}}
+        self.last_error = self.profile['initial_last_error']
+        self.locks = {}
+        self.trace_state = {}
+        self.primary_region = None
+        machine.mem_map(STRINGS_BASE, 4096, uc.UC_PROT_READ | uc.UC_PROT_WRITE)
+        machine.mem_write(STRINGS_BASE, self.profile['command_line'].encode('ascii') + b'\0')
+        machine.mem_write(STRINGS_BASE + 512, (self.profile['command_line'] + '\0').encode('utf-16-le'))
+        machine.mem_protect(STRINGS_BASE, 4096, uc.UC_PROT_READ)
+        self.environment_blocks = set()
+
+    def critical_section_call(self, function, args):
+        address = args[0]
+        if function.startswith('Initialize'):
+            self.writable(address, 24)  # x86 CRITICAL_SECTION storage, opaque.
+            if any(address < p + 24 and address + 24 > p for p in self.locks):
+                raise ValueError('Critical section overlaps an active object')
+            if len(self.locks) >= 128:
+                raise ValueError('Critical section model budget')
+
+            def direct_access(machine, kind, pointer, size, value, _):
+                self.trace_state.update(reason='unsupported_critical_section_memory',
+                                        critical_section_access=dict(address=hex(pointer), size=size,
+                                            operation='write' if kind == uc.UC_MEM_WRITE else 'read'))
+                machine.emu_stop()
+
+            hook = self.machine.hook_add(uc.UC_HOOK_MEM_READ | uc.UC_HOOK_MEM_WRITE,
+                                         direct_access, begin=address, end=address + 23)
+            self.locks[address] = dict(depth=0, spin=args[1] if len(args) == 2 else 0, hook=hook)
+            return 1 if len(args) == 2 else None
+        lock = self.locks.get(address)
+        if lock is None:
+            raise ValueError('Critical section not initialized in this model')
+        if function in ('EnterCriticalSection', 'TryEnterCriticalSection'):
+            lock['depth'] += 1  # One modeled thread; reentrant, no contention.
+            return 1 if function.startswith('Try') else None
+        if function == 'LeaveCriticalSection':
+            if not lock['depth']:
+                raise ValueError('Critical section is not owned')
+            lock['depth'] -= 1
+            return None
+        if lock['depth']:
+            raise ValueError('Deleting an owned critical section is not modeled')
+        self.machine.hook_del(lock['hook'])
+        del self.locks[address]
+        return None
+
+    def local_storage_call(self, function, args, event):
+        family, operation = function[:3], function[3:]
+        slots = self.slots[family]
+        if operation == 'Alloc':
+            free = next((i for i in range(64) if i not in slots), None)
+            if free is None:
+                raise ValueError('Local storage model budget exceeded, not Windows exhaustion')
+            slots[free] = dict(value=0, callback=args[0] if family == 'Fls' else 0)
+            event['slot'] = free
+            return free
+        index = args[0]
+        if index not in slots:
+            raise ValueError('Local storage index not allocated in this model')
+        slot = slots[index]
+        if operation == 'GetValue':
+            # TLS explicitly guarantees ERROR_SUCCESS. The FLS documentation
+            # does not promise the same successful-call last-error contract.
+            self.last_error = 0 if family == 'Tls' else None
+            return slot['value']
+        if operation == 'SetValue':
+            slot['value'] = args[1]
+            return 1
+        if slot['callback'] and slot['value']:
+            event['pending_callback'] = dict(address=hex(slot['callback']), argument=hex(slot['value']))
+            raise ValueError('FLS destruction callback requires guest execution; not skipped')
+        del slots[index]
+        return 1
 
     def create_heap(self, options, initial, maximum):
         # Fixed-size Windows heaps have additional rounding/overhead rules.
@@ -113,10 +216,194 @@ class StartupModel:
 
     def write(self, address, data, event):
         self.writable(address, len(data))
+        if any(address < p + 24 and address + len(data) > p for p in self.locks):
+            raise ValueError('API output overlaps an opaque critical section')
         self.machine.mem_write(address, data)
         event.setdefault('memory_writes', []).append(dict(address=hex(address), size=len(data)))
 
     def invoke(self, function, args, event):
+        if function == 'GetUserDefaultLangID':
+            return self.profile['user_language']
+        if function == 'GetCurrentProcess':
+            return 0xffffffff
+        if function in ('VirtualProtect', 'FlushInstructionCache'):
+            if self.primary_region is None:
+                raise ValueError('Primary image range not established')
+            image_start, image_size = self.primary_region
+            if function == 'VirtualProtect':
+                address, size, protection, previous = args
+            else:
+                process, address, size = args
+                if process != 0xffffffff:
+                    raise ValueError('Only current synthetic process supported')
+            if not size or not image_start <= address < address + size <= image_start + image_size:
+                raise ValueError('Memory operation outside primary image')
+            first, end = address & ~4095, (address + size + 4095) & ~4095
+            if function == 'FlushInstructionCache':
+                self.machine.ctl_remove_cache(first, end)
+                return 1
+            flags = {1: 0, 2: uc.UC_PROT_READ, 4: uc.UC_PROT_READ | uc.UC_PROT_WRITE,
+                     0x10: uc.UC_PROT_EXEC, 0x20: uc.UC_PROT_READ | uc.UC_PROT_EXEC,
+                     0x40: uc.UC_PROT_ALL}
+            if protection not in flags:
+                raise ValueError('Guard/copy-on-write or unknown page protection not modeled')
+            self.writable(previous, 4)
+            if first < previous + 4 and end > previous:
+                raise ValueError('Old-protection output overlaps modified pages')
+            old = next((p for begin, last, p in self.machine.mem_regions() if begin <= first <= last), None)
+            reverse = {value: key for key, value in flags.items()}
+            if old not in reverse:
+                raise ValueError('Old page permissions not representable')
+            # Validate output against model-owned opaque storage before mutation.
+            if any(previous < p + 24 and previous + 4 > p for p in self.locks):
+                raise ValueError('Old-protection output overlaps critical section')
+            self.machine.mem_protect(first, end - first, flags[protection])
+            self.write(previous, struct.pack('<I', reverse[old]), event)
+            event['page_protection'] = dict(start=hex(first), end=hex(end), old_first_page=hex(reverse[old]), new=hex(protection))
+            return 1
+        if function == 'RegOpenKeyExW':
+            root, pointer, options, access, output = args
+            key = utf16_z(self.machine, pointer)
+            event['registry_subkey'] = key
+            if root != 0x80000001 or options or access != 1 or ('HKCU\\' + key).lower() not in [k.lower() for k in self.profile['absent_registry_keys']]:
+                raise ValueError('Registry lookup outside explicit absent-key fixture')
+            self.writable(output, 4)
+            event['assumption'] = 'This exact user-settings key is absent in the synthetic profile; not a host registry observation'
+            return 2  # ERROR_FILE_NOT_FOUND; leave output handle untouched.
+        if function == 'GetUserDefaultUILanguage':
+            return self.profile['user_ui_language']
+        if function == 'IsProcessorFeaturePresent':
+            feature = str(args[0])
+            if feature not in self.profile['processor_features']:
+                raise ValueError('Processor feature outside explicit fixture')
+            return int(self.profile['processor_features'][feature])
+        if function == 'LCMapStringW':
+            locale, flags, source, count, output, capacity = args
+            if locale != 0 or flags not in (0x100, 0x200) or not source or not 1 <= count <= 4096 or capacity > 4096:
+                raise ValueError('Only neutral simple BMP lower/upper case mapping modeled')
+            converted = self.nls.map_case(bytes(self.machine.mem_read(source, 2 * count)), flags == 0x200)
+            if capacity:
+                if capacity < count:
+                    raise ValueError('Case mapping output buffer too small')
+                self.write(output, converted, event)
+            return count
+        if function == 'MultiByteToWideChar':
+            codepage, flags, source, count, output, capacity = args
+            if codepage not in (0, 1251) or flags not in (0, 1) or not source or not 1 <= count <= 4096 or capacity > 4096:
+                raise ValueError('Unsupported multibyte conversion parameters')
+            converted = self.nls.to_wide(bytes(self.machine.mem_read(source, count)))
+            if capacity:
+                if source < output + 2 * count and output < source + count:
+                    raise ValueError('Overlapping conversion buffers not modeled')
+                if capacity < count:
+                    raise ValueError('Wide output buffer too small')
+                self.write(output, converted, event)
+            return count
+        if function == 'GetStringTypeW':
+            kind, source, count, output = args
+            if not source or not 1 <= count <= 4096:
+                raise ValueError('Unsupported classification buffer/count')
+            result = self.nls.classify(bytes(self.machine.mem_read(source, 2 * count)), kind)
+            self.write(output, result, event)
+            return 1
+        if function == 'IsValidCodePage':
+            if args[0] != self.profile['ansi_code_page']:
+                raise ValueError('Codepage availability outside fixture not known')
+            return 1
+        if function == 'GetACP':
+            return self.profile['ansi_code_page']
+        if function == 'GetCPInfo':
+            if args[0] not in (0, self.profile['ansi_code_page']):
+                raise ValueError('Codepage outside explicit startup profile')
+            self.write(args[1], struct.pack('<I', 1) + b'?\0' + bytes(14), event)
+            return 1
+        if function == 'SetHandleCount':
+            return args[0]  # No-op in the explicitly inspected kernel32 reference.
+        if function == 'GetStartupInfoW':
+            self.write(args[0], struct.pack('<I', 68) + bytes(64), event)
+            return None
+        if function == 'GetStdHandle':
+            if args[0] not in (0xfffffff6, 0xfffffff5, 0xfffffff4):
+                raise ValueError('Unknown standard handle selector')
+            return 0  # Explicit fixture: no stdin/stdout/stderr handles.
+        if function in ('GetModuleFileNameA', 'GetModuleFileNameW'):
+            module, output, capacity = args
+            if module:
+                raise ValueError('Only synthetic main-process filename modeled')
+            name = self.profile['command_line']
+            if capacity <= len(name):
+                raise ValueError('Truncated module filename not modeled')
+            self.write(output, (name + '\0').encode('utf-16-le' if function.endswith('W') else 'ascii'), event)
+            return len(name)
+        if function == 'WideCharToMultiByte':
+            codepage, flags, source, count, output, capacity, default, used_default = args
+            if codepage not in (0, 1251) or flags or default or used_default or not source or capacity > 4096:
+                raise ValueError('Only CP1251 exact conversion with no optional flags/defaults modeled')
+            if count == 0xffffffff:
+                count = next((i + 1 for i in range(4096)
+                              if self.machine.mem_read(source + 2 * i, 2) == b'\0\0'), None)
+            if count is None or not 1 <= count <= 4096:
+                raise ValueError('Wide string count outside model limit')
+            raw = bytes(self.machine.mem_read(source, count * 2))
+            # ASCII has the same byte values in the supported startup fixture;
+            # do not silently approximate Windows best-fit/codepage behavior.
+            encoded = self.nls.from_wide_exact(raw) if self.nls.reverse is not None else raw.decode('utf-16-le').encode('ascii')
+            if capacity:
+                if source < output + len(encoded) and output < source + 2 * count:
+                    raise ValueError('Overlapping conversion buffers not modeled')
+                if capacity < len(encoded):
+                    raise ValueError('Output buffer too small; no partial conversion')
+                self.write(output, encoded, event)
+            return len(encoded)
+        if function.startswith('GetCommandLine'):
+            return STRINGS_BASE + (512 if function.endswith('W') else 0)
+        if function == 'GetEnvironmentStringsW':
+            if self.process_heap is None:
+                self.process_heap = self.create_heap(0, 0, 0)
+            pointer = self.allocate(self.process_heap, 8, 4, event)
+            self.environment_blocks.add(pointer)
+            return pointer
+        if function == 'FreeEnvironmentStringsW':
+            if args[0] not in self.environment_blocks:
+                raise ValueError('Unknown environment block')
+            self.heap_call('HeapFree', (self.process_heap, 0, args[0]), event)
+            self.environment_blocks.remove(args[0])
+            return 1
+        if function.startswith('Interlocked'):
+            address = args[0]
+            if address % 4:
+                raise ValueError('Unaligned interlocked operand')
+            self.writable(address, 4)
+            old = struct.unpack('<I', self.machine.mem_read(address, 4))[0]
+            if function == 'InterlockedIncrement':
+                new = (old + 1) & 0xffffffff
+            elif function == 'InterlockedDecrement':
+                new = (old - 1) & 0xffffffff
+            elif function == 'InterlockedExchange':
+                new = args[1]
+            else:
+                if old != args[2]:
+                    event['previous_value'] = hex(old)
+                    return old
+                new = args[1]
+            self.write(address, struct.pack('<I', new), event)
+            event['previous_value'] = hex(old)
+            return old if 'Exchange' in function else new
+        if 'CriticalSection' in function:
+            return self.critical_section_call(function, args)
+        if function in ('EncodePointer', 'DecodePointer'):
+            # Deliberately synthetic reversible mapping, not Windows' secret
+            # algorithm or any dongle key. Only the API pair's round trip holds.
+            return args[0] ^ self.profile['pointer_xor_fixture']
+        if function.startswith(('Tls', 'Fls')):
+            return self.local_storage_call(function, args, event)
+        if function == 'SetLastError':
+            self.last_error = args[0]
+            return None
+        if function == 'GetLastError':
+            if self.last_error is None:
+                raise ValueError('Last-error state is not established')
+            return self.last_error
         if function.startswith('Heap') or function == 'GetProcessHeap':
             return self.heap_call(function, args, event)
         if function == 'GetSystemTimeAsFileTime':
@@ -130,7 +417,9 @@ class StartupModel:
 
     def handle(self, name):
         module, _, function = name.partition('!')
-        if module.lower() not in ('kernel32.dll', 'kernelbase.dll') or function not in self.ARGUMENTS:
+        allowed_module = (module.lower() == 'advapi32.dll' if function == 'RegOpenKeyExW'
+                          else module.lower() in ('kernel32.dll', 'kernelbase.dll'))
+        if not allowed_module or function not in self.ARGUMENTS:
             return False, None
         event = dict(api=name, basis='Explicit synthetic startup profile; not a native Windows observation')
         if len(self.events) >= 4096:
@@ -142,6 +431,7 @@ class StartupModel:
             event.update(return_address=hex(words[0]), arguments=[hex(a) for a in words[1:]])
             result = self.invoke(function, words[1:], event)
             event['result'] = hex(result & 0xffffffff) if result is not None else None
+            event['last_error'] = self.last_error
             if result is not None:
                 self.machine.reg_write(x86.UC_X86_REG_EAX, result & 0xffffffff)
             self.machine.reg_write(x86.UC_X86_REG_ESP, esp + 4 * (argc + 1))
@@ -155,6 +445,10 @@ class StartupModel:
 
     def report(self):
         return dict(profile=self.profile, events=self.events,
+                    nls=self.nls.report(),
+                    local_storage=self.slots, last_error=self.last_error,
+                    critical_sections={hex(p): {k: v for k, v in lock.items() if k != 'hook'}
+                                       for p, lock in self.locks.items()},
                     heaps={hex(h): data for h, data in self.heaps.items()},
                     heap_arena=dict(base=hex(HEAP_BASE), capacity=HEAP_CAPACITY, used=self.cursor - HEAP_BASE),
-                    limitations='Synthetic clock/IDs and bounded single-thread heaps; freed blocks not reused or unmapped; unspecified allocation contents filled A5 unless zero requested; no OS calls, device, license, filesystem, scheduling or time progression; API writes logged separately from CPU write events')
+                    limitations='Explicit synthetic process profile, reversible XOR pointer fixture, single-thread opaque locks/atomics and bounded heaps; 64 TLS/FLS slots each, no direct TEB storage or callback dispatch; unknown last-error reads stop; only the named registry key is assumed absent; NLS data requires explicit files; page permissions apply only to initially RWX primary image; freed blocks not reused/unmapped; unspecified allocation bytes A5; no host API, device, license, filesystem operations, scheduling or time progression; API writes logged separately from CPU writes')

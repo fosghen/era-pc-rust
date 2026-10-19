@@ -65,11 +65,11 @@ def resolver_caller(module_name='KERNEL32.dll', api='GetModuleHandleA'):
 
 
 class LoaderTraceTests(unittest.TestCase):
-    def run_image(self, image, limit=100, modules=(), thread_model=False, **options):
+    def run_image(self, image, limit=100, modules=(), thread_model=False, argument=0, **options):
         with tempfile.TemporaryDirectory(prefix='era-trace-test-') as directory:
             path = Path(directory) / 'synthetic.exe'
             path.write_bytes(image)
-            return trace(path, None, 0, limit, 2., modules, thread_model, **options)
+            return trace(path, None, argument, limit, 2., modules, thread_model, **options)
 
     def test_dll_entry_uses_actual_three_argument_attach_contract(self):
         data = synthetic_pe(bytes.fromhex('8b442404 8b4c2408 8b54240c c20c00'))
@@ -83,6 +83,53 @@ class LoaderTraceTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'requires a DLL'):
             self.run_image(synthetic_pe(b'\xc3'), dll_attach=True)
 
+    def test_chained_export_preserves_attach_memory_and_argument(self):
+        data = synthetic_module()
+        struct.pack_into('<H', data, 0x84 + 18, 0x2102)
+        code = bytes.fromhex('c7050015006078563412 b801000000 c20c00')
+        data[512:512+len(code)] = code
+        code = bytes.fromhex('a100150060 8b4c2404 c20400')
+        data[544:544+len(code)] = code
+        result = self.run_image(data, dll_attach=True, after_attach_export='Probe', thread_model=True, argument=-1)
+        self.assertEqual(result['reason'], 'returned')
+        self.assertEqual(result['registers']['eax'], '0x12345678')
+        self.assertEqual(result['registers']['ecx'], '0xffffffff')
+        self.assertEqual(result['registers']['esp'], '0x70008008')
+        self.assertEqual([s['stage'] for s in result['stage_returns']], ['dll_attach', 'export_after_attach'])
+        self.assertEqual(result['stage_returns'][0]['eax'], '0x1')
+        self.assertEqual(result['export_start_instruction'], 3)
+        self.assertTrue(result['input_unchanged'])
+        bounded = self.run_image(data, dll_attach=True, after_attach_export='Probe', limit=4)
+        self.assertEqual(bounded['reason'], 'instruction_limit')
+        self.assertEqual(bounded['instructions'], 4)
+        self.assertEqual(bounded['active_stage'], 'export_after_attach')
+
+    def test_chained_export_requires_success_and_balanced_attach(self):
+        for code, reason in [('31c0 c20c00', 'dll_attach_failed'),
+                             ('b801000000 c3', 'dll_attach_unbalanced_stack')]:
+            data = synthetic_module()
+            struct.pack_into('<H', data, 0x84 + 18, 0x2102)
+            code = bytes.fromhex(code)
+            data[512:512+len(code)] = code
+            result = self.run_image(data, dll_attach=True, after_attach_export='Probe')
+            self.assertEqual(result['reason'], reason)
+            self.assertEqual(len(result['stage_returns']), 1)
+        with self.assertRaisesRegex(ValueError, 'requires DLL attach'):
+            self.run_image(synthetic_pe(b'\xc3'), after_attach_export='Probe')
+
+    def test_chained_export_rejects_unrestored_exception_chain(self):
+        data = synthetic_module()
+        struct.pack_into('<H', data, 0x84 + 18, 0x2102)
+        code = bytes.fromhex('64c7050000000000100060 b801000000 c20c00')
+        data[512:512+len(code)] = code
+        result = self.run_image(data, dll_attach=True, after_attach_export='Probe', thread_model=True)
+        self.assertEqual(result['reason'], 'dll_attach_unrestored_seh')
+        self.assertEqual(len(result['stage_returns']), 1)
+
+    def test_nls_requires_explicit_startup_model(self):
+        with self.assertRaisesRegex(ValueError, 'require the explicit startup model'):
+            self.run_image(synthetic_pe(b'\xc3'), nls_codepage='unopened-path')
+
     def test_observations_and_watch_do_not_export_code_bytes(self):
         data = synthetic_pe(bytes.fromhex('c6052010400090 c3'))
         result = self.run_image(data, observe=[0x401000], watch=[(0x401020, 16)])
@@ -93,6 +140,8 @@ class LoaderTraceTests(unittest.TestCase):
         self.assertFalse(result['watched_ranges'][0]['final_all_zero'])
         self.assertNotEqual(result['watched_ranges'][0]['initial_sha256'], result['watched_ranges'][0]['final_sha256'])
         self.assertNotIn('bytes', result['watched_ranges'][0])
+        self.assertEqual(result['watched_ranges'][0]['last_cpu_write_events'], [dict(
+            instruction='0x401000', instruction_index=1, address='0x401020', size=1)])
         with self.assertRaisesRegex(ValueError, 'Watch must'):
             self.run_image(data, watch=[(0x70000000, 16)])
 
@@ -100,6 +149,15 @@ class LoaderTraceTests(unittest.TestCase):
         result = self.run_image(synthetic_pe(bytes.fromhex('ebfe')), limit=1000, observe=[0x401000])
         self.assertEqual(result['reason'], 'observation_limit')
         self.assertEqual(len(result['execution_observations']), 256)
+
+    def test_watch_write_history_keeps_only_last_eight_events(self):
+        code = bytes.fromhex('b914000000 fe0500114000 e2f8 c3')
+        result = self.run_image(synthetic_pe(code), watch=[(0x401100, 1)])
+        history = result['watched_ranges'][0]['last_cpu_write_events']
+        self.assertEqual(result['reason'], 'returned')
+        self.assertEqual(len(history), 8)
+        self.assertEqual(history[0]['instruction_index'], 26)
+        self.assertEqual(history[-1]['instruction_index'], 40)
 
     def test_thread_model_fs_base_and_high_stack_are_real_segments(self):
         result = self.run_image(synthetic_pe(bytes.fromhex('64a100000000 50 59 64a118000000 c3')), thread_model=True)
@@ -176,6 +234,33 @@ class LoaderTraceTests(unittest.TestCase):
         self.assertEqual(result['reason'], 'unmapped_or_protected_memory')
         self.assertEqual(result['memory_address'], '0x0')
         self.assertEqual(result['fault_instruction']['memory_operands'][0]['segment'], 'fs')
+
+    def test_fetch_fault_reports_origin_without_dumping_code(self):
+        code = b'\xe9' + struct.pack('<i', 0x12340 - 0x401005)
+        result = self.run_code(code)
+        self.assertEqual(result['memory_address'], '0x12340')
+        origin = result['fetch_origin']
+        self.assertEqual(origin['address'], '0x401000')
+        self.assertEqual(origin['mnemonic'], 'jmp')
+        self.assertEqual(origin['immediate_target'], '0x12340')
+        self.assertFalse(origin['differs_from_input_image'])
+        self.assertNotIn('bytes', origin)
+
+    def test_fetch_fault_detects_modified_transfer(self):
+        # Overwrite the following jump displacement, then execute that jump.
+        code = bytes.fromhex('c7050b104000') + struct.pack('<I', (0x12340 - 0x40100f) & 0xffffffff)
+        code += b'\xe9\0\0\0\0'
+        result = self.run_code(code)
+        self.assertEqual(result['memory_address'], '0x12340')
+        self.assertTrue(result['fetch_origin']['differs_from_input_image'])
+
+    def test_fetch_fault_reports_absolute_indirect_pointer(self):
+        code = bytes.fromhex('ff2506104000') + struct.pack('<I', 0x12340)
+        result = self.run_code(code)
+        self.assertEqual(result['memory_address'], '0x12340')
+        self.assertEqual(result['fetch_origin']['indirect_pointer_address'], '0x401006')
+        self.assertEqual(result['fetch_origin']['indirect_pointer_value'], '0x12340')
+        self.assertEqual(result['fetch_origin']['indirect_operand']['size'], 4)
 
     def test_interrupt_and_instruction_limit_are_explicit(self):
         self.assertEqual(self.run_code(b'\xcc')['reason'], 'CPU_interrupt')
