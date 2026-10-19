@@ -1,9 +1,11 @@
 pub mod data;
 pub mod demo;
 pub mod dispersion;
+pub mod dispersion_compare;
 pub mod engine;
 pub mod expr;
 pub mod range;
+pub mod wind_search;
 pub type Result<T> = std::result::Result<T, String>;
 
 /// Independent cases share read-only tables and compiled programs. Output order

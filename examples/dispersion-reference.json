@@ -1,0 +1,29 @@
+{
+  "calculation": {
+    "pollutant": "synthetic-demo-only",
+    "coefficient_a": 200.0,
+    "air_temperature_c": 20.0,
+    "max_wind_speed_m_s": 10.0,
+    "sources": [{
+      "id": "stack-1", "x_m": 0.0, "y_m": 0.0, "height_m": 30.0,
+      "outlet": {"shape": "circular", "diameter_m": 1.0},
+      "exit_velocity_m_s": 10.0, "gas_temperature_c": 120.0,
+      "emission_g_s": 1.0, "settling_factor": 1.0
+    }],
+    "receptors": [{"id": "at-xm", "x_m": 0.0, "y_m": 369.73328243265895, "height_m": 2.0}],
+    "winds": [
+      {"from_degrees": 180.0, "speed_m_s": 1.9300544685992504},
+      {"from_degrees": 0.0, "speed_m_s": 1.9300544685992504}
+    ]
+  },
+  "reference": {
+    "kind": "independent_formula",
+    "program": "Independent Decimal evaluation, NOT ERA",
+    "version": "MRR-2017 formulas (3)-(10), (15)-(29)",
+    "case_id": "synthetic-single-stack-at-xm",
+    "provenance": "60-digit Decimal evaluation documented in docs/DISPERSION.md; NOT an ERA export",
+    "settings": "Flat terrain eta=1, no background/buildings/transformation, fixed wind, mg/m3, full floating-point export"
+  },
+  "concentration_tolerance": {"absolute": 1e-12, "relative": 1e-10},
+  "expected_receptors": [{"id": "at-xm", "concentrations_mg_m3": [0.02137663748860852, 0.0]}]
+}

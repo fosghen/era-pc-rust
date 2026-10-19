@@ -304,7 +304,12 @@ fn axial_factor(q: f64, settling: f64, height: f64) -> f64 {
     } // (26)
 }
 impl SourceParameters {
-    fn concentration(&self, source: &PointSource, point: &Receptor, wind: Wind) -> Result<f64> {
+    pub(crate) fn concentration(
+        &self,
+        source: &PointSource,
+        point: &Receptor,
+        wind: Wind,
+    ) -> Result<f64> {
         let dx = finite("receptor offset x", point.x_m - source.x_m)?;
         let dy = finite("receptor offset y", point.y_m - source.y_m)?;
         if dx.hypot(dy) > 100_000. {
@@ -322,8 +327,8 @@ impl SourceParameters {
             source.settling_factor,
             self.effective_height_m,
         );
-        let ty = wind.speed_m_s.min(5.) * (y / x).powi(2); // (29)
-                                                           // Infinite ty is the limiting zero concentration at extreme lateral distance.
+        // (29). Infinite ty is the limiting zero at extreme lateral distance.
+        let ty = wind.speed_m_s.min(5.) * (y / x).powi(2);
         let s2 = if ty.is_infinite() {
             0.
         } else {
@@ -337,21 +342,19 @@ impl SourceParameters {
     }
 }
 
-pub fn calculate(request: &Request) -> Result<DispersionResult> {
+pub(crate) fn validate(
+    request: &Request,
+    allow_empty_winds: bool,
+) -> Result<Vec<SourceParameters>> {
     if request.pollutant.trim().is_empty() {
         return Err("pollutant must not be empty".into());
     }
     bounded("max_wind_speed_m_s", request.max_wind_speed_m_s, 6., 330.)?;
-    if request.sources.is_empty() || request.receptors.is_empty() || request.winds.is_empty() {
+    if request.sources.is_empty()
+        || request.receptors.is_empty()
+        || (!allow_empty_winds && request.winds.is_empty())
+    {
         return Err("sources, receptors and winds must not be empty".into());
-    }
-    let work = request
-        .sources
-        .len()
-        .checked_mul(request.receptors.len())
-        .and_then(|n| n.checked_mul(request.winds.len()));
-    if work.is_none_or(|n| n > 20_000_000) {
-        return Err("Request exceeds 20 million source-point-wind evaluations".into());
     }
     let mut ids = BTreeSet::new();
     let mut params = Vec::new();
@@ -374,7 +377,6 @@ pub fn calculate(request: &Request) -> Result<DispersionResult> {
             request.max_wind_speed_m_s,
         )?;
     }
-    let mut receptors = Vec::new();
     ids.clear();
     for point in &request.receptors {
         if point.id.trim().is_empty() || !ids.insert(&point.id) {
@@ -385,6 +387,28 @@ pub fn calculate(request: &Request) -> Result<DispersionResult> {
         if point.height_m != 2. {
             return Err("Only ground-level receptors (height_m=2) implemented".into());
         }
+        for source in &request.sources {
+            let distance = (point.x_m - source.x_m).hypot(point.y_m - source.y_m);
+            if !distance.is_finite() || distance > 100_000. {
+                return Err("Receptor is more than 100 km from a source".into());
+            }
+        }
+    }
+    Ok(params)
+}
+
+pub fn calculate(request: &Request) -> Result<DispersionResult> {
+    let work = request
+        .sources
+        .len()
+        .checked_mul(request.receptors.len())
+        .and_then(|n| n.checked_mul(request.winds.len()));
+    if work.is_none_or(|n| n > 20_000_000) {
+        return Err("Request exceeds 20 million source-point-wind evaluations".into());
+    }
+    let params = validate(request, false)?;
+    let mut receptors = Vec::new();
+    for point in &request.receptors {
         let mut concentrations = Vec::new();
         let mut best = 0;
         let mut contributions = Vec::new();
