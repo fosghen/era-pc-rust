@@ -1,6 +1,8 @@
 """Read-only PE module/export model; never runs host or mapped-module APIs.
 
-Only explicitly supported kernel32/kernelbase resolver calls can return.
+Only explicitly supported kernel32/kernelbase/API-set resolver calls return.
+Already mapped guest inputs can be registered separately from stop-only
+reference modules; registering them does not map or initialize new code.
 Missing modules, unsupported names and unknown exports stop, rather than
 pretending a Windows operation succeeded or failed. This is not a loader.
 """

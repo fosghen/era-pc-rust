@@ -12,7 +12,11 @@ from pe_module_model import utf16_z
 
 HEAP_BASE, HEAP_CAPACITY = 0x50000000, 0x1000000
 STRINGS_BASE = 0x51000000
-STARTUP_REGIONS = [(HEAP_BASE, HEAP_CAPACITY), (STRINGS_BASE, 4096)]
+VIRTUAL_BASE, VIRTUAL_CAPACITY = 0x52000000, 0x4000000
+STARTUP_REGIONS = [(HEAP_BASE, HEAP_CAPACITY), (STRINGS_BASE, 4096), (VIRTUAL_BASE, VIRTUAL_CAPACITY)]
+PAGE_PROTECTIONS = {1: 0, 2: uc.UC_PROT_READ, 4: uc.UC_PROT_READ | uc.UC_PROT_WRITE,
+                   0x10: uc.UC_PROT_EXEC, 0x20: uc.UC_PROT_READ | uc.UC_PROT_EXEC,
+                   0x40: uc.UC_PROT_ALL}
 
 
 class StartupModel:
@@ -38,7 +42,8 @@ class StartupModel:
                  'IsProcessorFeaturePresent': 1, 'GetUserDefaultUILanguage': 0,
                  'RegOpenKeyExW': 5, 'VirtualProtect': 4,
                  'GetCurrentProcess': 0, 'FlushInstructionCache': 3,
-                 'GetUserDefaultLangID': 0, 'DuplicateHandle': 7, 'CloseHandle': 1}
+                 'GetUserDefaultLangID': 0, 'DuplicateHandle': 7, 'CloseHandle': 1,
+                 'VirtualAlloc': 4, 'VirtualFree': 3}
 
     def __init__(self, machine, nls_codepage=None, nls_sort=None, nls_case=None):
         self.machine = machine
@@ -69,6 +74,39 @@ class StartupModel:
         machine.mem_protect(STRINGS_BASE, 4096, uc.UC_PROT_READ)
         self.environment_blocks = set()
         self.object_handles = {}
+        self.virtual_allocations = {}
+        self.virtual_cursor = VIRTUAL_BASE
+
+    def virtual_memory_call(self, function, args, event):
+        if function == 'VirtualFree':
+            address, size, flags = args
+            allocation = self.virtual_allocations.get(address)
+            if flags != 0x8000 or size or not allocation or not allocation['active']:
+                raise ValueError('Only MEM_RELEASE of an exact live allocation with size zero supported')
+            if any(address < p + 24 and address + allocation['size'] > p for p in self.locks):
+                raise ValueError('Releasing storage of an active opaque critical section')
+            self.machine.mem_unmap(address, allocation['size'])
+            allocation['active'] = False
+            event['released_region'] = dict(address=hex(address), size=allocation['size'])
+            return 1
+        address, requested, flags, protection = args
+        if address or flags not in (0x1000, 0x3000) or protection not in PAGE_PROTECTIONS:
+            raise ValueError('Only new NULL-address committed allocations with basic protection supported')
+        if not 0 < requested <= VIRTUAL_CAPACITY or len(self.virtual_allocations) >= 256:
+            raise ValueError('Virtual allocation size/count budget')
+        size = (requested + 4095) & ~4095
+        address = (self.virtual_cursor + 65535) & ~65535
+        if address + size > VIRTUAL_BASE + VIRTUAL_CAPACITY:
+            raise ValueError('Virtual arena exhausted; not a modeled Windows allocation failure')
+        # Unicorn creates zero-filled pages; protection is real in this model.
+        self.machine.mem_map(address, size, PAGE_PROTECTIONS[protection])
+        self.virtual_cursor = address + size
+        self.virtual_allocations[address] = dict(size=size, requested=requested, active=True,
+                                                initial_protection=hex(protection))
+        event['memory_writes'] = [dict(address=hex(address), size=size, operation='zero_initialized_pages')]
+        if flags == 0x1000:
+            event['compatibility'] = 'NULL-address MEM_COMMIT implicit reservation, documented Windows compatibility behavior'
+        return address
 
     def object_handle_call(self, function, args, event):
         if function == 'CloseHandle':
@@ -251,6 +289,8 @@ class StartupModel:
         event.setdefault('memory_writes', []).append(dict(address=hex(address), size=len(data)))
 
     def invoke(self, function, args, event):
+        if function in ('VirtualAlloc', 'VirtualFree'):
+            return self.virtual_memory_call(function, args, event)
         if function in ('DuplicateHandle', 'CloseHandle'):
             return self.object_handle_call(function, args, event)
         if function == 'GetUserDefaultLangID':
@@ -258,7 +298,7 @@ class StartupModel:
         if function == 'GetCurrentProcess':
             return 0xffffffff
         if function in ('VirtualProtect', 'FlushInstructionCache'):
-            if self.primary_region is None:
+            if self.primary_region is None and not self.virtual_allocations:
                 raise ValueError('Primary image range not established')
             if function == 'VirtualProtect':
                 address, size, protection, previous = args
@@ -266,16 +306,15 @@ class StartupModel:
                 process, address, size = args
                 if process != 0xffffffff:
                     raise ValueError('Only current synthetic process supported')
-            if not size or not any(start <= address < address + size <= start + length
-                                   for start, length in [self.primary_region] + self.additional_image_regions):
-                raise ValueError('Memory operation outside explicit input images')
+            ranges = ([self.primary_region] if self.primary_region else []) + self.additional_image_regions
+            ranges += [(p, item['size']) for p, item in self.virtual_allocations.items() if item['active']]
+            if not size or not any(start <= address < address + size <= start + length for start, length in ranges):
+                raise ValueError('Memory operation outside explicit input images or live virtual allocations')
             first, end = address & ~4095, (address + size + 4095) & ~4095
             if function == 'FlushInstructionCache':
                 self.machine.ctl_remove_cache(first, end)
                 return 1
-            flags = {1: 0, 2: uc.UC_PROT_READ, 4: uc.UC_PROT_READ | uc.UC_PROT_WRITE,
-                     0x10: uc.UC_PROT_EXEC, 0x20: uc.UC_PROT_READ | uc.UC_PROT_EXEC,
-                     0x40: uc.UC_PROT_ALL}
+            flags = PAGE_PROTECTIONS
             if protection not in flags:
                 raise ValueError('Guard/copy-on-write or unknown page protection not modeled')
             self.writable(previous, 4)
@@ -456,6 +495,8 @@ class StartupModel:
             allowed_module = True
         if module.lower() == 'api-ms-win-core-handle-l1-1-0.dll' and function in ('DuplicateHandle', 'CloseHandle'):
             allowed_module = True
+        if module.lower() == 'api-ms-win-core-memory-l1-1-0.dll' and function in ('VirtualAlloc', 'VirtualFree', 'VirtualProtect'):
+            allowed_module = True
         if not allowed_module or function not in self.ARGUMENTS:
             return False, None
         event = dict(api=name, basis='Explicit synthetic startup profile; not a native Windows observation')
@@ -488,7 +529,11 @@ class StartupModel:
                                        for p, lock in self.locks.items()},
                     heaps={hex(h): data for h, data in self.heaps.items()},
                     object_handles={hex(h): data for h, data in self.object_handles.items()},
+                    virtual_allocations={hex(p): item for p, item in self.virtual_allocations.items()},
+                    virtual_arena=dict(base=hex(VIRTUAL_BASE), capacity=VIRTUAL_CAPACITY,
+                        used=self.virtual_cursor - VIRTUAL_BASE, page_size=4096, allocation_granularity=65536,
+                        limitations='NULL-address commit only; MEM_RELEASE only; no decommit, address selection, reserve-only, reuse or host allocations'),
                     memory_operation_regions=[dict(base=hex(base), size=size)
                         for base, size in ([self.primary_region] if self.primary_region else []) + self.additional_image_regions],
                     heap_arena=dict(base=hex(HEAP_BASE), capacity=HEAP_CAPACITY, used=self.cursor - HEAP_BASE),
-                    limitations='Explicit synthetic process profile, reversible XOR pointer fixture, single-thread opaque locks/atomics and bounded heaps; 64 TLS/FLS slots each, no direct TEB storage or callback dispatch; unknown last-error reads stop; only the named registry key is assumed absent; NLS data requires explicit files; page permissions apply only to explicit initially RWX input images; freed blocks not reused/unmapped; unspecified allocation bytes A5; no host API, device, license, filesystem operations, scheduling or time progression; API writes logged separately from CPU writes')
+                    limitations='Explicit synthetic process profile, reversible XOR pointer fixture, single-thread opaque locks/atomics and bounded heaps; 64 TLS/FLS slots each, no direct TEB storage or callback dispatch; unknown last-error reads stop; only the named registry key is assumed absent; NLS data requires explicit files; page permissions apply to explicit input images and live virtual allocations; freed heap blocks not reused/unmapped, released virtual allocations unmapped and not reused; unspecified heap allocation bytes A5; no host API, device, license, filesystem operations, scheduling or time progression; API writes logged separately from CPU writes')

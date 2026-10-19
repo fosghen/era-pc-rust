@@ -6,7 +6,7 @@ import unittest
 import unicorn as uc
 from unicorn import x86_const as x86
 
-from startup_model import StartupModel, HEAP_CAPACITY
+from startup_model import StartupModel, HEAP_CAPACITY, VIRTUAL_BASE, VIRTUAL_CAPACITY
 from nls_model import NlsModel
 from test_nls_model import synthetic_codepage, synthetic_sort, synthetic_case
 
@@ -61,6 +61,46 @@ class StartupModelTests(unittest.TestCase):
         self.assertEqual(next(p for a, b, p in self.machine.mem_regions() if a <= 0x11000 <= b), uc.UC_PROT_READ)
         self.assertFalse(self.call('VirtualProtect', 0x12000, 0x1000, 2, 0x10000)[0])
         self.assertFalse(self.call('VirtualProtect', 0x10fff, 2, 2, 0x12000)[0])
+
+    def test_virtual_alloc_zero_pages_alignment_and_exact_release(self):
+        contract = 'api-ms-win-core-memory-l1-1-0.dll'
+        ok, event = self.call('VirtualAlloc', 0, 0x421c, 0x1000, 4, module=contract)
+        self.assertTrue(ok, event)
+        address = self.machine.reg_read(x86.UC_X86_REG_EAX)
+        self.assertEqual(address, VIRTUAL_BASE)
+        self.assertEqual(self.model.virtual_allocations[address]['size'], 0x5000)
+        self.assertEqual(bytes(self.machine.mem_read(address, 0x5000)), bytes(0x5000))
+        second = self.result('VirtualAlloc', 0, 1, 0x3000, 4)
+        self.assertEqual(second, address + 0x10000)
+        self.assertFalse(self.call('VirtualFree', address + 1, 0, 0x8000)[0])
+        self.assertFalse(self.call('VirtualFree', address, 0x5000, 0x8000)[0])
+        self.assertTrue(self.call('VirtualFree', address, 0, 0x8000, module=contract)[0])
+        with self.assertRaises(uc.UcError):
+            self.machine.mem_read(address, 1)
+        self.assertFalse(self.call('VirtualFree', address, 0, 0x8000)[0])
+        self.assertTrue(self.model.virtual_allocations[second]['active'])
+
+    def test_virtual_pages_enforce_execute_permissions_and_allow_explicit_protect(self):
+        pointer = self.result('VirtualAlloc', 0, 5, 0x3000, 4)
+        self.machine.mem_write(pointer, bytes.fromhex('b82a000000'))
+        with self.assertRaises(uc.UcError):
+            self.machine.emu_start(pointer, pointer + 5)
+        self.assertEqual(self.result('VirtualProtect', pointer, 5, 0x20, 0x11000), 1)
+        self.assertEqual(struct.unpack('<I', self.machine.mem_read(0x11000, 4))[0], 4)
+        self.machine.emu_start(pointer, pointer + 5)
+        self.assertEqual(self.machine.reg_read(x86.UC_X86_REG_EAX), 42)
+        self.assertEqual(self.result('VirtualFree', pointer, 0, 0x8000), 1)
+
+    def test_virtual_alloc_unsupported_requests_do_not_create_pages(self):
+        for args in [(0, 0, 0x1000, 4), (VIRTUAL_BASE, 4096, 0x1000, 4),
+                     (0, 4096, 0x2000, 4), (0, 4096, 0x3000, 0x104),
+                     (0, VIRTUAL_CAPACITY + 1, 0x3000, 4)]:
+            self.assertFalse(self.call('VirtualAlloc', *args)[0])
+            self.assertEqual(self.model.virtual_allocations, {})
+            self.assertEqual(self.model.virtual_cursor, VIRTUAL_BASE)
+        self.model.virtual_cursor = VIRTUAL_BASE + VIRTUAL_CAPACITY
+        self.assertFalse(self.call('VirtualAlloc', 0, 4096, 0x1000, 4)[0])
+        self.assertEqual(self.model.virtual_allocations, {})
 
     def test_api_set_contract_is_exact_not_a_wildcard_alias(self):
         self.machine.reg_write(x86.UC_X86_REG_ESP, 0x10800)

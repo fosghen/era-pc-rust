@@ -6,6 +6,7 @@ import unittest
 
 from loader_trace import trace
 from pe_module_model import ModuleModel, utf16_z
+from startup_model import VIRTUAL_BASE
 import unicorn as uc
 
 
@@ -228,6 +229,12 @@ class LoaderTraceTests(unittest.TestCase):
     def test_nls_requires_explicit_startup_model(self):
         with self.assertRaisesRegex(ValueError, 'require the explicit startup model'):
             self.run_image(synthetic_pe(b'\xc3'), nls_codepage='unopened-path')
+
+    def test_virtual_arena_is_reserved_before_loading_input_images(self):
+        data = synthetic_pe(b'\xc3')
+        struct.pack_into('<I', data, 0x98 + 28, VIRTUAL_BASE)
+        with self.assertRaisesRegex(ValueError, 'overlaps trace harness'):
+            self.run_image(data, startup_model=True)
 
     def test_reference_iat_markers_stop_unknown_and_model_exact_api(self):
         with tempfile.TemporaryDirectory(prefix='era-reference-iat-') as directory:

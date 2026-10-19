@@ -3,7 +3,8 @@
 No licensing server or dongle is emulated. Imported function addresses are
 replaced IN EMULATED MEMORY ONLY by stop markers. An optional read-only PE
 module model resolves module/export lookups only (LoadLibraryA requires an
-already mapped module). An incomplete
+already mapped module). An explicit host continuation can execute the input
+DLL's real exports with the EXE's caller stack. An incomplete
 process environment means a stop is evidence about this experiment, not proof
 of what a real Windows process would do. No vendor bytes are exported.
 """

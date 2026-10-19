@@ -1,0 +1,107 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-19",
+  "parent_commit": "7d9920fb0e0adb665ce25e3a57dd123a493441f0",
+  "path_base": "workspace root containing era-rust and reverse_engineering",
+  "status": "Guest module lookup confirmed; linked host reaches VirtualAlloc; bounded allocation model tested, full trace pending",
+  "tests": {
+    "synthetic_python_passed": 85,
+    "rust_with_recovered_tests_passed": 59
+  },
+  "files": [
+    {
+      "path": "era-rust/tools/loader_trace.py",
+      "sha256": "0f355275cb6f3dc9c602162bbcd55fd1e6a7bb322d161e7397849dd2f2a130bb"
+    },
+    {
+      "path": "era-rust/tools/pe_module_model.py",
+      "sha256": "c695f8a81c0193d42d53b5189dc73918ea5b23edf655194b3c03ecf944b1f953"
+    },
+    {
+      "path": "era-rust/tools/x86_thread_model.py",
+      "sha256": "add7d065ee124b441184629cdd9d87fead60ce3639e310c2bbccc1d0037b4b8a"
+    },
+    {
+      "path": "era-rust/tools/startup_model.py",
+      "sha256": "83e8019a7e19c2115d31d1525c473b22575e4d9abad572354e0f776a3badaeb0"
+    },
+    {
+      "path": "era-rust/tools/nls_model.py",
+      "sha256": "8849236f1ddef7da6c24844933c8e051f1164b6785768347f74149acca5cee49"
+    },
+    {
+      "path": "era-rust/tools/test_loader_trace.py",
+      "sha256": "18e847c6d87f48f6ed218c751cf7f06a764831c9b40728a3afdb00bf691f3eff"
+    },
+    {
+      "path": "era-rust/tools/test_startup_model.py",
+      "sha256": "44eb65968e8e33965db64052f067b2f12d2202f4f323c28100ca6c93eba0863b"
+    },
+    {
+      "path": "era-rust/tools/test_nls_model.py",
+      "sha256": "480e0fca7e17b11d2fdc817b4a015c8643613af36595e374663026f429f0b389"
+    },
+    {
+      "path": "era-rust/tools/requirements-research.txt",
+      "sha256": "0052d0d49b9d27a7f6f0f7420dcd299548bd66b9aa16402938bce076cc064d3b"
+    },
+    {
+      "path": "era-rust/docs/HOST_LINKED_RESEARCH.md",
+      "sha256": "62009ddeb3c3c64bc045b6947a40b01f19c4a621c38d7458e5644c511e37a8f8"
+    },
+    {
+      "path": "reverse_engineering/perv_linked_02.json",
+      "sha256": "7ff62390bb5346a838b38ddb2e781daa8e2b8b001303dfcad7ebfd6d77cb1fad"
+    }
+  ],
+  "experiments": [
+    {
+      "report": "perv_linked_02.json",
+      "return_address": "0xd3348f7",
+      "virtual_alloc_arguments": [
+        "0x0",
+        "0x421c",
+        "0x1000",
+        "0x4"
+      ],
+      "input_sha256": "0eb1003dc43a6484f8bba7076a442fad8dad506bb80f6e9047d77c82f4c7ce30",
+      "tool_sha256": "c0b1a676c3403b9448b18d4d1443a4a31279206130dc4338c4c81a1c29418776",
+      "module_model_sha256": "08f66162c2cd730af144d40d16101fd7ac3d214b25f0942b89bfb1c8716ec69b",
+      "thread_model_sha256": "add7d065ee124b441184629cdd9d87fead60ce3639e310c2bbccc1d0037b4b8a",
+      "startup_model_sha256": "8023d9aede995b70cc893d215471e4738d265757cd28f68ef0c233817b89507e",
+      "nls_model_sha256": "8849236f1ddef7da6c24844933c8e051f1164b6785768347f74149acca5cee49",
+      "limits": {
+        "instructions": 300000000,
+        "seconds": 450.0
+      },
+      "instructions": 232339096,
+      "reason": "external_import",
+      "external_import": "api-ms-win-core-memory-l1-1-0.dll!VirtualAlloc",
+      "stage_returns": [
+        {
+          "stage": "dll_attach",
+          "instruction_index": 79770249,
+          "eax": "0x1",
+          "esp": "0x70008010"
+        }
+      ],
+      "host_image": {
+        "name": "p_perv.exe",
+        "sha256": "e4ece1726a1615392ad3e90f2c0c03e49f9b70d50ef7ce1cafa99f9a8385739e",
+        "input_size": 9286968,
+        "base": "0x400000",
+        "entry": "0xd32e768",
+        "input_unchanged": true
+      },
+      "image_writes_by_section": {
+        ".data@0x10361000": 1149,
+        ".text@0x10001000": 69366,
+        ".grd0001@0x1065f000": 86370,
+        "host:.idata@0xd23b000": 46479
+      },
+      "input_unchanged": true
+    }
+  ],
+  "correction": "The first GetModuleHandleA request in perv_linked_01 was KERNEL32.DLL, not GRDVKC32.DLL; use module_name_argument, not adjacent stack words",
+  "limitation": "No working bypass, native execution or original numerical result; perv_linked_02 precedes the current allocation implementation"
+}
