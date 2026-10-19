@@ -88,6 +88,54 @@ class LoaderTraceTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'require explicit reference modules'):
             self.run_image(synthetic_pe(b'\xc3'), module_bases=[('missing.dll', 0x61000000)])
 
+    def test_api_set_lookup_uses_explicit_schema_and_mapped_host(self):
+        from test_api_set_model import synthetic_schema
+        contract = 'API-MS-WIN-CORE-COM-L1-1-0.DLL'
+        with tempfile.TemporaryDirectory(prefix='era-api-set-trace-') as directory:
+            root = Path(directory)
+            host, schema = root / 'kernel32.dll', root / 'schema.dll'
+            host.write_bytes(synthetic_module())
+            schema.write_bytes(synthetic_schema(entries=[('api-ms-win-core-com-l1-1-3', 'kernel32.dll')]))
+            caller = resolver_caller(module_name=contract)
+            result = self.run_image(caller, modules=[host], api_set_schema=schema)
+            self.assertEqual(result['reason'], 'external_import')
+            self.assertEqual(result['external_import'], 'kernel32.dll!Probe')
+            self.assertEqual(result['registers']['eip'], '0x60001020')
+            model = result['module_model']
+            self.assertTrue(model['api_set_schema']['input_unchanged'])
+            self.assertEqual(len(model['api_set_resolutions']), 1)
+            resolution = model['api_set_resolutions'][0]
+            self.assertEqual(resolution['namespace_entry'], 'api-ms-win-core-com-l1-1-3')
+            self.assertEqual(resolution['host'], 'kernel32.dll')
+            self.assertTrue(resolution['host_explicitly_mapped'])
+            self.assertEqual(len(result['api_set_model_sha256']), 64)
+            absent = self.run_image(caller, modules=[host])
+            self.assertIn('not explicitly mapped', absent['unresolved_module_call']['model_error'])
+            schema.write_bytes(synthetic_schema(entries=[('api-ms-win-core-com-l1-1-3', 'missing.dll')]))
+            missing = self.run_image(caller, modules=[host], api_set_schema=schema)
+            self.assertEqual(missing['reason'], 'external_import')
+            self.assertIn('host not explicitly mapped', missing['unresolved_module_call']['model_error'])
+            self.assertFalse(missing['module_model']['api_set_resolutions'][0]['host_explicitly_mapped'])
+        with self.assertRaisesRegex(ValueError, 'requires explicit reference modules'):
+            self.run_image(synthetic_pe(b'\xc3'), api_set_schema=Path('never-read.dll'))
+
+    def test_api_set_forwarder_reaches_host_export_without_execution(self):
+        from test_api_set_model import synthetic_schema
+        with tempfile.TemporaryDirectory(prefix='era-api-set-forwarder-') as directory:
+            root = Path(directory)
+            facade, target, schema = root / 'kernel32.dll', root / 'target.dll', root / 'schema.dll'
+            facade.write_bytes(synthetic_module(forwarder='api-ms-win-core-com-l1-1-0.Probe'))
+            target_data = synthetic_module()
+            struct.pack_into('<I', target_data, 0x98 + 28, 0x62000000)
+            target.write_bytes(target_data)
+            schema.write_bytes(synthetic_schema(entries=[('api-ms-win-core-com-l1-1-3', 'target.dll')]))
+            result = self.run_image(resolver_caller(), modules=[facade, target], api_set_schema=schema)
+            self.assertEqual(result['reason'], 'external_import')
+            self.assertEqual(result['external_import'], 'target.dll!Probe')
+            self.assertEqual(result['registers']['eip'], '0x62001020')
+            self.assertEqual(result['module_model']['api_set_resolutions'][0]['host'], 'target.dll')
+            self.assertEqual(result['image_write_events'], 0)
+
     def test_relocated_reference_exports_stop_before_execution(self):
         from test_pe_relocation import relocation_image
         with tempfile.TemporaryDirectory(prefix='era-relocated-trace-') as directory:

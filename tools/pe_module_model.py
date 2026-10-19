@@ -120,7 +120,7 @@ def relocate_reference_image(pe, raw, image, actual_base):
 
 
 class ModuleModel:
-    def __init__(self, machine, paths, occupied, import_markers=False, module_bases=()):
+    def __init__(self, machine, paths, occupied, import_markers=False, module_bases=(), api_set_schema=None):
         paths = [Path(path) for path in paths]
         path_names = [path.name.lower() for path in paths]
         if len(set(path_names)) != len(path_names):
@@ -141,6 +141,11 @@ class ModuleModel:
         self.modules = {}
         self.guest_modules = {}
         self.main_module = None
+        self.api_set = None
+        self.api_set_resolutions = []
+        if api_set_schema is not None:
+            from api_set_model import ApiSetSchema
+            self.api_set = ApiSetSchema(api_set_schema)
         self.events = []
         self.observed_calls = 0
         self.address_names = {}
@@ -237,7 +242,17 @@ class ModuleModel:
             self.main_module = name
 
     def lookup_module(self, name):
-        return self.modules.get(name.lower()) or self.guest_modules.get(name.lower())
+        name = name.lower()
+        module = self.modules.get(name) or self.guest_modules.get(name)
+        if module is None and self.api_set and name.startswith(('api-', 'ext-')):
+            if len(self.api_set_resolutions) >= 4096:
+                raise ValueError('API-set resolution event limit')
+            resolution = self.api_set.resolve(name)
+            module = self.modules.get(resolution['host'])
+            self.api_set_resolutions.append(dict(resolution, host_explicitly_mapped=module is not None))
+            if module is None:
+                raise ValueError('API-set host not explicitly mapped: ' + resolution['host'])
+        return module
 
     def contains(self, address):
         if self.import_markers_enabled and REFERENCE_IMPORT_REGIONS[0][0] <= address < sum(REFERENCE_IMPORT_REGIONS[0]):
@@ -331,10 +346,12 @@ class ModuleModel:
                                 mapped_size=module['size'], input_unchanged=unchanged,
                                 loadlibrary_acquisitions=module['loadlibrary_acquisitions']))
         return dict(modules=records, resolver_events=self.events,
+                    api_set_schema=self.api_set.report() if self.api_set else None,
+                    api_set_resolutions=self.api_set_resolutions,
                     guest_modules=[dict(name=name, base=hex(m['base']), size=m['size'],
                         is_main=name == self.main_module, loadlibrary_acquisitions=m['loadlibrary_acquisitions'])
                         for name, m in self.guest_modules.items()],
                     observed_resolver_calls=self.observed_calls,
                     reference_import_markers=self.import_markers_enabled,
                     reference_import_bindings=self.import_bindings,
-                    limitations='Preferred bases by default; explicit reference-only x86 ABSOLUTE/HIGHLOW relocation; optional ordinary IAT stop markers are synthetic call boundaries, not resolved Windows addresses; no delayed-import binding, DLL initialization, automatic address placement, other relocation types, API-set schema loading, last-error state or OS execution; unknown operations stop')
+                    limitations='Preferred bases by default; explicit reference-only x86 ABSOLUTE/HIGHLOW relocation; optional file-backed API-set v6 resolution only to already mapped references; explicit module identities take precedence; optional ordinary IAT stop markers are synthetic call boundaries, not resolved Windows addresses; no live API-set composition or alias-specific hosts, delayed-import binding, DLL initialization, automatic address placement, other relocation types, last-error state or OS execution; unknown operations stop')

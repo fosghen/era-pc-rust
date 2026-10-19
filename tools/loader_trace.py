@@ -52,7 +52,7 @@ def validate_limits(max_instructions, max_seconds):
 def trace(path, export, argument, max_instructions, max_seconds, modules=(), thread_model=False,
           dll_attach=False, observe=(), watch=(), startup_model=False, nls_codepage=None, nls_sort=None, nls_case=None,
           after_attach_export=None, reference_import_markers=False, host_after_attach=None, critical_section_layout=None,
-          observer='python', memory_observer=None, module_bases=()):
+          observer='python', memory_observer=None, module_bases=(), api_set_schema=None):
     validate_limits(max_instructions, max_seconds)
     if observer not in ('python', 'rust'):
         raise ValueError('Observer must be python or rust')
@@ -68,6 +68,8 @@ def trace(path, export, argument, max_instructions, max_seconds, modules=(), thr
         raise ValueError('Reference import markers require explicit modules')
     if module_bases and not modules:
         raise ValueError('Module base overrides require explicit reference modules')
+    if api_set_schema is not None and not modules:
+        raise ValueError('API-set schema requires explicit reference modules')
     if (nls_codepage or nls_sort or nls_case) and not startup_model:
         raise ValueError('NLS references require the explicit startup model')
     if after_attach_export and not dll_attach:
@@ -140,7 +142,7 @@ def trace(path, export, argument, max_instructions, max_seconds, modules=(), thr
             if data:
                 machine.mem_write(host['base'] + section.VirtualAddress, data)
     module_model = ModuleModel(machine, modules, [(base, mapped_size)] + reserved_regions,
-                              reference_import_markers, module_bases=module_bases)
+                              reference_import_markers, module_bases=module_bases, api_set_schema=api_set_schema)
     if host:
         module_model.register_guest(path.name, pe)
         module_model.register_guest(host_after_attach.name, host['pe'], is_main=True)
@@ -234,6 +236,8 @@ def trace(path, export, argument, max_instructions, max_seconds, modules=(), thr
     writes = Counter()
     write_ranges = {}
     observed = set(observe)
+    if api_set_schema is not None:
+        state['api_set_model_sha256'] = hashlib.sha256(Path(__file__).with_name('api_set_model.py').read_bytes()).hexdigest()
     observations = []
     watched = [(address, bytes(machine.mem_read(address, size))) for address, size in watch]
     watch_writes = [deque(maxlen=8) for _ in watched]
@@ -590,6 +594,8 @@ def main():
                         help='Opt-in read-only reference PE for module/export resolution; repeatable')
     parser.add_argument('--module-base', action='append', type=module_base, default=[],
                         help='Explicit reference-only NAME=ADDRESS placement using bounded PE32 HIGHLOW relocations')
+    parser.add_argument('--api-set-schema', type=Path,
+                        help='Explicit read-only PE API-set v6 schema; only single default hosts already mapped are supported')
     parser.add_argument('--max-instructions', type=integer, default=20_000_000)
     parser.add_argument('--max-seconds', type=float, default=45.)
     parser.add_argument('--observer', choices=['python', 'rust'], default='python',
@@ -608,7 +614,7 @@ def main():
                    args.module, args.thread_model, args.dll_attach, args.observe, args.watch, args.startup_model,
                    args.nls_codepage, args.nls_sort, args.nls_case, args.after_attach_export, args.reference_import_markers,
                    args.host_after_attach, args.critical_section_layout, args.observer, args.memory_observer,
-                   args.module_base)
+                   args.module_base, args.api_set_schema)
     with args.report.open('x', encoding='utf-8') as output:
         json.dump(result, output, indent=2, ensure_ascii=False)
         output.write('\n')

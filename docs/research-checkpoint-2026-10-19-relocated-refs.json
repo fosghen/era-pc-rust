@@ -1,0 +1,82 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-19",
+  "parent_commit": "c2ce8406ad9a5340d7b0063b2d107bb6dda9c03e",
+  "path_base": "workspace root containing era-rust and reverse_engineering",
+  "status": "Relocated references mapped; oleaut32 resolved; host import-table writes observed. Next boundary is COM API-set contract.",
+  "files": [
+    {
+      "path": "era-rust/tools/loader_trace.py",
+      "sha256": "ee6a76f72c716ee30a8ab3a51ba86afa7b3399b277944fb1835c09ca72a77c42"
+    },
+    {
+      "path": "era-rust/tools/test_loader_trace.py",
+      "sha256": "f0692fd26f2a28641bfe31eb1848caac8956e2f6029319e7653cfd1066d4f771"
+    },
+    {
+      "path": "era-rust/tools/pe_module_model.py",
+      "sha256": "0f9957185045db26ea28554b22a8359185847c11e29bfa21fcf961132604e7b9"
+    },
+    {
+      "path": "era-rust/tools/test_pe_relocation.py",
+      "sha256": "6a2215d00cc1ec461c5271ec8e2d5eaaddc6d5842ecf458fc5ecc1e24efe7824"
+    },
+    {
+      "path": "era-rust/tools/native_observer.py",
+      "sha256": "a366daa8829f79054e79ff220748b8710672056b7a8e8f9d195801ef8f9a666c"
+    },
+    {
+      "path": "era-rust/tools/trace_observer.rs",
+      "sha256": "e7511d3a288ac27cc73b9d0f2718f937d82cf5368600cc48c3d75adce9a55adf"
+    },
+    {
+      "path": "era-rust/tools/x86_thread_model.py",
+      "sha256": "add7d065ee124b441184629cdd9d87fead60ce3639e310c2bbccc1d0037b4b8a"
+    },
+    {
+      "path": "era-rust/tools/startup_model.py",
+      "sha256": "8827efba8402f9d135e3ce865b736ee534ce7cf038df625f1567041677f3a3f5"
+    },
+    {
+      "path": "era-rust/tools/nls_model.py",
+      "sha256": "8849236f1ddef7da6c24844933c8e051f1164b6785768347f74149acca5cee49"
+    },
+    {
+      "path": "era-rust/tools/requirements-research.txt",
+      "sha256": "0052d0d49b9d27a7f6f0f7420dcd299548bd66b9aa16402938bce076cc064d3b"
+    },
+    {
+      "path": "era-rust/tools/verify_checkpoint.py",
+      "sha256": "235a1c96268395f8e2bcd240403de5864929dcd796e9d667ae26fca3f1040696"
+    },
+    {
+      "path": "era-rust/docs/HOST_LINKED_RESEARCH.md",
+      "sha256": "41cf008862c8608039331aad61918d1d3876dc8757c7a31a3ecb65ef96b3ac50"
+    },
+    {
+      "path": "reverse_engineering/perv_relocated_refs_4b_01.json",
+      "sha256": "d4d06591dbe97f8acb4aa4cb4024d047e372b152870735458139f6a9f287906b"
+    }
+  ],
+  "experiment": {
+    "report": "perv_relocated_refs_4b_01.json",
+    "instructions": 3455527111,
+    "elapsed_seconds": 255.2149,
+    "reason": "external_import",
+    "requested_module": "api-ms-win-core-com-l1-1-0.DLL",
+    "host_import_table_write_events": 474,
+    "explicit_bases": {
+      "oleaut32.dll": "0x61000000",
+      "wininet.dll": "0x61200000"
+    },
+    "reference_module_count": 16,
+    "reference_import_marker_count": 7366,
+    "tool_tests_passed": 245
+  },
+  "limitations": [
+    "Synthetic offline Windows environment; no native process/device calls",
+    "No API-set mapping model in this trace",
+    "No successful licensing or bypass established",
+    "Only own sources and report metadata; no vendor binaries, dumps or keys included"
+  ]
+}
