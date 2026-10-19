@@ -9,12 +9,36 @@ use std::{collections::BTreeMap, env, fs, hint::black_box, path::PathBuf, time::
 
 fn run() -> Result<()> {
     let args: Vec<String> = env::args().skip(1).collect();
+    const USAGE: &str = "Usage: era-engine demo | run scenario.json | run-batch cases.json [workers] | audit | bench [iterations]\nData commands require ERA_DATA=/path/to/recovered. demo needs no ERA files.";
+    match args.first().map(String::as_str) {
+        None | Some("--help" | "-h") => {
+            println!("{USAGE}");
+            return Ok(());
+        }
+        Some("--version" | "-V") => {
+            println!("era-engine {}", env!("CARGO_PKG_VERSION"));
+            return Ok(());
+        }
+        Some("demo") if args.len() == 1 => {
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&era_engine::demo::run()?)
+                    .map_err(|e| e.to_string())?
+            );
+            return Ok(());
+        }
+        Some("run") if args.len() == 2 => {}
+        Some("run-batch") if (2..=3).contains(&args.len()) => {}
+        Some("audit") if args.len() == 1 => {}
+        Some("bench") if (1..=2).contains(&args.len()) => {}
+        _ => return Err(USAGE.into()),
+    }
     let default =
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../reverse_engineering/recovered");
     let root = env::var_os("ERA_DATA")
         .map(PathBuf::from)
         .unwrap_or(default);
-    let db = Database::load(&root)?;
+    let db = Database::load(&root).map_err(|e| format!("{e}\nSet ERA_DATA to your local recovered JSON directory; try 'era-engine demo' without vendor data."))?;
     let output=match args.first().map(String::as_str){
         Some("run-batch")=>{
             let file=args.get(1).ok_or("run-batch requires an array of scenarios in JSON")?;
@@ -44,7 +68,7 @@ fn run() -> Result<()> {
             let count:usize=args.get(1).map(|v|v.parse().map_err(|_|"Invalid iteration count")).transpose()?.unwrap_or(100_000);
             if count==0{return Err("Iteration count must be positive".into());}
             let expressions:Vec<_>=[28,29].iter().map(|n|{
-                let row=db.methods["0092"].iter().find(|r|r.line==*n).unwrap();Ok((row.variable.to_lowercase(),expr::parse(&row.formula)?))
+                let row=db.methods.get("0092").and_then(|rows|rows.iter().find(|r|r.line==*n)).ok_or_else(||format!("Benchmark requires method 0092 line {n}"))?;Ok((row.variable.to_lowercase(),expr::parse(&row.formula)?))
             }).collect::<Result<_>>()?;
             let scenario=Scenario{method:"0092".into(),initial:BTreeMap::from([
                 ("gi".into(),Value::Number(0.433)),("f".into(),Value::Number(2.)),("t".into(),Value::Number(8.)),("n".into(),Value::Number(250.))]),..Scenario::default()};

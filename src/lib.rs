@@ -1,4 +1,5 @@
 pub mod data;
+pub mod demo;
 pub mod engine;
 pub mod expr;
 pub type Result<T> = std::result::Result<T, String>;

@@ -2,6 +2,15 @@
 name = "era-engine"
 version = "0.1.0"
 edition = "2021"
+description = "Independent experimental interpreter for ERA-style emission calculation methods"
+publish = false
+
+[features]
+recovered-tests = []
+
+[[test]]
+name = "recovered"
+required-features = ["recovered-tests"]
 
 [dependencies]
 serde = { version = "1.0", features = ["derive"] }
@@ -10,4 +19,3 @@ serde_json = "1.0"
 [profile.release]
 lto = "thin"
 codegen-units = 1
-

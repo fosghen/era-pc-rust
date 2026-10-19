@@ -26,6 +26,12 @@ ERA.EXE, P_PERV.EXE или Guardant и не требует электронно�
 
   cargo build --release --manifest-path era-rust/Cargo.toml
   cargo test --manifest-path era-rust/Cargo.toml
+  cargo test --manifest-path era-rust/Cargo.toml --features recovered-tests
+
+Обычный cargo test запускает независимые тесты без локальной базы.
+Флаг recovered-tests включает дополнительные проверки извлечённых методик.
+Путь к базе для них можно задать ERA_DATA. Демонстрация без файлов поставки:
+  cargo run --manifest-path era-rust/Cargo.toml -- demo
 
 При обычной сборке исполняемый файл будет era-rust/target/release/era-engine.
 Использован Rust 1.90.0. Зависимости зафиксированы в Cargo.lock.
