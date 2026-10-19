@@ -1,0 +1,2 @@
+# Optional, explicit native Windows observation only. Not required by the CLI.
+frida==17.24.3

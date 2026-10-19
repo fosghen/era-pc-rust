@@ -1,0 +1,83 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-19",
+  "parent_commit": "178d2e1",
+  "path_base": "workspace root containing era-rust and reverse_engineering",
+  "status": "Native caller module observation, not a licensing bypass or numerical validation.",
+  "files": [
+    {
+      "path": "era-rust/tools/native_capture.py",
+      "sha256": "d13f7b5f93a88bf9f0c8233ecf00f8cf0cf353ee2c4aba2ae7c3726345b46b52"
+    },
+    {
+      "path": "era-rust/tools/test_native_capture.py",
+      "sha256": "858888b4a0076b8d215615088a5b2a35ee95d76ecfa1137be9687d5a535f2129"
+    },
+    {
+      "path": "era-rust/tools/native_api_observer.js",
+      "sha256": "5bb14c5a0cba50115a612adf63160ff886b2e20362ac0a4299b068f1a600e88c"
+    },
+    {
+      "path": "era-rust/tools/test_native_api_observer.js",
+      "sha256": "dde555bb25189f7a66ce6e6144b4a294480905261de870736415dda90f21fb75"
+    },
+    {
+      "path": "era-rust/tools/windows_process_job.py",
+      "sha256": "c64135799ad4cd2778901de6b849020a617505a7079b604cd111ae41cc121f25"
+    },
+    {
+      "path": "era-rust/tools/test_windows_process_job.py",
+      "sha256": "a908009574283be8075e388e235551cc159a25084c22dce48c66914260c21188"
+    },
+    {
+      "path": "era-rust/tools/fixtures/NativeProbeFixture.cs",
+      "sha256": "6ed933164ffb9bcfaae863a9941bd7d7a490b518f2ae30591ea46f0ecf974220"
+    },
+    {
+      "path": "era-rust/tools/requirements-native.txt",
+      "sha256": "17f76b572a2e7356cc12143c8319a7baa5d24791558c37620f6f4fb2668af09d"
+    },
+    {
+      "path": "era-rust/tools/verify_checkpoint.py",
+      "sha256": "235a1c96268395f8e2bcd240403de5864929dcd796e9d667ae26fca3f1040696"
+    },
+    {
+      "path": "era-rust/docs/HOST_LINKED_RESEARCH.md",
+      "sha256": "b6d959952082bd7434752ee8899ff88974a72cbf5d407f531fb31f2ca3d07996"
+    },
+    {
+      "path": "reverse_engineering/native_fixture_capture_02.jsonl",
+      "sha256": "4e85ec994d7f60926174aa7c9a6efa52be12f30d33e8a132acd11741bc2217ca"
+    },
+    {
+      "path": "reverse_engineering/native_perv_capture_02.jsonl",
+      "sha256": "717ccc72ac4da15fe0d4d67149eb314d4bd2dad44a16f2d0a69a8008e4e53589"
+    }
+  ],
+  "experiments": {
+    "fixture": {
+      "report": "native_fixture_capture_02.jsonl",
+      "exit_code": 0
+    },
+    "original": {
+      "report": "native_perv_capture_02.jsonl",
+      "seconds": 10,
+      "reason": "duration_limit",
+      "exit_code_before_cleanup": 259,
+      "wait_caller": "GRDVKC32.DLL+0xF9CA",
+      "ioctl_caller": "bcryptPrimitives.dll+0x2968e",
+      "ioctl_code": "0x390008",
+      "pid_absent_after_cleanup": true
+    }
+  },
+  "tests": {
+    "python": 448,
+    "node": 17
+  },
+  "limitations": [
+    "Non-isolated explicit non-elevated launch; no drivers installed.",
+    "Selected kernel32 hooks only, incomplete coverage, timing/code perturbation.",
+    "Caller address attribution does not establish call purpose.",
+    "Device identity, license success and numerical correctness not established."
+  ]
+}

@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-19",
+  "parent_commit": "178d2e1",
+  "path_base": "workspace root containing era-rust and reverse_engineering",
+  "status": "First short non-elevated native observation, not isolated; no licensing bypass or numerical validation.",
+  "files": [
+    {
+      "path": "era-rust/tools/native_capture.py",
+      "sha256": "260c6946553d2eb1d5c0a2295de6a6b1093341e801da19ad3a2c49d5ecbb1270"
+    },
+    {
+      "path": "era-rust/tools/test_native_capture.py",
+      "sha256": "13c8abd2395e2f203bc1ebb25f2e799723a403507e18ea90249705176870c095"
+    },
+    {
+      "path": "era-rust/tools/native_api_observer.js",
+      "sha256": "5e6ecdc82bb0d63af76952b370174cb97874c3b303e4a5e6eac8041bd9e2f1f2"
+    },
+    {
+      "path": "era-rust/tools/test_native_api_observer.js",
+      "sha256": "61e60a6a8f0ccb4dae44f96dba00f0cc49287c1855346c1a37daabcb83a818a5"
+    },
+    {
+      "path": "era-rust/tools/windows_process_job.py",
+      "sha256": "c64135799ad4cd2778901de6b849020a617505a7079b604cd111ae41cc121f25"
+    },
+    {
+      "path": "era-rust/tools/test_windows_process_job.py",
+      "sha256": "a908009574283be8075e388e235551cc159a25084c22dce48c66914260c21188"
+    },
+    {
+      "path": "era-rust/tools/fixtures/NativeProbeFixture.cs",
+      "sha256": "6ed933164ffb9bcfaae863a9941bd7d7a490b518f2ae30591ea46f0ecf974220"
+    },
+    {
+      "path": "era-rust/tools/verify_checkpoint.py",
+      "sha256": "235a1c96268395f8e2bcd240403de5864929dcd796e9d667ae26fca3f1040696"
+    },
+    {
+      "path": "reverse_engineering/native_fixture_capture_01.jsonl",
+      "sha256": "ef5991f7dc74639b00feedcb214235a14edc549778ecc3c0cc250f9e6f2a8b87"
+    },
+    {
+      "path": "reverse_engineering/native_perv_capture_01.jsonl",
+      "sha256": "0eac3810b4757897396d83f8897797abe847dad56d08c1234d79c4088979fbd5"
+    }
+  ],
+  "experiments": {
+    "fixture": {
+      "report": "native_fixture_capture_01.jsonl",
+      "exit_code": 0
+    },
+    "original": {
+      "report": "native_perv_capture_01.jsonl",
+      "seconds": 10,
+      "reason": "duration_limit",
+      "exit_code_before_cleanup": 259,
+      "worker_wait_count": 3,
+      "worker_wait_timeout_ms": 60000,
+      "device_io_control": "0x390008 also observed in own fixture; device identity unknown"
+    }
+  },
+  "limitations": [
+    "Kernel32 observation hooks perturb code and timing; coverage is incomplete.",
+    "No strings, device buffer contents or memory dumps collected.",
+    "Job close is process lifetime management, not isolation or verified termination.",
+    "Original EXE and DLL hashes unchanged; this is not a whole-system audit."
+  ]
+}
