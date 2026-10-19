@@ -65,11 +65,95 @@ def resolver_caller(module_name='KERNEL32.dll', api='GetModuleHandleA'):
 
 
 class LoaderTraceTests(unittest.TestCase):
-    def run_image(self, image, limit=100, modules=()):
+    def run_image(self, image, limit=100, modules=(), thread_model=False, **options):
         with tempfile.TemporaryDirectory(prefix='era-trace-test-') as directory:
             path = Path(directory) / 'synthetic.exe'
             path.write_bytes(image)
-            return trace(path, None, 0, limit, 2., modules)
+            return trace(path, None, 0, limit, 2., modules, thread_model, **options)
+
+    def test_dll_entry_uses_actual_three_argument_attach_contract(self):
+        data = synthetic_pe(bytes.fromhex('8b442404 8b4c2408 8b54240c c20c00'))
+        struct.pack_into('<H', data, 0x84 + 18, 0x2102)
+        result = self.run_image(data, dll_attach=True)
+        self.assertEqual(result['reason'], 'returned')
+        self.assertEqual(result['registers']['eax'], '0x400000')
+        self.assertEqual(result['registers']['ecx'], '0x1')
+        self.assertEqual(result['registers']['edx'], '0x0')
+        self.assertEqual(result['registers']['esp'], '0x70008010')
+        with self.assertRaisesRegex(ValueError, 'requires a DLL'):
+            self.run_image(synthetic_pe(b'\xc3'), dll_attach=True)
+
+    def test_observations_and_watch_do_not_export_code_bytes(self):
+        data = synthetic_pe(bytes.fromhex('c6052010400090 c3'))
+        result = self.run_image(data, observe=[0x401000], watch=[(0x401020, 16)])
+        self.assertEqual(result['execution_observations'][0]['stack_words'][:2], ['0x71000000', '0x0'])
+        self.assertEqual(result['watched_ranges'][0]['changed_byte_count'], 1)
+        self.assertEqual(result['watched_ranges'][0]['first_changed_address'], '0x401020')
+        self.assertTrue(result['watched_ranges'][0]['initial_all_zero'])
+        self.assertFalse(result['watched_ranges'][0]['final_all_zero'])
+        self.assertNotEqual(result['watched_ranges'][0]['initial_sha256'], result['watched_ranges'][0]['final_sha256'])
+        self.assertNotIn('bytes', result['watched_ranges'][0])
+        with self.assertRaisesRegex(ValueError, 'Watch must'):
+            self.run_image(data, watch=[(0x70000000, 16)])
+
+    def test_observation_log_is_bounded(self):
+        result = self.run_image(synthetic_pe(bytes.fromhex('ebfe')), limit=1000, observe=[0x401000])
+        self.assertEqual(result['reason'], 'observation_limit')
+        self.assertEqual(len(result['execution_observations']), 256)
+
+    def test_thread_model_fs_base_and_high_stack_are_real_segments(self):
+        result = self.run_image(synthetic_pe(bytes.fromhex('64a100000000 50 59 64a118000000 c3')), thread_model=True)
+        self.assertEqual(result['reason'], 'returned')
+        self.assertEqual(result['registers']['ecx'], '0xffffffff')
+        self.assertEqual(result['registers']['eax'], '0x73001000')
+        self.assertEqual(result['registers']['esp'], '0x70008004')
+
+    def test_thread_model_does_not_map_the_null_page(self):
+        result = self.run_image(synthetic_pe(bytes.fromhex('a100000000 c3')), thread_model=True)
+        self.assertEqual(result['reason'], 'unmapped_or_protected_memory')
+        self.assertEqual(result['memory_address'], '0x0')
+
+    def test_thread_unknown_peb_field_is_not_zero_filled(self):
+        result = self.run_image(synthetic_pe(bytes.fromhex('64a130000000 cc')), thread_model=True)
+        self.assertEqual(result['reason'], 'unsupported_thread_field')
+        self.assertEqual(result['thread_access']['offset'], '0x30')
+
+    def test_thread_exception_chain_is_observed_without_dispatch(self):
+        # Install a synthetic stack record (next=-1, handler=0x401080), then INT3.
+        result = self.run_image(synthetic_pe(bytes.fromhex('6880104000 6aff 64892500000000 cc')), thread_model=True)
+        self.assertEqual(result['reason'], 'CPU_interrupt')
+        self.assertEqual(result['thread_model']['seh_chain'], [dict(record='0x70007ff8', next='0xffffffff', handler='0x401080')])
+        self.assertEqual(len(result['thread_model']['exception_list_writes']), 1)
+
+    def test_thread_stack_bounds_and_self_are_read_only(self):
+        result = self.run_image(synthetic_pe(bytes.fromhex('64c7050400000000000000 cc')), thread_model=True)
+        self.assertEqual(result['reason'], 'unsupported_thread_field')
+        self.assertEqual(result['thread_access']['operation'], 'write')
+
+    def test_thread_exception_chain_can_be_restored(self):
+        # push handler/old chain, install ESP, then restore old chain and stack.
+        result = self.run_image(synthetic_pe(bytes.fromhex(
+            '6880104000 64ff3500000000 64892500000000 58 64a300000000 83c404 c3')),
+            thread_model=True)
+        self.assertEqual(result['reason'], 'returned')
+        self.assertEqual(result['thread_model']['final_exception_list'], '0xffffffff')
+        self.assertEqual(result['thread_model']['seh_chain'], [])
+        self.assertEqual(len(result['thread_model']['exception_list_writes']), 2)
+
+    def test_thread_regions_are_reserved_before_mapping_modules(self):
+        with tempfile.TemporaryDirectory(prefix='era-module-test-') as directory:
+            path = Path(directory) / 'kernel32.dll'
+            image = synthetic_module()
+            struct.pack_into('<I', image, 0x98 + 28, 0x73000000)
+            path.write_bytes(image)
+            with self.assertRaisesRegex(ValueError, 'overlaps'):
+                self.run_image(synthetic_pe(b'\xc3'), modules=[path], thread_model=True)
+
+    def test_thread_snapshot_rejects_out_of_stack_chain(self):
+        result = self.run_image(synthetic_pe(bytes.fromhex('64c7050000000000104000 cc')), thread_model=True)
+        self.assertEqual(result['reason'], 'CPU_interrupt')
+        self.assertEqual(result['thread_model']['seh_chain_stop'], 'outside_modeled_stack_or_unaligned')
+        self.assertEqual(result['thread_model']['seh_chain'], [])
 
     def run_code(self, code, limit=100):
         return self.run_image(synthetic_pe(code), limit)

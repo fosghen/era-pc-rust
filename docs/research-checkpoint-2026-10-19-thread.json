@@ -1,0 +1,492 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-19",
+  "parent_commit": "d94f4a5",
+  "status": "No working bypass; direct export reaches uninitialized CRT error; DLL attach stops at first time API",
+  "tests": {
+    "synthetic_python_passed": 25,
+    "rust_with_recovered_tests_passed": 59,
+    "unchanged_vendor_inputs_checked": 8
+  },
+  "files": [
+    {
+      "path": "era-rust/README.md",
+      "sha256": "96132e77b286ee1c611abb1b9a6bf9ecb5c19457a434af553b33bce2fd0fce65"
+    },
+    {
+      "path": "era-rust/tools/loader_trace.py",
+      "sha256": "55acab365b69cfa162d103efc4d09e8c8217ba6295aa3c8ef217986f57b3010d"
+    },
+    {
+      "path": "era-rust/tools/pe_module_model.py",
+      "sha256": "e3ff2dd0044dbd23e51a6164c3e0f9ba40e77be2848a4141c3438eaba4ec07de"
+    },
+    {
+      "path": "era-rust/tools/x86_thread_model.py",
+      "sha256": "3bd37dbb9431e6acc3525cae27c5883b8c46a4b78cf6e0428503ccf2e3e75ebd"
+    },
+    {
+      "path": "era-rust/tools/test_loader_trace.py",
+      "sha256": "28bb7e4187050b3a3632d26b407649af71fb3ffcd211a3a3a50c5f79f14d35d8"
+    },
+    {
+      "path": "era-rust/tools/requirements-research.txt",
+      "sha256": "0052d0d49b9d27a7f6f0f7420dcd299548bd66b9aa16402938bce076cc064d3b"
+    },
+    {
+      "path": "era-rust/docs/THREAD_INITIALIZATION_RESEARCH.md",
+      "sha256": "8e4fdaab8ee425e5ae5a84132618ec04f348d447b1fac9a534faa11a1385509d"
+    },
+    {
+      "path": "reverse_engineering/grd_thread_trace_01.json",
+      "sha256": "029a4ca0336b3908386d0c86975a8382189c7f6913ca33beebc5fc857d7644cc"
+    },
+    {
+      "path": "reverse_engineering/grd_thread_trace_02.json",
+      "sha256": "516c6d732f8dfd8352adc9e91c2535c38ca22ba12be5d4353dbceb673fc8b493"
+    },
+    {
+      "path": "reverse_engineering/grd_thread_trace_03.json",
+      "sha256": "697526c29addbaf10d475689d3ba3e1de0b7b951fa227b473efdb90418ecd807"
+    },
+    {
+      "path": "reverse_engineering/grd_thread_trace_04.json",
+      "sha256": "10788314e4a5e6ca07d505ad32e36aaa8e4d5a71e1a909e0b3e8527f7ac5b2fc"
+    },
+    {
+      "path": "reverse_engineering/grd_dll_attach_trace_01.json",
+      "sha256": "eb947ef83be645ddd803d0a3ef38b1f045c7d87a43af91cecbd16275c82b03cd"
+    },
+    {
+      "path": "reverse_engineering/grd_dll_attach_trace_02.json",
+      "sha256": "3997211d2a6075f80067e89c295f0da08954423ca63445756a66695e7bf3780a"
+    },
+    {
+      "path": "reverse_engineering/grd_crt_static_binding_01.json",
+      "sha256": "0bb51f9db439ac41562293938377a13a875653dd4e5de13db72125ce18f02e4c"
+    }
+  ],
+  "experiments": [
+    {
+      "report": "grd_thread_trace_01.json",
+      "input_sha256": "0eb1003dc43a6484f8bba7076a442fad8dad506bb80f6e9047d77c82f4c7ce30",
+      "tool_sha256": "66d085423b499da9c347f77b0021856a44a43fd60a7d6b56283f70e7d39256dc",
+      "module_model_sha256": "e3ff2dd0044dbd23e51a6164c3e0f9ba40e77be2848a4141c3438eaba4ec07de",
+      "thread_model_sha256": "3bd37dbb9431e6acc3525cae27c5883b8c46a4b78cf6e0428503ccf2e3e75ebd",
+      "invocation": null,
+      "entry": "0x100106d0",
+      "initial_stack_arguments": null,
+      "instructions": 47183822,
+      "reason": "external_import",
+      "external_import": "KERNEL32.dll!GetModuleFileNameW",
+      "image_writes_by_section": {
+        ".grd0001@0x1065f000": 48367,
+        ".text@0x10001000": 32,
+        ".data@0x10361000": 284
+      },
+      "watched_ranges": null,
+      "input_unchanged": true
+    },
+    {
+      "report": "grd_thread_trace_02.json",
+      "input_sha256": "0eb1003dc43a6484f8bba7076a442fad8dad506bb80f6e9047d77c82f4c7ce30",
+      "tool_sha256": "37676a8b268584ed8c27edbd67bd7c8098800f030a23f30a8e3029dddadd7948",
+      "module_model_sha256": "e3ff2dd0044dbd23e51a6164c3e0f9ba40e77be2848a4141c3438eaba4ec07de",
+      "thread_model_sha256": "3bd37dbb9431e6acc3525cae27c5883b8c46a4b78cf6e0428503ccf2e3e75ebd",
+      "invocation": "Single entry/export call",
+      "entry": "0x100106d0",
+      "initial_stack_arguments": [
+        "0xffffffff"
+      ],
+      "instructions": 47183822,
+      "reason": "external_import",
+      "external_import": "KERNEL32.dll!GetModuleFileNameW",
+      "image_writes_by_section": {
+        ".grd0001@0x1065f000": 48367,
+        ".text@0x10001000": 32,
+        ".data@0x10361000": 284
+      },
+      "watched_ranges": [
+        {
+          "address": "0x10001000",
+          "size": 128,
+          "initial_sha256": "47327fbd606db4933473e6774b470f4511b33cad614706b7d033e155b0c45de4",
+          "final_sha256": "38723a2e5e8a17aa7950dc008209944e898f69a7bd10a23c839d341e935fd5ca",
+          "changed_byte_count": 72,
+          "first_changed_address": "0x10001000",
+          "last_changed_address": "0x1000107f",
+          "baseline": "Mapped image after harness IAT markers, before CPU execution; bytes not exported"
+        }
+      ],
+      "input_unchanged": true
+    },
+    {
+      "report": "grd_thread_trace_03.json",
+      "input_sha256": "0eb1003dc43a6484f8bba7076a442fad8dad506bb80f6e9047d77c82f4c7ce30",
+      "tool_sha256": "55acab365b69cfa162d103efc4d09e8c8217ba6295aa3c8ef217986f57b3010d",
+      "module_model_sha256": "e3ff2dd0044dbd23e51a6164c3e0f9ba40e77be2848a4141c3438eaba4ec07de",
+      "thread_model_sha256": "3bd37dbb9431e6acc3525cae27c5883b8c46a4b78cf6e0428503ccf2e3e75ebd",
+      "invocation": "Single entry/export call",
+      "entry": "0x100106d0",
+      "initial_stack_arguments": [
+        "0xffffffff"
+      ],
+      "instructions": 47183822,
+      "reason": "external_import",
+      "external_import": "KERNEL32.dll!GetModuleFileNameW",
+      "image_writes_by_section": {
+        ".grd0001@0x1065f000": 48367,
+        ".text@0x10001000": 32,
+        ".data@0x10361000": 284
+      },
+      "watched_ranges": [
+        {
+          "address": "0x10001000",
+          "size": 128,
+          "initial_sha256": "47327fbd606db4933473e6774b470f4511b33cad614706b7d033e155b0c45de4",
+          "final_sha256": "38723a2e5e8a17aa7950dc008209944e898f69a7bd10a23c839d341e935fd5ca",
+          "initial_all_zero": false,
+          "final_all_zero": true,
+          "changed_byte_count": 72,
+          "first_changed_address": "0x10001000",
+          "last_changed_address": "0x1000107f",
+          "baseline": "Mapped image after harness IAT markers, before CPU execution; bytes not exported"
+        },
+        {
+          "address": "0x1037f8e8",
+          "size": 4,
+          "initial_sha256": "df3f619804a92fdb4057192dc43dd748ea778adc52bc498ce80524c014b81119",
+          "final_sha256": "df3f619804a92fdb4057192dc43dd748ea778adc52bc498ce80524c014b81119",
+          "initial_all_zero": true,
+          "final_all_zero": true,
+          "changed_byte_count": 0,
+          "first_changed_address": null,
+          "last_changed_address": null,
+          "baseline": "Mapped image after harness IAT markers, before CPU execution; bytes not exported"
+        }
+      ],
+      "input_unchanged": true
+    },
+    {
+      "report": "grd_thread_trace_04.json",
+      "input_sha256": "0eb1003dc43a6484f8bba7076a442fad8dad506bb80f6e9047d77c82f4c7ce30",
+      "tool_sha256": "55acab365b69cfa162d103efc4d09e8c8217ba6295aa3c8ef217986f57b3010d",
+      "module_model_sha256": "e3ff2dd0044dbd23e51a6164c3e0f9ba40e77be2848a4141c3438eaba4ec07de",
+      "thread_model_sha256": "3bd37dbb9431e6acc3525cae27c5883b8c46a4b78cf6e0428503ccf2e3e75ebd",
+      "invocation": "Single entry/export call",
+      "entry": "0x100106d0",
+      "initial_stack_arguments": [
+        "0xffffffff"
+      ],
+      "instructions": 47183822,
+      "reason": "external_import",
+      "external_import": "KERNEL32.dll!GetModuleFileNameW",
+      "image_writes_by_section": {
+        ".grd0001@0x1065f000": 48367,
+        ".text@0x10001000": 32,
+        ".data@0x10361000": 284
+      },
+      "watched_ranges": [
+        {
+          "address": "0x10001000",
+          "size": 128,
+          "initial_sha256": "47327fbd606db4933473e6774b470f4511b33cad614706b7d033e155b0c45de4",
+          "final_sha256": "38723a2e5e8a17aa7950dc008209944e898f69a7bd10a23c839d341e935fd5ca",
+          "initial_all_zero": false,
+          "final_all_zero": true,
+          "changed_byte_count": 72,
+          "first_changed_address": "0x10001000",
+          "last_changed_address": "0x1000107f",
+          "baseline": "Mapped image after harness IAT markers, before CPU execution; bytes not exported"
+        },
+        {
+          "address": "0x1037f8e8",
+          "size": 4,
+          "initial_sha256": "df3f619804a92fdb4057192dc43dd748ea778adc52bc498ce80524c014b81119",
+          "final_sha256": "df3f619804a92fdb4057192dc43dd748ea778adc52bc498ce80524c014b81119",
+          "initial_all_zero": true,
+          "final_all_zero": true,
+          "changed_byte_count": 0,
+          "first_changed_address": null,
+          "last_changed_address": null,
+          "baseline": "Mapped image after harness IAT markers, before CPU execution; bytes not exported"
+        }
+      ],
+      "input_unchanged": true
+    },
+    {
+      "report": "grd_dll_attach_trace_01.json",
+      "input_sha256": "0eb1003dc43a6484f8bba7076a442fad8dad506bb80f6e9047d77c82f4c7ce30",
+      "tool_sha256": "37676a8b268584ed8c27edbd67bd7c8098800f030a23f30a8e3029dddadd7948",
+      "module_model_sha256": "e3ff2dd0044dbd23e51a6164c3e0f9ba40e77be2848a4141c3438eaba4ec07de",
+      "thread_model_sha256": "3bd37dbb9431e6acc3525cae27c5883b8c46a4b78cf6e0428503ccf2e3e75ebd",
+      "invocation": "DLL_PROCESS_ATTACH entry (no dependency initialization)",
+      "entry": "0x1031e641",
+      "initial_stack_arguments": [
+        "0x10000000",
+        "0x1",
+        "0x0"
+      ],
+      "instructions": 23,
+      "reason": "external_import",
+      "external_import": "KERNEL32.dll!GetSystemTimeAsFileTime",
+      "image_writes_by_section": {},
+      "watched_ranges": [
+        {
+          "address": "0x10001000",
+          "size": 128,
+          "initial_sha256": "47327fbd606db4933473e6774b470f4511b33cad614706b7d033e155b0c45de4",
+          "final_sha256": "47327fbd606db4933473e6774b470f4511b33cad614706b7d033e155b0c45de4",
+          "changed_byte_count": 0,
+          "first_changed_address": null,
+          "last_changed_address": null,
+          "baseline": "Mapped image after harness IAT markers, before CPU execution; bytes not exported"
+        }
+      ],
+      "input_unchanged": true
+    },
+    {
+      "report": "grd_dll_attach_trace_02.json",
+      "input_sha256": "0eb1003dc43a6484f8bba7076a442fad8dad506bb80f6e9047d77c82f4c7ce30",
+      "tool_sha256": "55acab365b69cfa162d103efc4d09e8c8217ba6295aa3c8ef217986f57b3010d",
+      "module_model_sha256": "e3ff2dd0044dbd23e51a6164c3e0f9ba40e77be2848a4141c3438eaba4ec07de",
+      "thread_model_sha256": "3bd37dbb9431e6acc3525cae27c5883b8c46a4b78cf6e0428503ccf2e3e75ebd",
+      "invocation": "DLL_PROCESS_ATTACH entry (no dependency initialization)",
+      "entry": "0x1031e641",
+      "initial_stack_arguments": [
+        "0x10000000",
+        "0x1",
+        "0x0"
+      ],
+      "instructions": 23,
+      "reason": "external_import",
+      "external_import": "KERNEL32.dll!GetSystemTimeAsFileTime",
+      "image_writes_by_section": {},
+      "watched_ranges": [
+        {
+          "address": "0x10001000",
+          "size": 128,
+          "initial_sha256": "47327fbd606db4933473e6774b470f4511b33cad614706b7d033e155b0c45de4",
+          "final_sha256": "47327fbd606db4933473e6774b470f4511b33cad614706b7d033e155b0c45de4",
+          "initial_all_zero": false,
+          "final_all_zero": false,
+          "changed_byte_count": 0,
+          "first_changed_address": null,
+          "last_changed_address": null,
+          "baseline": "Mapped image after harness IAT markers, before CPU execution; bytes not exported"
+        }
+      ],
+      "input_unchanged": true
+    }
+  ],
+  "final_export_observations": [
+    {
+      "address": "0x1031e9dd",
+      "instruction_index": 47183414,
+      "stack_words": [
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x70007a08",
+        "0x1031ab52",
+        "0x150",
+        "0x0",
+        "0x0",
+        "0x0"
+      ]
+    },
+    {
+      "address": "0x1032b117",
+      "instruction_index": 47183458,
+      "stack_words": [
+        "0x1031e9f2",
+        "0x1e",
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x70007a08",
+        "0x1031ab52",
+        "0x150",
+        "0x0"
+      ]
+    }
+  ],
+  "final_thread_state": {
+    "tib_base": "0x73001000",
+    "gdt_base": "0x73000000",
+    "fs_selector": "0x13",
+    "ss_selector": "0x8",
+    "stack_limit": "0x70000000",
+    "stack_base": "0x70010000",
+    "initial_exception_list": "0xffffffff",
+    "final_exception_list": "0x70007a60",
+    "exception_list_writes": [
+      {
+        "instruction": "0x106a2440",
+        "offset": 0,
+        "size": 4,
+        "value": "0x70007c94"
+      },
+      {
+        "instruction": "0x100046f1",
+        "offset": 0,
+        "size": 4,
+        "value": "0x70007ac8"
+      },
+      {
+        "instruction": "0x10004735",
+        "offset": 0,
+        "size": 4,
+        "value": "0x70007c94"
+      },
+      {
+        "instruction": "0x10004931",
+        "offset": 0,
+        "size": 4,
+        "value": "0x70007a84"
+      },
+      {
+        "instruction": "0x10004bf1",
+        "offset": 0,
+        "size": 4,
+        "value": "0x70007a2c"
+      },
+      {
+        "instruction": "0x10007aec",
+        "offset": 0,
+        "size": 4,
+        "value": "0x70007a84"
+      },
+      {
+        "instruction": "0x10004b93",
+        "offset": 0,
+        "size": 4,
+        "value": "0x70007c94"
+      },
+      {
+        "instruction": "0x10008bb1",
+        "offset": 0,
+        "size": 4,
+        "value": "0x70007a60"
+      }
+    ],
+    "tib_reads": 5,
+    "seh_chain": [
+      {
+        "record": "0x70007a60",
+        "next": "0x70007c94",
+        "handler": "0x10342750"
+      },
+      {
+        "record": "0x70007c94",
+        "next": "0xffffffff",
+        "handler": "0x103426bb"
+      }
+    ],
+    "seh_chain_stop": "empty_or_terminated",
+    "limitations": "One synthetic NT_TIB with initially empty SEH chain; only ExceptionList writable; no PEB, TLS, OS dispatch, unwind or Windows segment-selector fidelity"
+  },
+  "reference_modules": [
+    {
+      "name": "kernel32.dll",
+      "sha256": "d62d3ca4f677eb06ba81b1eba82f375c0c345f0e8f8097c92fc5e36e4d72294e",
+      "base": "0x6b800000",
+      "mapped_size": 983040,
+      "input_unchanged": true,
+      "loadlibrary_acquisitions": 0
+    },
+    {
+      "name": "user32.dll",
+      "sha256": "2bd19b9d79a354d7c2ccd4593f104839e98ab3ffc68d64e1f21b97f8c7a78dc9",
+      "base": "0x69e00000",
+      "mapped_size": 1691648,
+      "input_unchanged": true,
+      "loadlibrary_acquisitions": 0
+    },
+    {
+      "name": "gdi32.dll",
+      "sha256": "f0c42611c13c3995fede747e932fcbe8db5dfb8efb8baddadbe62ec90af450cd",
+      "base": "0x4d500000",
+      "mapped_size": 143360,
+      "input_unchanged": true,
+      "loadlibrary_acquisitions": 0
+    },
+    {
+      "name": "advapi32.dll",
+      "sha256": "20e2c93010771a529ae82b8122baf5e1d5ec24efc0649ea658b304a5a98d2aa5",
+      "base": "0x4c300000",
+      "mapped_size": 512000,
+      "input_unchanged": true,
+      "loadlibrary_acquisitions": 0
+    },
+    {
+      "name": "ntdll.dll",
+      "sha256": "baeb10cd5b9a00a47f6fc53cf088f6cf708d18a499fbb66457f8dd82f641b368",
+      "base": "0x4b280000",
+      "mapped_size": 1720320,
+      "input_unchanged": true,
+      "loadlibrary_acquisitions": 0
+    },
+    {
+      "name": "comdlg32.dll",
+      "sha256": "0d2f45e5ec8718fcfb4701bd83b655a7d601c7c202426ae38b119a656e491396",
+      "base": "0x52080000",
+      "mapped_size": 716800,
+      "input_unchanged": true,
+      "loadlibrary_acquisitions": 0
+    },
+    {
+      "name": "shell32.dll",
+      "sha256": "2cbdaaf31e2e9e893f01f450125b9c8ad43c69ce862a259681c2d524c125e69c",
+      "base": "0x69800000",
+      "mapped_size": 6139904,
+      "input_unchanged": true,
+      "loadlibrary_acquisitions": 1
+    },
+    {
+      "name": "ole32.dll",
+      "sha256": "60bc39af69692154c27788a7facd84648febb4151966751d06c95b46c09b7b2e",
+      "base": "0x68f00000",
+      "mapped_size": 929792,
+      "input_unchanged": true,
+      "loadlibrary_acquisitions": 0
+    },
+    {
+      "name": "comctl32.dll",
+      "sha256": "195ad647e16bc4ca7529d9df60f2e7bb13bde9bf1ea2977f987023f9c650e285",
+      "base": "0x5bf80000",
+      "mapped_size": 577536,
+      "input_unchanged": true,
+      "loadlibrary_acquisitions": 0
+    },
+    {
+      "name": "shlwapi.dll",
+      "sha256": "e05c87a64d028e4cec600a0848c5eb86afa09011487fc512c49cb7edce3e5222",
+      "base": "0x63180000",
+      "mapped_size": 299008,
+      "input_unchanged": true,
+      "loadlibrary_acquisitions": 0
+    }
+  ],
+  "replay": {
+    "reports": [
+      "grd_thread_trace_03.json",
+      "grd_thread_trace_04.json"
+    ],
+    "matching": [
+      "tool_sha256",
+      "module_model_sha256",
+      "thread_model_sha256",
+      "instructions",
+      "registers",
+      "external_import",
+      "external_stack_words",
+      "execution_observations",
+      "watched_ranges",
+      "thread_model",
+      "module_model",
+      "image_writes_by_section"
+    ],
+    "scope": "Recorded checkpoints only, not a claim of full Windows equivalence or all-path determinism"
+  }
+}

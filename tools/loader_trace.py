@@ -22,13 +22,20 @@ import unicorn as uc
 from unicorn import x86_const as x86
 
 from pe_module_model import ModuleModel
+from x86_thread_model import THREAD_REGIONS, X86ThreadModel
 
 
 def integer(text):
     return int(text, 0)
 
 
-def trace(path, export, argument, max_instructions, max_seconds, modules=()):
+def address_size(text):
+    address, size = text.split(':', 1)
+    return integer(address), integer(size)
+
+
+def trace(path, export, argument, max_instructions, max_seconds, modules=(), thread_model=False,
+          dll_attach=False, observe=(), watch=()):
     raw = path.read_bytes()
     digest = hashlib.sha256(raw).hexdigest()
     pe = pefile.PE(data=raw)
@@ -36,11 +43,23 @@ def trace(path, export, argument, max_instructions, max_seconds, modules=()):
         raise ValueError('Only 32-bit x86 PE images supported')
     base = pe.OPTIONAL_HEADER.ImageBase
     image_size = pe.OPTIONAL_HEADER.SizeOfImage
+    if dll_attach and (export or not pe.FILE_HEADER.Characteristics & 0x2000):
+        raise ValueError('DLL attach requires a DLL entry point, not an export or executable')
+    if len(observe) > 32 or len(watch) > 32:
+        raise ValueError('At most 32 observation points and watched ranges')
+    if any(not base <= address < base + image_size for address in observe):
+        raise ValueError('Observation point outside primary image')
+    if any(not (1 <= size <= 4096 and base <= address and address + size <= base + image_size)
+           for address, size in watch):
+        raise ValueError('Watch must be 1..4096 bytes within the primary image')
     mapped_size = (image_size + 4095) & ~4095
     if not 0 < mapped_size <= 256 * 1024 * 1024:
         raise ValueError('Image size outside trace limits')
     stack, sentinel, imports_base = 0x70000000, 0x71000000, 0x72000000
-    for reserved, size in [(stack, 0x10000), (sentinel, 0x1000), (imports_base, 0x10000)]:
+    reserved_regions = [(stack, 0x10000), (sentinel, 0x1000), (imports_base, 0x10000)]
+    if thread_model:
+        reserved_regions += THREAD_REGIONS
+    for reserved, size in reserved_regions:
         if base < reserved + size and base + mapped_size > reserved:
             raise ValueError('Image overlaps trace harness memory')
     machine = uc.Uc(uc.UC_ARCH_X86, uc.UC_MODE_32)
@@ -52,8 +71,8 @@ def trace(path, export, argument, max_instructions, max_seconds, modules=()):
             machine.mem_write(base + section.VirtualAddress, data)
     for address, size in [(stack, 0x10000), (sentinel, 0x1000), (imports_base, 0x10000)]:
         machine.mem_map(address, size)
-    module_model = ModuleModel(machine, modules, [(base, mapped_size), (stack, 0x10000),
-                                                 (sentinel, 0x1000), (imports_base, 0x10000)])
+    module_model = ModuleModel(machine, modules, [(base, mapped_size)] + reserved_regions)
+    thread = X86ThreadModel(machine, stack, 0x10000) if thread_model else None
     functions = {}
     iat_map = []
     for descriptor in getattr(pe, 'DIRECTORY_ENTRY_IMPORT', []):
@@ -74,13 +93,17 @@ def trace(path, export, argument, max_instructions, max_seconds, modules=()):
             raise ValueError('Export missing or forwarded')
         entry = base + matches[0].address
     sp = stack + 0x8000
-    machine.mem_write(sp, struct.pack('<II', sentinel, argument & 0xFFFFFFFF))
+    arguments = [base, 1, 0] if dll_attach else [argument & 0xFFFFFFFF]
+    machine.mem_write(sp, struct.pack('<' + 'I' * (1 + len(arguments)), sentinel, *arguments))
     machine.reg_write(x86.UC_X86_REG_ESP, sp)
     machine.reg_write(x86.UC_X86_REG_EFLAGS, 2)
     state = dict(input_name=path.name, input_sha256=digest, input_size=len(raw),
                  tool_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
                  module_model_sha256=hashlib.sha256(Path(__file__).with_name('pe_module_model.py').read_bytes()).hexdigest(),
+                 thread_model_sha256=hashlib.sha256(Path(__file__).with_name('x86_thread_model.py').read_bytes()).hexdigest(),
                  entry=hex(entry), export=export, argument=argument,
+                 invocation='DLL_PROCESS_ATTACH entry (no dependency initialization)' if dll_attach else 'Single entry/export call',
+                 initial_stack_arguments=[hex(value) for value in arguments],
                  limits=dict(instructions=max_instructions, seconds=max_seconds),
                  versions=dict(unicorn=version('unicorn'), capstone=version('capstone'), pefile=version('pefile')),
                  runtime_version_strings=dict(unicorn=uc.__version__, capstone=capstone.__version__, pefile=pefile.__version__),
@@ -88,14 +111,32 @@ def trace(path, export, argument, max_instructions, max_seconds, modules=()):
                  instruction_count_semantics='Observed instruction starts; includes a faulting instruction, excludes stop markers',
                  environment='No Windows process/PEB/TEB/TLS/DLL initialization; imports are stop markers; image pages RWX',
                  iat_markers=iat_map)
+    if thread:
+        thread.install_hooks(state)
+        state['environment'] = 'Synthetic NT_TIB/FS, initial SEH chain empty; no PEB/TLS/DLL initialization or exception dispatch; imports stop; image pages RWX'
     tail = deque(maxlen=24)
     writes = Counter()
     write_ranges = {}
+    observed = set(observe)
+    observations = []
+    watched = [(address, bytes(machine.mem_read(address, size))) for address, size in watch]
     sections = [(base + s.VirtualAddress, base + s.VirtualAddress + max(s.Misc_VirtualSize, s.SizeOfRawData),
                  s.Name.rstrip(b'\0').decode(errors='replace') + '@' + hex(base + s.VirtualAddress)) for s in pe.sections]
     started = time.monotonic()
 
     def instruction(m, address, size, _):
+        if address in observed:
+            if len(observations) >= 256:
+                state['reason'] = 'observation_limit'
+                m.emu_stop()
+                return
+            event = dict(address=hex(address), instruction_index=state['instructions'])
+            try:
+                esp = m.reg_read(x86.UC_X86_REG_ESP)
+                event['stack_words'] = [hex(w) for w in struct.unpack('<9I', m.mem_read(esp, 36))]
+            except uc.UcError:
+                event['stack_unreadable'] = True
+            observations.append(event)
         # Markers are observed but never executed and do not count as instructions.
         external_name = functions.get(address)
         if modules and external_name is None and module_model.contains(address):
@@ -213,6 +254,21 @@ def trace(path, export, argument, max_instructions, max_seconds, modules=()):
     if modules:
         state['module_model'] = module_model.report()
         state['environment'] += '; opt-in mapped-PE resolver model, no mapped-module code execution'
+    if thread:
+        state['thread_model'] = thread.report()
+    if observed:
+        state['execution_observations'] = observations
+    if watched:
+        state['watched_ranges'] = []
+        for address, initial in watched:
+            final = bytes(machine.mem_read(address, len(initial)))
+            changes = [i for i, (old, new) in enumerate(zip(initial, final)) if old != new]
+            state['watched_ranges'].append(dict(address=hex(address), size=len(initial),
+                initial_sha256=hashlib.sha256(initial).hexdigest(), final_sha256=hashlib.sha256(final).hexdigest(),
+                initial_all_zero=not any(initial), final_all_zero=not any(final),
+                changed_byte_count=len(changes), first_changed_address=hex(address + changes[0]) if changes else None,
+                last_changed_address=hex(address + changes[-1]) if changes else None,
+                baseline='Mapped image after harness IAT markers, before CPU execution; bytes not exported'))
     if not state['input_unchanged']:
         raise RuntimeError('Input changed during trace')
     return state
@@ -223,6 +279,14 @@ def main():
     parser.add_argument('file', type=Path)
     parser.add_argument('--export')
     parser.add_argument('--argument', type=integer, default=0)
+    parser.add_argument('--thread-model', action='store_true',
+                        help='Opt-in minimal x86 NT_TIB/FS; no exception dispatch or unknown TEB fields')
+    parser.add_argument('--dll-attach', action='store_true',
+                        help='Call DLL PE entry as (image_base, DLL_PROCESS_ATTACH, NULL), not an export')
+    parser.add_argument('--observe', action='append', type=integer, default=[],
+                        help='Record bounded stack observations at a primary-image instruction address')
+    parser.add_argument('--watch', action='append', type=address_size, default=[],
+                        help='Compare a VA:SIZE memory range before/after; hashes/counts only, no bytes')
     parser.add_argument('--module', action='append', type=Path, default=[],
                         help='Opt-in read-only reference PE for module/export resolution; repeatable')
     parser.add_argument('--max-instructions', type=integer, default=20_000_000)
@@ -233,7 +297,8 @@ def main():
         parser.error('Limits: 1..100000000 instructions; 0..300 seconds')
     if args.report.exists():
         parser.error('Report already exists; choose a new evidence filename')
-    result = trace(args.file, args.export, args.argument, args.max_instructions, args.max_seconds, args.module)
+    result = trace(args.file, args.export, args.argument, args.max_instructions, args.max_seconds,
+                   args.module, args.thread_model, args.dll_attach, args.observe, args.watch)
     with args.report.open('x', encoding='utf-8') as output:
         json.dump(result, output, indent=2, ensure_ascii=False)
         output.write('\n')
