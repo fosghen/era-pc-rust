@@ -38,6 +38,18 @@ class WorkerProbeTests(unittest.TestCase):
         self.assertEqual(result['clone_manifest'][0]['sha256'],
                          hashlib.sha256(bytes(self.source.mem_read(0x10000, 0x2000))).hexdigest())
 
+    def test_stopped_stack_metadata_is_bounded_to_own_stack(self):
+        result = self.run_probe(b'\x90', stop_addresses={0x10000: 'fixture!API'})
+        words = result['stack_observation']['words']
+        self.assertEqual(words[:2], [hex(probe.SENTINEL), '0x11223344'])
+        self.assertEqual(len(words), 4)
+        self.assertEqual(result['stack_observation']['captured_words'], 4)
+        self.assertTrue(result['stack_observation']['truncated'])
+        moved = self.run_probe(bytes.fromhex('bc00100100 90'), stop_addresses={0x10005: 'fixture!API'})
+        self.assertEqual(moved['reason'], 'external_boundary')
+        self.assertEqual(moved['stack_observation']['words'], [])
+        self.assertIn('outside', moved['stack_observation']['error'])
+
     def test_child_writes_do_not_touch_source(self):
         code = b'\xc7\x05' + struct.pack('<II', 0x11000, 0xabcdef01)
         code += b'\xa1' + struct.pack('<I', 0x11000) + b'\xc2\x04\x00'
@@ -192,14 +204,15 @@ class WorkerProbeTests(unittest.TestCase):
         self.assertEqual(len(exhausted['rdtsc_events']), 1)
 
     def test_rdtsc_input_validation_and_count_budget(self):
-        for values in (None, '1', (True,), (-1,), (2**64,), (1.0,), [0] * 65, iter([1])):
+        for values in (None, '1', (True,), (-1,), (2**64,), (1.0,), [0] * 1025, iter([1])):
             with self.subTest(values=repr(values)), self.assertRaisesRegex(ValueError, 'uint64'):
                 self.run_probe(bytes.fromhex('0f31'), rdtsc_values=values)
-        result = self.run_probe(bytes.fromhex('0f31 ebfc'), rdtsc_values=[0] * 64,
+        result = self.run_probe(bytes.fromhex('0f31 ebfc'), rdtsc_values=[0] * 1024,
                                 max_instructions=3)
         self.assertEqual(result['reason'], 'instruction_limit')
         self.assertEqual(result['instructions'], 3)
         self.assertEqual(len(result['rdtsc_events']), 2)
+        self.assertEqual(len(result['fixture']['rdtsc_values']), 1024)
 
     def test_rdtsc_fixture_does_not_enable_rdtscp_or_random(self):
         for code in ('0f01f9', '0fc7f0', '0f32', '0f30'):

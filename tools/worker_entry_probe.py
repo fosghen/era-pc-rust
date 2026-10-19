@@ -27,6 +27,7 @@ FIXTURES = ((GDT, 0x1000), (TIB, 0x1000), (SENTINEL, 0x1000), (STACK, STACK_SIZE
 CLONE_LIMIT = 512 * 1024 * 1024
 REGION_LIMIT = 8192
 CHUNK = 1024 * 1024
+MAX_RDTSC_VALUES = 1024
 REGISTERS = {name: getattr(x86, 'UC_X86_REG_' + name.upper()) for name in
              ('eax', 'ebx', 'ecx', 'edx', 'esi', 'edi', 'ebp', 'esp', 'eip', 'eflags')}
 
@@ -70,9 +71,9 @@ def probe_worker_entry(source_machine, *, entry, parameter, thread_id, image_ran
     if (type(max_seconds) not in (int, float) or not math.isfinite(max_seconds)
             or not 0 < max_seconds <= 10):
         raise ValueError('Execution time budget must be positive and <=10 seconds')
-    if (type(rdtsc_values) not in (tuple, list) or len(rdtsc_values) > 64 or
+    if (type(rdtsc_values) not in (tuple, list) or len(rdtsc_values) > MAX_RDTSC_VALUES or
             any(type(value) is not int or not 0 <= value < 2**64 for value in rdtsc_values)):
-        raise ValueError('RDTSC fixture must be a tuple/list of at most 64 uint64 integers')
+        raise ValueError(f'RDTSC fixture must be a tuple/list of at most {MAX_RDTSC_VALUES} uint64 integers')
     rdtsc_values = tuple(rdtsc_values)
     images = _ranges(image_ranges)
     references = _ranges(reference_ranges)
@@ -255,7 +256,24 @@ def probe_worker_entry(source_machine, *, entry, parameter, thread_id, image_ran
                             timeout=max(1, int(min(remaining, 0.1) * 1000000)))
         except uc.UcError as error:
             stop('emulator_error', emulator_error=str(error))
+    # Bounded raw metadata from our own stack only; not an ABI interpretation
+    # and never a dereference of argument pointers or copied process buffers.
+    stopped_sp = child.reg_read(x86.UC_X86_REG_ESP)
+    stack_observation = dict(address=hex(stopped_sp), words=[],
+        scope='At most nine raw DWORDs within the synthetic worker stack; not validated API arguments')
+    if STACK <= stopped_sp < STACK + STACK_SIZE:
+        count = min(9, (STACK + STACK_SIZE - stopped_sp) // 4)
+        try:
+            stack_observation['words'] = [hex(value) for value in struct.unpack(
+                '<' + 'I' * count, child.mem_read(stopped_sp, count * 4))]
+        except uc.UcError:
+            stack_observation['error'] = 'Synthetic stack unreadable'
+    else:
+        stack_observation['error'] = 'ESP outside synthetic worker stack'
+    stack_observation.update(requested_words=9, captured_words=len(stack_observation['words']),
+                             truncated=len(stack_observation['words']) < 9)
     state.update(elapsed_seconds=time.monotonic() - started, setup_seconds=setup_seconds,
+                 stack_observation=stack_observation,
                  initial_registers=initial,
                  registers={name: hex(child.reg_read(reg)) for name, reg in REGISTERS.items()},
                  tail_instruction_addresses=list(tail), clone_manifest=manifest,

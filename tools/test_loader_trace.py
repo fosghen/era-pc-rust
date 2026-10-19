@@ -81,7 +81,8 @@ def stopped_api_caller(api, arguments, payload=b''):
 class LoaderTraceTests(unittest.TestCase):
     def test_worker_rdtsc_sequence_is_explicit_and_bounded(self):
         self.assertEqual(rdtsc_sequence('0x100000000:2:3'), (0x100000000, 0x100000002, 0x100000004))
-        for text in ('0:1:0', '0:1:65', '-1:0:1', '0:-1:1', '0xffffffffffffffff:1:2', 'bad', '0:1:2:3'):
+        self.assertEqual(len(rdtsc_sequence('1:1:1024')), 1024)
+        for text in ('0:1:0', '0:1:1025', '-1:0:1', '0:-1:1', '0xffffffffffffffff:1:2', 'bad', '0:1:2:3'):
             with self.subTest(text=text), self.assertRaises(ValueError):
                 rdtsc_sequence(text)
         with self.assertRaisesRegex(ValueError, 'require the explicit worker-entry probe'):

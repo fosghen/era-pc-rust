@@ -1,0 +1,135 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-19",
+  "parent_commit": "e506c7096aed7574c8e01d38065c7be9ba08cd60",
+  "path_base": "workspace root containing era-rust and reverse_engineering",
+  "status": "Three finite timestamp scenarios; no child external API reached.",
+  "files": [
+    {
+      "path": "era-rust/tools/loader_trace.py",
+      "sha256": "3648aa6e20770bbb175ecf759d8755ebd1c1e22c9de9a6e6d045ca6bb260f997"
+    },
+    {
+      "path": "era-rust/tools/test_loader_trace.py",
+      "sha256": "33c799acb0f198f794201669c615473f1394a0018a520f5d70d77b1f2ce4d622"
+    },
+    {
+      "path": "era-rust/tools/startup_model.py",
+      "sha256": "cb18f9f642a7bb0167c3719be5b3e4bc2ff3a41f793e99ab92234b2d0bedf637"
+    },
+    {
+      "path": "era-rust/tools/test_startup_model.py",
+      "sha256": "a1d4a141e53df293bf52df90c4acb4111aca6aa4227d57b53bd396a4cad11a5a"
+    },
+    {
+      "path": "era-rust/tools/interior_api_model.py",
+      "sha256": "a73eb6d72b4feea0c3cb0b11d25027ab91c0053a60f5a08485a2e0b82120001b"
+    },
+    {
+      "path": "era-rust/tools/test_interior_api_model.py",
+      "sha256": "36b7717c214a7e6dc07ba03a77b4974dc4f3a481f9229b858949e088895c39ba"
+    },
+    {
+      "path": "era-rust/tools/pe_module_model.py",
+      "sha256": "5f9a7221a66e96ef577b142ae6b314db59dac32c624439261ca93d69c191c705"
+    },
+    {
+      "path": "era-rust/tools/api_set_model.py",
+      "sha256": "e20cbe35f772b4a5ad5b025b54ec4db2a56f9d742b3385ef7cb5febbe25b863e"
+    },
+    {
+      "path": "era-rust/tools/native_observer.py",
+      "sha256": "a366daa8829f79054e79ff220748b8710672056b7a8e8f9d195801ef8f9a666c"
+    },
+    {
+      "path": "era-rust/tools/trace_observer.rs",
+      "sha256": "e7511d3a288ac27cc73b9d0f2718f937d82cf5368600cc48c3d75adce9a55adf"
+    },
+    {
+      "path": "era-rust/tools/x86_thread_model.py",
+      "sha256": "add7d065ee124b441184629cdd9d87fead60ce3639e310c2bbccc1d0037b4b8a"
+    },
+    {
+      "path": "era-rust/tools/nls_model.py",
+      "sha256": "8849236f1ddef7da6c24844933c8e051f1164b6785768347f74149acca5cee49"
+    },
+    {
+      "path": "era-rust/tools/requirements-research.txt",
+      "sha256": "0052d0d49b9d27a7f6f0f7420dcd299548bd66b9aa16402938bce076cc064d3b"
+    },
+    {
+      "path": "era-rust/tools/verify_checkpoint.py",
+      "sha256": "235a1c96268395f8e2bcd240403de5864929dcd796e9d667ae26fca3f1040696"
+    },
+    {
+      "path": "era-rust/docs/HOST_LINKED_RESEARCH.md",
+      "sha256": "8f86c9e33f4c5436fbffb8333251674f2a083841d984cdb47d967a7d4e755ae6"
+    },
+    {
+      "path": "era-rust/tools/worker_entry_probe.py",
+      "sha256": "78402893035a82065ec15b127e3defa0ab904896b6e8be3694ec00fb3a9c11bb"
+    },
+    {
+      "path": "era-rust/tools/test_worker_entry_probe.py",
+      "sha256": "8501951a5179f89d30935994b3510416a5f5bda8bdc8297254867af2b17a6f71"
+    },
+    {
+      "path": "era-rust/tools/pe_tls_metadata.py",
+      "sha256": "7ce3cd2220121e4d6145d7234bc8173b8b57de3afa94ed378bdd6d60605d9e6c"
+    },
+    {
+      "path": "era-rust/tools/test_pe_tls_metadata.py",
+      "sha256": "6462a153f31665888096f3f5154c9fcd62675b96499ec93f385edf965d546ece"
+    },
+    {
+      "path": "era-rust/tools/test_native_observer.py",
+      "sha256": "b281244600781d02b4fb839ab5ee0903e0dd9f41d7617f120f5aa4e2e14bb7c8"
+    },
+    {
+      "path": "reverse_engineering/static_tls_metadata_01.json",
+      "sha256": "06ad6764a241e922c71b7bf51013a706617a4ce530687416e2008a39e5abe458"
+    },
+    {
+      "path": "reverse_engineering/perv_worker_rdtsc_4b_01.json",
+      "sha256": "8d460be26915ce170d785078b5de4bfc5e96f33d6954ec134633c22673e475fb"
+    }
+  ],
+  "experiment": {
+    "report": "perv_worker_rdtsc_4b_01.json",
+    "instructions": 3503318120,
+    "elapsed_seconds": 245.5264,
+    "external_import": "api-ms-win-core-processthreads-l1-1-0.dll!ResumeThread",
+    "child_baseline_instructions": 843,
+    "clone_manifests_equal": true,
+    "scenarios": [
+      {
+        "sequence": "0:1:64",
+        "instructions": 100000,
+        "reason": "instruction_limit",
+        "used_rdtsc": 1
+      },
+      {
+        "sequence": "123456789:100:64",
+        "instructions": 7193,
+        "reason": "rdtsc_fixture_exhausted",
+        "used_rdtsc": 64
+      },
+      {
+        "sequence": "0x1000000000000:100000:64",
+        "instructions": 99156,
+        "reason": "time_limit",
+        "used_rdtsc": 1
+      }
+    ],
+    "tests_passed": 407
+  },
+  "limitations": [
+    "No ResumeThread success or parent continuation",
+    "No child external API reached",
+    "Independent artificial entries; native TLS/DllMain/scheduler absent",
+    "Parent RDTSC uncontrolled; scenario timestamps are explicit fixtures",
+    "No license success, bypass or USB interaction established",
+    "Own source and metadata only; no vendor bytes or memory dumps"
+  ],
+  "provenance_note": "Read-only stack metadata added to late-imported helper before parent finished. Actual helper hash confirmed in report; parent loader unchanged."
+}

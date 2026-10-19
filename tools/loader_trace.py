@@ -26,6 +26,7 @@ from pe_module_model import ModuleModel, REFERENCE_IMPORT_REGIONS, ascii_z, utf1
 from x86_thread_model import THREAD_REGIONS, TIB_BASE, X86ThreadModel
 from startup_model import STARTUP_REGIONS, StartupModel
 
+WORKER_TIMESTAMP_LIMIT = 1024
 
 def integer(text):
     return int(text, 0)
@@ -45,9 +46,9 @@ def module_base(text):
 
 def rdtsc_sequence(text):
     start, step, count = (int(part, 0) for part in text.split(':'))
-    if not (0 <= start < 2**64 and 0 <= step < 2**64 and 1 <= count <= 64
+    if not (0 <= start < 2**64 and 0 <= step < 2**64 and 1 <= count <= WORKER_TIMESTAMP_LIMIT
             and start + step * (count - 1) < 2**64):
-        raise ValueError('RDTSC sequence requires uint64 start:step:count, count 1..64 and no overflow')
+        raise ValueError(f'RDTSC sequence requires uint64 start:step:count, count 1..{WORKER_TIMESTAMP_LIMIT} and no overflow')
     return tuple(start + step * index for index in range(count))
 
 
@@ -85,10 +86,10 @@ def trace(path, export, argument, max_instructions, max_seconds, modules=(), thr
     if worker_entry_probe and not (startup_model and thread_model and suspended_threads):
         raise ValueError('Worker-entry probe requires startup model, thread model and suspended threads')
     if (not isinstance(worker_rdtsc_sequences, (tuple, list)) or len(worker_rdtsc_sequences) > 3
-            or any(not isinstance(seq, (tuple, list)) or not 1 <= len(seq) <= 64
+            or any(not isinstance(seq, (tuple, list)) or not 1 <= len(seq) <= WORKER_TIMESTAMP_LIMIT
                    or any(type(v) is not int or not 0 <= v < 2**64 for v in seq)
                    for seq in worker_rdtsc_sequences)):
-        raise ValueError('At most three nonempty worker RDTSC sequences of 1..64 uint64 values')
+        raise ValueError(f'At most three nonempty worker RDTSC sequences of 1..{WORKER_TIMESTAMP_LIMIT} uint64 values')
     if worker_rdtsc_sequences and not worker_entry_probe:
         raise ValueError('Worker RDTSC sequences require the explicit worker-entry probe')
     if create_thread_interior and not (startup_model and suspended_threads and modules):
