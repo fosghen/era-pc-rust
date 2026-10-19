@@ -750,7 +750,14 @@ class LoaderTraceTests(unittest.TestCase):
         self.assertEqual(store['value'], '0x76000000')
         self.assertEqual(store['object_id'], 'event:0')
         self.assertEqual(store['instruction'], '0x40101a')
+        self.assertTrue(store['final_value_matches'])
         self.assertNotIn('memory_writes', result['startup_model']['events'][0])
+        overwritten = stopped_api_caller('CreateEventA', [0, 1, 0, 0])
+        changed = bytes.fromhex('a310124000 31c0 a310124000 cc')
+        overwritten[538:538+len(changed)] = changed
+        final = self.run_image(overwritten, startup_model=True)['model_handle_image_writes']
+        self.assertEqual(final['total_matches'], 1)
+        self.assertFalse(final['retained_events'][0]['final_value_matches'])
         repeated = stopped_api_caller('CreateEventA', [0, 1, 0, 0])
         loop = bytes.fromhex('b98c000000 a310124000 e2f9 cc')
         repeated[538:538+len(loop)] = loop
@@ -806,6 +813,41 @@ class LoaderTraceTests(unittest.TestCase):
         self.assertEqual(result['model_handle_image_writes']['total_matches'], 1)
         self.assertEqual(result['model_handle_image_writes']['retained_events'][0]['address'], '0x401410')
         self.assertTrue(result['input_unchanged'])
+
+    def test_worker_entry_probe_is_separate_from_parent_resume(self):
+        with self.assertRaisesRegex(ValueError, 'Worker-entry probe requires'):
+            self.run_image(synthetic_pe(b'\xc3'), worker_entry_probe=True)
+        args = [0, 0, 0x401080, 42, 4, 0]
+        data = stopped_api_caller('CreateThread', args)
+        struct.pack_into('<IIIII', data, 0x300, 0x1200, 0, 0, 0x1150, 0x1220)
+        for table in (0x400, 0x420):
+            struct.pack_into('<3I', data, table, 0x1240, 0x1260, 0)
+        for offset, name in ((0x440, 'CreateThread'), (0x460, 'ResumeThread')):
+            encoded = b'\0\0' + name.encode() + b'\0'
+            data[offset:offset+len(encoded)] = encoded
+        code = b''.join(b'\x68' + struct.pack('<I', value) for value in reversed(args))
+        code += bytes.fromhex('ff1520124000 50 ff1524124000 cc')
+        data[512:512+len(code)] = code
+        data[0x280:0x287] = bytes.fromhex('8b442404 c20400')  # EAX=parameter; ret 4.
+        options = dict(startup_model=True, thread_model=True, suspended_threads=True)
+        parent = self.run_image(data, **options)
+        probed = self.run_image(data, worker_entry_probe=True, **options)
+        self.assertEqual(probed['external_import'], 'KERNEL32.dll!ResumeThread')
+        self.assertEqual(probed['registers'], parent['registers'])
+        self.assertEqual(probed['instructions'], parent['instructions'])
+        self.assertEqual(probed['startup_model'], parent['startup_model'])
+        child = probed['worker_entry_probe']
+        self.assertTrue(child['attempted'])
+        self.assertFalse(child['parent_resume_performed'])
+        self.assertFalse(child['parent_thread_execution_started'])
+        self.assertEqual(child['reason'], 'returned')
+        self.assertEqual(child['registers']['eax'], '0x2a')
+        self.assertTrue(probed['input_unchanged'])
+        unknown = self.run_image(stopped_api_caller('ResumeThread', [0x1234]),
+                                 worker_entry_probe=True, **options)
+        self.assertFalse(unknown['worker_entry_probe']['attempted'])
+        ordinary = self.run_image(synthetic_pe(b'\xc3'), worker_entry_probe=True, **options)
+        self.assertFalse(ordinary['worker_entry_probe']['attempted'])
 
     def test_partial_create_thread_frame_is_explicit_and_restores_caller_ebp(self):
         with self.assertRaisesRegex(ValueError, 'Interior CreateThread profile requires'):

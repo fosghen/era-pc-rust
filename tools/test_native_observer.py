@@ -12,8 +12,12 @@ import test_startup_model as startup_fixtures
 
 
 def semantic_report(result):
-    return {key: value for key, value in result.items()
-            if key not in ('elapsed_seconds', 'instruction_observer')}
+    report = {key: value for key, value in result.items()
+              if key not in ('elapsed_seconds', 'instruction_observer')}
+    if 'worker_entry_probe' in report:
+        report['worker_entry_probe'] = {key: value for key, value in report['worker_entry_probe'].items()
+                                        if key not in ('elapsed_seconds', 'setup_seconds')}
+    return report
 
 
 @unittest.skipUnless(platform.system() == 'Linux' and platform.machine() == 'x86_64',

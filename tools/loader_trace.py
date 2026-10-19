@@ -53,7 +53,8 @@ def trace(path, export, argument, max_instructions, max_seconds, modules=(), thr
           dll_attach=False, observe=(), watch=(), startup_model=False, nls_codepage=None, nls_sort=None, nls_case=None,
           after_attach_export=None, reference_import_markers=False, host_after_attach=None, critical_section_layout=None,
           observer='python', memory_observer=None, module_bases=(), api_set_schema=None, computer_name=None,
-          get_version_result=None, suspended_threads=False, create_thread_interior=False, event_state=False):
+          get_version_result=None, suspended_threads=False, create_thread_interior=False, event_state=False,
+          worker_entry_probe=False):
     validate_limits(max_instructions, max_seconds)
     if observer not in ('python', 'rust'):
         raise ValueError('Observer must be python or rust')
@@ -67,12 +68,14 @@ def trace(path, export, argument, max_instructions, max_seconds, modules=(), thr
         raise ValueError('Computer-name fixture requires the explicit startup model')
     if get_version_result is not None and not startup_model:
         raise ValueError('GetVersion fixture requires the explicit startup model')
-    if any(type(flag) is not bool for flag in (suspended_threads, create_thread_interior, event_state)):
+    if any(type(flag) is not bool for flag in (suspended_threads, create_thread_interior, event_state, worker_entry_probe)):
         raise ValueError('Thread model switches must be bool')
     if suspended_threads and not startup_model:
         raise ValueError('Suspended-thread fixture requires the explicit startup model')
     if event_state and not startup_model:
         raise ValueError('Event-state fixture requires the explicit startup model')
+    if worker_entry_probe and not (startup_model and thread_model and suspended_threads):
+        raise ValueError('Worker-entry probe requires startup model, thread model and suspended threads')
     if create_thread_interior and not (startup_model and suspended_threads and modules):
         raise ValueError('Interior CreateThread profile requires startup model, suspended threads and reference modules')
     if host_after_attach and (not dll_attach or after_attach_export or export):
@@ -585,10 +588,17 @@ def trace(path, export, argument, max_instructions, max_seconds, modules=(), thr
         state['thread_model'] = thread.report()
     if startup:
         state['startup_model'] = startup.report()
+        for candidate in handle_image_writes:
+            try:
+                current = struct.unpack('<I', machine.mem_read(int(candidate['address'], 16), 4))[0]
+                candidate['final_value_matches'] = current == int(candidate['value'], 16)
+            except uc.UcError:
+                candidate['final_value_matches'] = None
         state['model_handle_image_writes'] = dict(total_matches=handle_image_write_count,
             retained_events=list(handle_image_writes), retained_limit=128,
             scope='Pre-write CPU DWORD store attempts starting in input images whose value equals a live synthetic handle; '
-                  'no completion or final-memory validation; candidate references only, equality is not proof of ownership; '
+                  'final_value_matches checks equality at the parent stop, not whether this store completed; '
+                  'candidate references only, equality is not proof of ownership; '
                   'excludes stack and API-side writes')
         state['environment'] += '; opt-in synthetic startup APIs including TLS/FLS (not a native Windows process)'
     if interior is not None:
@@ -609,6 +619,41 @@ def trace(path, export, argument, max_instructions, max_seconds, modules=(), thr
                 baseline='Mapped image after harness IAT markers, before CPU execution; bytes not exported'))
     if not state['input_unchanged']:
         raise RuntimeError('Input changed during trace')
+    if worker_entry_probe:
+        from worker_entry_probe import probe_worker_entry
+        state['worker_entry_probe_sha256'] = hashlib.sha256(
+            Path(__file__).with_name('worker_entry_probe.py').read_bytes()).hexdigest()
+        words = state.get('external_stack_words', [])
+        api = state.get('external_import', '').lower()
+        eligible = state['reason'] == 'external_import' and api in (
+            'kernel32.dll!resumethread', 'kernelbase.dll!resumethread',
+            'api-ms-win-core-processthreads-l1-1-0.dll!resumethread')
+        handle = int(words[1], 16) if eligible and len(words) >= 2 else None
+        record = startup.object_handles.get(handle, {})
+        worker = startup.thread_objects.get(record.get('object'), {})
+        if not (eligible and record.get('active') and worker.get('state') == 'suspended'
+                and worker.get('execution_started') is False and worker.get('suspend_count', 0) > 0):
+            state['worker_entry_probe'] = dict(attempted=False,
+                reason='Not a ResumeThread boundary for a live, unexecuted suspended model thread')
+        else:
+            stops = {address: names[0] for address, names in module_model.address_names.items() if names}
+            stops.update(functions)
+            try:
+                child = probe_worker_entry(machine, entry=int(worker['start_address'], 16),
+                    parameter=int(worker['parameter'], 16), thread_id=worker['thread_id'],
+                    image_ranges=image_ranges, stop_addresses=stops,
+                    reference_ranges=[(m['base'], m['size']) for m in module_model.modules.values()],
+                    creator_tib_range=(TIB_BASE, 0x1000),
+                    protected_ranges=[(address, 24) for address in startup.locks])
+            except Exception as error:
+                # Preserve the expensive parent stop even if the optional
+                # disposable diagnostic fails. Never continue its ResumeThread.
+                child = dict(reason='probe_error', error_type=type(error).__name__, error=str(error))
+            child.update(attempted=True, parent_stop=state['external_import'],
+                parent_instruction_index=state['instructions'], parent_return_address=words[0],
+                thread_handle=hex(handle), object_id=record['object'],
+                parent_resume_performed=False, parent_thread_execution_started=False)
+            state['worker_entry_probe'] = child
     return state
 
 
@@ -636,6 +681,8 @@ def main():
                         help='Opt-in synthetic CREATE_SUSPENDED identities only; no thread execution, resume or scheduling')
     parser.add_argument('--event-state', action='store_true',
                         help='Opt-in local event Set/Reset and immediately decidable waits only; no blocking or scheduling')
+    parser.add_argument('--worker-entry-probe', action='store_true',
+                        help='Separate disposable stop-only worker entry experiment at ResumeThread; no main continuation, TLS initialization or Windows thread startup')
     parser.add_argument('--create-thread-interior', action='store_true',
                         help='Opt-in validated kernel32 CreateThread +11 partial-frame profile; requires suspended threads and reference modules')
     parser.add_argument('--critical-section-layout', choices=['win10-x86-19041'],
@@ -672,7 +719,7 @@ def main():
                    args.nls_codepage, args.nls_sort, args.nls_case, args.after_attach_export, args.reference_import_markers,
                    args.host_after_attach, args.critical_section_layout, args.observer, args.memory_observer,
                    args.module_base, args.api_set_schema, args.computer_name, args.get_version_result,
-                   args.suspended_threads, args.create_thread_interior, args.event_state)
+                   args.suspended_threads, args.create_thread_interior, args.event_state, args.worker_entry_probe)
     with args.report.open('x', encoding='utf-8') as output:
         json.dump(result, output, indent=2, ensure_ascii=False)
         output.write('\n')

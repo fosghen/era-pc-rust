@@ -1024,3 +1024,79 @@ CreateEventA → SetEvent → Wait(0) → Wait(0), с результатами 0
 после auto-reset. Вместе с Rust-вариантом теперь проходят **363 теста**.
 Уточнение pre-write semantics добавлено также в текст scope нового отчёта;
 исторический JSON не переписан, его точные исходники сохранены в архиве.
+
+### Подготовка отдельного эксперимента входа worker
+
+`tools/pe_tls_metadata.py` проверяет PE32 x86 TLS только чтением файла:
+VA/RVA, границы секций и raw backing, template/zero-fill, index output и
+ограниченный NULL-terminated callback array. В отчёт попадают размеры,
+адреса и SHA, но не байты template. Виртуальный template без raw backing
+не объявляется повреждённым: metadata validity отделена от неизвестного
+содержимого runtime. Проверка реального EXE подтвердила описанные выше
+60 виртуальных байт; callbacks pointer NULL. Это не подготовка TLS.
+Основание: [PE TLS directory](https://learn.microsoft.com/en-us/windows/win32/debug/pe-format#the-tls-section).
+
+Индексы динамической TLS принадлежат процессу, значения — отдельным
+потокам; значения creator нельзя автоматически наследовать worker.
+В обычном запуске также существенны уведомления DLL_THREAD_ATTACH,
+если они не отключены. Эти механизмы пока не реализованы; см.
+[Thread Local Storage](https://learn.microsoft.com/en-us/windows/win32/procthread/thread-local-storage)
+и [DLL entry point](https://learn.microsoft.com/en-us/windows/win32/dlls/dynamic-link-library-entry-point-function).
+
+`--worker-entry-probe` — отдельный opt-in, **не реализация ResumeThread**.
+Только на остановке ResumeThread с живым suspended model-thread он создаёт
+независимый Unicorn с копией текущих bytes/permissions. Основной EIP,
+API-стек, registry и suspend_count не меняются; main не продолжается.
+Клон не сериализуется. Лимиты: 512 MiB, 8192 региона, копирование кусками
+до 1 MiB. SHA каждого региона сохраняется без самих bytes.
+
+Новые GDT/NT_TIB, стек и sentinel занимают отдельные непересекающиеся
+адреса; конфликты отвергаются. Регистры и stdcall frame — явно синтетические.
+Creator TIB не заменяется; обращение к нему останавливает опыт. Неизвестные
+поля нового TIB, любые opaque lock accesses, все API/reference code,
+переходы за пределы input images, системные/временные инструкции и ошибки
+памяти также останавливают опыт. Никаких обработчиков startup API, TLS,
+DllMain, scheduler, SEH dispatch или продолжения основного потока нет.
+
+Начальный probe ограничен 100 000 инструкций / 2 секундами исполнения;
+его небольшой stop-only observer — Python, тяжёлый parent остаётся Rust.
+Первый достигнутый вызов означает зависимость **при выбранных fixture и
+пропущенной инициализации**, не первую зависимость настоящего Windows-потока.
+Даже возврат не доказывает правильный запуск worker или лицензию.
+
+Перед реальным опытом прошли **395 тестов**: 17 TLS metadata, 13 отдельных
+worker-probe tests и общая suite с Python/Rust parent parity. Интеграционный
+тест собственного PE проверяет CreateThread → ResumeThread-stop → отдельный
+возврат worker и неизменность parent-регистров/модели. Сравнение исключает
+только измеренное время child setup/execution, не семантические поля.
+Новый журнал handle stores также проверяет равенство DWORD в конце parent
+(`final_value_matches`); это не доказательство завершения конкретной записи.
+
+Независимый review выявил и закрыл три пробела child guard: RDRAND/RDSEED
+и другие environment/privileged instructions, исполнение из opaque/creator
+областей и аномальный размер CODE hook для invalid opcode. Размер теперь
+проверяется как 1..15 до чтения; fetch guard проверяет весь interval;
+Capstone privilege group и явный denylist останавливаются до исполнения.
+Три новых regression tests довели suite до **398 PASS** (16 worker tests).
+Эти изменения внесены, пока выполнялась parent-часть первого опыта: helper
+импортируется и хешируется только после parent stop. Основной loader source
+во время прогона не менялся; фактический helper SHA должен быть
+`77080fad0a5f9b300594042a9a74989d2554f32a7bb9d6bc6db2ea7a4983b177`.
+
+### Первый отдельный вход worker: остановка на RDTSC
+
+`perv_worker_entry_4b_01.json`: parent снова остановился на ResumeThread,
+**3 496 712 795 инструкций / 241,2942 с**, без исполнения этого API.
+В child скопированы 36 регионов, 266 928 128 байт (setup 0,3546 с).
+Отдельный вход `0x1000f950` с параметром `0x0d25a97d` выполнил 843
+инструкции за 0,0229 с и остановился **до RDTSC@`0x106928f4`**.
+Helper SHA совпал с проверенной выше версией. Внешних API в child ещё
+не достигнуто; назначение worker и связь с USB/лицензией не установлены.
+Это наблюдение пути при явно пропущенных TLS/DllMain и синтетических
+регистрах, не запуск настоящего Windows-потока.
+
+У всех восьми handle-кандидатов `final_value_matches=true` на parent stop.
+Watch template `0x0d1ab000:60` остался нулевым, без CPU writes; index
+`0x0090e7e4:4` остался ненулевым и неизменным. Эти свойства относятся к
+нашему mapped state: они не означают, что native static TLS инициализирована.
+Ни ResumeThread, ни worker completion, ни успешная лицензия не смоделированы.
