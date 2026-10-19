@@ -10,7 +10,9 @@ New-Item -ItemType Directory -Path $stage | Out-Null
 New-Item -ItemType Directory -Path "$stage/examples", "$stage/docs", "$stage/THIRD-PARTY" | Out-Null
 Copy-Item target/x86_64-pc-windows-msvc/release/era-engine.exe $stage
 Copy-Item examples/dispersion.json "$stage/examples"
+Copy-Item examples/dispersion-search.json, examples/dispersion-reference.json "$stage/examples"
 Copy-Item docs/DISPERSION.md "$stage/docs"
+Copy-Item docs/VALIDATION.md "$stage/docs"
 Copy-Item packaging/run-dispersion.cmd, packaging/README-WINDOWS.txt $stage
 $sha = git rev-parse HEAD
 if ($LASTEXITCODE -ne 0) { throw 'git rev-parse failed' }
