@@ -4,7 +4,7 @@ import struct
 import tempfile
 import unittest
 
-from loader_trace import trace
+from loader_trace import trace, validate_limits
 from pe_module_model import ModuleModel, utf16_z
 from startup_model import VIRTUAL_BASE
 import unicorn as uc
@@ -66,6 +66,16 @@ def resolver_caller(module_name='KERNEL32.dll', api='GetModuleHandleA'):
 
 
 class LoaderTraceTests(unittest.TestCase):
+    def test_limits_are_bounded_for_cli_and_library_entry(self):
+        validate_limits(1, .001)
+        validate_limits(600_000_000, 900)
+        for count, seconds in ((0, 1), (600_000_001, 1), (1, 0), (1, 901),
+                                (1, float('nan')), (1, float('inf')), (1.5, 1), (True, 1)):
+            with self.assertRaises(ValueError):
+                validate_limits(count, seconds)
+            with self.assertRaises(ValueError):
+                trace(Path('nonexistent-input'), None, 0, count, seconds)
+
     def test_lock_layout_requires_startup_and_is_reported(self):
         with self.assertRaisesRegex(ValueError, 'requires the explicit startup model'):
             self.run_image(synthetic_pe(b'\xc3'), critical_section_layout='win10-x86-19041')

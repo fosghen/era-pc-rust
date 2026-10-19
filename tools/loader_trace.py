@@ -36,9 +36,16 @@ def address_size(text):
     return integer(address), integer(size)
 
 
+def validate_limits(max_instructions, max_seconds):
+    if (type(max_instructions) is not int or not 1 <= max_instructions <= 600_000_000
+            or not 0 < max_seconds <= 900):
+        raise ValueError('Limits: 1..600000000 integer instructions; 0..900 seconds')
+
+
 def trace(path, export, argument, max_instructions, max_seconds, modules=(), thread_model=False,
           dll_attach=False, observe=(), watch=(), startup_model=False, nls_codepage=None, nls_sort=None, nls_case=None,
           after_attach_export=None, reference_import_markers=False, host_after_attach=None, critical_section_layout=None):
+    validate_limits(max_instructions, max_seconds)
     if critical_section_layout and not startup_model:
         raise ValueError('Critical-section layout requires the explicit startup model')
     if host_after_attach and (not dll_attach or after_attach_export or export):
@@ -421,6 +428,7 @@ def trace(path, export, argument, max_instructions, max_seconds, modules=(), thr
                 state['reason'] = 'emulator_error'
         if time.monotonic() >= next_progress:
             print(json.dumps(dict(progress_instructions=state['instructions'],
+                                  elapsed_seconds=round(time.monotonic() - started, 3),
                                   eip=hex(machine.reg_read(x86.UC_X86_REG_EIP)),
                                   image_writes=state['image_write_events'])), flush=True)
             next_progress = time.monotonic() + 5
@@ -497,8 +505,10 @@ def main():
     parser.add_argument('--max-seconds', type=float, default=45.)
     parser.add_argument('--report', required=True, type=Path)
     args = parser.parse_args()
-    if not 1 <= args.max_instructions <= 300_000_000 or not 0 < args.max_seconds <= 450:
-        parser.error('Limits: 1..300000000 instructions; 0..450 seconds')
+    try:
+        validate_limits(args.max_instructions, args.max_seconds)
+    except ValueError as error:
+        parser.error(str(error))
     if args.report.exists():
         parser.error('Report already exists; choose a new evidence filename')
     result = trace(args.file, args.export, args.argument, args.max_instructions, args.max_seconds,
