@@ -1,0 +1,93 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-19",
+  "parent_commit": "b515d433974e5f0abbbd2d44b613b4417752edce",
+  "path_base": "workspace root containing era-rust and reverse_engineering",
+  "status": "COM API-set resolved to mapped combase; next observed API is GetComputerNameA in the protection DLL.",
+  "files": [
+    {
+      "path": "era-rust/tools/loader_trace.py",
+      "sha256": "628530d8d7e1d6855fd1e12df7fd0f93b6e95a45689c125f1b0f35b8b5f462ab"
+    },
+    {
+      "path": "era-rust/tools/test_loader_trace.py",
+      "sha256": "b66c2db27069b3bfd07a57239c569fe6fe4e8dc7a064d903aaaa5f5bbce1cdde"
+    },
+    {
+      "path": "era-rust/tools/pe_module_model.py",
+      "sha256": "5f9a7221a66e96ef577b142ae6b314db59dac32c624439261ca93d69c191c705"
+    },
+    {
+      "path": "era-rust/tools/api_set_model.py",
+      "sha256": "e20cbe35f772b4a5ad5b025b54ec4db2a56f9d742b3385ef7cb5febbe25b863e"
+    },
+    {
+      "path": "era-rust/tools/test_api_set_model.py",
+      "sha256": "7a304f347a839708a3b2f46437732c8d83671b858c124a5b33749d2691acc3dc"
+    },
+    {
+      "path": "era-rust/tools/native_observer.py",
+      "sha256": "a366daa8829f79054e79ff220748b8710672056b7a8e8f9d195801ef8f9a666c"
+    },
+    {
+      "path": "era-rust/tools/trace_observer.rs",
+      "sha256": "e7511d3a288ac27cc73b9d0f2718f937d82cf5368600cc48c3d75adce9a55adf"
+    },
+    {
+      "path": "era-rust/tools/x86_thread_model.py",
+      "sha256": "add7d065ee124b441184629cdd9d87fead60ce3639e310c2bbccc1d0037b4b8a"
+    },
+    {
+      "path": "era-rust/tools/startup_model.py",
+      "sha256": "8827efba8402f9d135e3ce865b736ee534ce7cf038df625f1567041677f3a3f5"
+    },
+    {
+      "path": "era-rust/tools/nls_model.py",
+      "sha256": "8849236f1ddef7da6c24844933c8e051f1164b6785768347f74149acca5cee49"
+    },
+    {
+      "path": "era-rust/tools/requirements-research.txt",
+      "sha256": "0052d0d49b9d27a7f6f0f7420dcd299548bd66b9aa16402938bce076cc064d3b"
+    },
+    {
+      "path": "era-rust/tools/verify_checkpoint.py",
+      "sha256": "235a1c96268395f8e2bcd240403de5864929dcd796e9d667ae26fca3f1040696"
+    },
+    {
+      "path": "era-rust/docs/HOST_LINKED_RESEARCH.md",
+      "sha256": "9869e7e59fc51d86fa7c68e67ff7038326e6e0946edcc7c8552c842896a62b21"
+    },
+    {
+      "path": "reverse_engineering/sources/perv_api_set_4b_01/api_set_model.py",
+      "sha256": "7440581cd4a0f127bf2c188f28e3e98b020ddb915b27ec38637201dbf673dab1"
+    },
+    {
+      "path": "reverse_engineering/perv_api_set_4b_01.json",
+      "sha256": "ae5df086ff7b08dd4d937c175cb4000bf2a357d350f3e3ae9f06435ff5b5ab9d"
+    }
+  ],
+  "experiment": {
+    "report": "perv_api_set_4b_01.json",
+    "instructions": 3505522261,
+    "elapsed_seconds": 268.051,
+    "reason": "external_import",
+    "external_import": "KERNEL32.dll!GetComputerNameA",
+    "return_address": "0x10034632",
+    "buffer": "0x70007b30",
+    "size_pointer": "0x70007b10",
+    "initial_capacity": 16,
+    "api_set_resolutions": 7,
+    "host_import_table_write_events": 536,
+    "reference_module_count": 17,
+    "trace_api_set_source": "reverse_engineering/sources/perv_api_set_4b_01/api_set_model.py",
+    "trace_api_set_source_sha256": "7440581cd4a0f127bf2c188f28e3e98b020ddb915b27ec38637201dbf673dab1",
+    "current_tool_tests_passed": 264
+  },
+  "limitations": [
+    "Trace used pre-hardening API-set helper; preserved source snapshot, not the current helper",
+    "All actual namespace entries have flags0/1, which the later hardening accepts",
+    "Computer-name purpose unknown; no host name read or API response provided",
+    "Synthetic offline environment; no license success, bypass or device interaction established",
+    "Own source and report metadata only, no vendor bytes or memory dumps"
+  ]
+}

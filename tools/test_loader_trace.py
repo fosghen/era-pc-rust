@@ -657,6 +657,28 @@ class LoaderTraceTests(unittest.TestCase):
         self.assertEqual(result['external_import'], 'KERNEL32.dll!DeviceIoControl')
         self.assertEqual(result['startup_model']['events'], [])
 
+    def test_computer_name_requires_explicit_fixture_and_startup(self):
+        with self.assertRaisesRegex(ValueError, 'requires the explicit startup model'):
+            self.run_image(synthetic_pe(b'\xc3'), computer_name='ERA-RE-LAB')
+        for api in ('GetComputerNameA', 'GetComputerNameW'):
+            data = stopped_api_caller(api, [0x401210, 0x401200], struct.pack('<I', 16))
+            disabled = self.run_image(data, startup_model=True)
+            self.assertEqual(disabled['reason'], 'external_import')
+            self.assertEqual(disabled['external_import'], 'KERNEL32.dll!' + api)
+            for capacity, expected in ((16, '0x1'), (2, '0x0')):
+                struct.pack_into('<I', data, 0x400, capacity)
+                result = self.run_image(data, startup_model=True, computer_name='ERA-RE-LAB',
+                                        watch=[(0x401200, 4), (0x401210, 32)])
+                self.assertEqual(result['reason'], 'CPU_interrupt')
+                self.assertEqual(result['registers']['eax'], expected)
+                self.assertEqual(result['registers']['esp'], '0x70008000')
+                self.assertTrue(result['input_unchanged'])
+                self.assertEqual(result['startup_model']['profile']['computer_name'], 'ERA-RE-LAB')
+                event = result['startup_model']['events'][0]
+                self.assertEqual(event['computer_name_fixture'], 'ERA-RE-LAB')
+                self.assertEqual(event['required_tchars'], 11)
+                self.assertEqual(event['buffer_capacity_tchars'], capacity)
+
     def test_create_file_arguments_are_metadata_only(self):
         arguments = [0x401200, 0xc0000000, 3, 0x12345000, 3, 0x40000080, 0xffffffff]
         for api, filename, encoding in [('CreateFileA', r'\\.\SyntheticDevice', 'ascii'),

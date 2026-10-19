@@ -52,7 +52,7 @@ def validate_limits(max_instructions, max_seconds):
 def trace(path, export, argument, max_instructions, max_seconds, modules=(), thread_model=False,
           dll_attach=False, observe=(), watch=(), startup_model=False, nls_codepage=None, nls_sort=None, nls_case=None,
           after_attach_export=None, reference_import_markers=False, host_after_attach=None, critical_section_layout=None,
-          observer='python', memory_observer=None, module_bases=(), api_set_schema=None):
+          observer='python', memory_observer=None, module_bases=(), api_set_schema=None, computer_name=None):
     validate_limits(max_instructions, max_seconds)
     if observer not in ('python', 'rust'):
         raise ValueError('Observer must be python or rust')
@@ -62,6 +62,8 @@ def trace(path, export, argument, max_instructions, max_seconds, modules=(), thr
         raise ValueError('Rust memory observer requires the Rust instruction observer')
     if critical_section_layout and not startup_model:
         raise ValueError('Critical-section layout requires the explicit startup model')
+    if computer_name is not None and not startup_model:
+        raise ValueError('Computer-name fixture requires the explicit startup model')
     if host_after_attach and (not dll_attach or after_attach_export or export):
         raise ValueError('Host continuation requires DLL attach without an explicit export call')
     if reference_import_markers and not modules:
@@ -152,7 +154,7 @@ def trace(path, export, argument, max_instructions, max_seconds, modules=(), thr
         from native_observer import NativeMemoryHooks
         memory_hooks = NativeMemoryHooks(machine)
     startup = StartupModel(machine, nls_codepage, nls_sort, nls_case, critical_section_layout,
-                           memory_hooks=memory_hooks) if startup_model else None
+                           memory_hooks=memory_hooks, computer_name=computer_name) if startup_model else None
     if startup:
         startup.primary_region = (base, mapped_size)
         if host:
@@ -581,6 +583,8 @@ def main():
                         help='After DLL attach, run this explicit x86 EXE and route its imports of this DLL to actual guest exports')
     parser.add_argument('--startup-model', action='store_true',
                         help='Opt-in explicitly synthetic startup API fixtures; unknown calls stop')
+    parser.add_argument('--computer-name',
+                        help='Explicit synthetic GetComputerNameA/W fixture: 1..15 uppercase ASCII letters, digits or hyphens; requires startup model')
     parser.add_argument('--critical-section-layout', choices=['win10-x86-19041'],
                         help='Opt-in measured uncontended x86 lock layout fixture; direct guest writes still stop')
     parser.add_argument('--nls-codepage', type=Path, help='Explicit read-only SBCS CP1251 reference file')
@@ -614,7 +618,7 @@ def main():
                    args.module, args.thread_model, args.dll_attach, args.observe, args.watch, args.startup_model,
                    args.nls_codepage, args.nls_sort, args.nls_case, args.after_attach_export, args.reference_import_markers,
                    args.host_after_attach, args.critical_section_layout, args.observer, args.memory_observer,
-                   args.module_base, args.api_set_schema)
+                   args.module_base, args.api_set_schema, args.computer_name)
     with args.report.open('x', encoding='utf-8') as output:
         json.dump(result, output, indent=2, ensure_ascii=False)
         output.write('\n')

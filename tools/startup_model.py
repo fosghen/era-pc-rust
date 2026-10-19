@@ -4,6 +4,7 @@ Values are test assumptions, NOT observations of Windows. Unsupported calls
 stop. Each completed call records its arguments, result and memory effects.
 """
 import struct
+import re
 from bisect import bisect_left
 from datetime import datetime, timedelta
 
@@ -45,18 +46,23 @@ class StartupModel:
                  'RegOpenKeyExW': 5, 'VirtualProtect': 4,
                  'GetCurrentProcess': 0, 'FlushInstructionCache': 3,
                  'GetUserDefaultLangID': 0, 'DuplicateHandle': 7, 'CloseHandle': 1,
-                 'VirtualAlloc': 4, 'VirtualFree': 3, 'GetSystemTime': 1}
+                 'VirtualAlloc': 4, 'VirtualFree': 3, 'GetSystemTime': 1,
+                 'GetComputerNameA': 2, 'GetComputerNameW': 2}
 
     def __init__(self, machine, nls_codepage=None, nls_sort=None, nls_case=None, critical_section_layout=None,
-                 memory_hooks=None):
+                 memory_hooks=None, computer_name=None):
         if critical_section_layout not in (None, 'win10-x86-19041'):
             raise ValueError('Unknown critical-section layout profile')
+        if computer_name is not None and (not isinstance(computer_name, str)
+                or re.fullmatch(r'[A-Z0-9-]{1,15}', computer_name, flags=re.ASCII) is None):
+            raise ValueError('Computer-name fixture must be 1..15 uppercase ASCII letters, digits or hyphens')
         self.critical_section_layout = critical_section_layout
         self.machine = machine
         self.nls = NlsModel(nls_codepage, nls_sort, nls_case)
         self.events = []
         self.profile = dict(filetime=133485408000000000, performance_counter=123456789,
                             process_id=4096, thread_id=4097, tick_count=123456,
+                            computer_name=computer_name,
                             pointer_xor_fixture=0x5a39c6e1,
                             command_line='C:\\era-lab\\host.exe', environment={},
                             startup_flags=0, inherited_handles=False, standard_handles='absent',
@@ -343,7 +349,52 @@ class StartupModel:
         self.machine.mem_write(address, data)
         event.setdefault('memory_writes', []).append(dict(address=hex(address), size=len(data)))
 
+    def computer_name_call(self, function, args, event):
+        """Optional fixture, not a query of the real machine or a license result.
+
+        https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-getcomputernamea
+        nSize is in TCHARs; success excludes NUL, overflow requires NUL space.
+        """
+        name = self.profile['computer_name']
+        if name is None:
+            raise ValueError('Computer-name fixture is not explicitly selected')
+        output, size_pointer = args
+
+        def output_preflight(address, size):
+            self.writable(address, size)
+            if any(address < p + 24 and address + size > p for p in self.locks):
+                raise ValueError('Computer-name argument overlaps an opaque critical section')
+
+        output_preflight(size_pointer, 4)
+        # Unicorn host-side mem_read ignores guest permissions; check READ too.
+        if any(size_pointer < last + 1 and size_pointer + 4 > start and not permissions & uc.UC_PROT_READ
+               for start, last, permissions in self.machine.mem_regions()):
+            raise ValueError('Computer-name size pointer is not readable')
+        capacity = struct.unpack('<I', self.machine.mem_read(size_pointer, 4))[0]
+        if capacity > 4096:
+            raise ValueError('Computer-name capacity exceeds fixture limit')
+        width = 2 if function.endswith('W') else 1
+        # NULL/invalid buffers are not modeled, even for a zero-capacity probe.
+        extent = max(capacity, 1) * width
+        output_preflight(output, extent)
+        if output < size_pointer + 4 and output + extent > size_pointer:
+            raise ValueError('Computer-name output and size pointer overlap')
+        required = len(name) + 1
+        event.update(computer_name_fixture=name, buffer_capacity_tchars=capacity,
+                     required_tchars=required, tchar_width=width)
+        if capacity < required:
+            self.write(size_pointer, struct.pack('<I', required), event)
+            self.last_error = 111  # ERROR_BUFFER_OVERFLOW, not an invalid-pointer result.
+            return 0
+        # Both complete writable ranges and lock/argument overlaps were checked
+        # before either write, preventing partially successful fixture effects.
+        self.write(output, (name + '\0').encode('utf-16-le' if width == 2 else 'ascii'), event)
+        self.write(size_pointer, struct.pack('<I', len(name)), event)
+        return 1
+
     def invoke(self, function, args, event):
+        if function in ('GetComputerNameA', 'GetComputerNameW'):
+            return self.computer_name_call(function, args, event)
         if function in ('VirtualAlloc', 'VirtualFree'):
             return self.virtual_memory_call(function, args, event)
         if function in ('DuplicateHandle', 'CloseHandle'):
@@ -568,6 +619,8 @@ class StartupModel:
             allowed_module = True
         if not allowed_module or function not in self.ARGUMENTS:
             return False, None
+        if function in ('GetComputerNameA', 'GetComputerNameW') and self.profile['computer_name'] is None:
+            return False, None
         event = dict(api=name, basis='Explicit synthetic startup profile; not a native Windows observation')
         if len(self.events) >= 4096:
             return False, dict(api=name, model_error='Startup event limit')
@@ -606,4 +659,4 @@ class StartupModel:
                     memory_operation_regions=[dict(base=hex(base), size=size)
                         for base, size in ([self.primary_region] if self.primary_region else []) + self.additional_image_regions],
                     heap_arena=dict(base=hex(HEAP_BASE), capacity=HEAP_CAPACITY, used=self.cursor - HEAP_BASE),
-                    limitations='Explicit synthetic process profile, reversible XOR pointer fixture, single-thread locks/atomics and bounded heaps; locks opaque by default, optional measured read-only layout for uncontended spin 0/4000 only; copied locks are not live objects; 64 TLS/FLS slots each, no direct TEB storage or callback dispatch; unknown last-error reads stop; only the named registry key is assumed absent; NLS data requires explicit files; page permissions apply to explicit input images and live virtual allocations; freed heap blocks not reused/unmapped, released virtual allocations unmapped and not reused; unspecified heap allocation bytes A5; no host API, device, license, filesystem operations, scheduling or time progression; API writes logged separately from CPU writes')
+                    limitations='Explicit synthetic process profile; computer name absent unless explicitly supplied, capacity <=4096 TCHARs, only valid disjoint buffers, not host identity; reversible XOR pointer fixture, single-thread locks/atomics and bounded heaps; locks opaque by default, optional measured read-only layout for uncontended spin 0/4000 only; copied locks are not live objects; 64 TLS/FLS slots each, no direct TEB storage or callback dispatch; unknown last-error reads stop; only the named registry key is assumed absent; NLS data requires explicit files; page permissions apply to explicit input images and live virtual allocations; freed heap blocks not reused/unmapped, released virtual allocations unmapped and not reused; unspecified heap allocation bytes A5; no host API, device, license, filesystem operations, scheduling or time progression; API writes logged separately from CPU writes')

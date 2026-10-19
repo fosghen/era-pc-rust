@@ -22,6 +22,136 @@ class StartupModelTests(unittest.TestCase):
         self.machine.mem_write(0x10800, struct.pack('<' + 'I' * (1 + len(args)), 0x12345678, *args))
         return self.model.handle(module + '!' + name)
 
+    def computer_fixture(self, name='ERA-RE-LAB'):
+        self.machine = uc.Uc(uc.UC_ARCH_X86, uc.UC_MODE_32)
+        self.machine.mem_map(0x10000, 0x3000)
+        memory_hooks = None
+        # Preserve the existing RustMemoryStartupTests subclass configuration.
+        if hasattr(self, 'memory_hooks'):
+            memory_hooks = type(self.memory_hooks)(self.machine)
+            self.memory_hooks = memory_hooks
+            self.addCleanup(memory_hooks.close)
+        self.model = StartupModel(self.machine, computer_name=name, memory_hooks=memory_hooks)
+
+    def test_computer_name_is_opt_in_without_host_identity_lookup(self):
+        self.assertIsNone(self.model.report()['profile']['computer_name'])
+        for name in ('GetComputerNameA', 'GetComputerNameW'):
+            self.assertEqual(self.call(name, 0x11000, 0x12000), (False, None))
+        self.assertEqual(self.model.events, [])
+
+    def test_computer_name_configuration_validated_before_mapping(self):
+        for name in ('', 'lowercase', 'ABCDEFGHIJKLMNOP', 'ERA LAB', 'ERA.LAB', 'ЭРА',
+                     'ERA\0LAB', 'ERA\n', 1, True, b'ERA'):
+            with self.subTest(name=name):
+                machine = uc.Uc(uc.UC_ARCH_X86, uc.UC_MODE_32)
+                with self.assertRaisesRegex(ValueError, 'Computer-name fixture'):
+                    StartupModel(machine, computer_name=name)
+                self.assertEqual(list(machine.mem_regions()), [])
+
+    def test_computer_name_ansi_unicode_exact_capacity_and_stdcall(self):
+        for name in ('A', 'ERA-RE-LAB', 'ABCDEFGHIJKLMNO'):
+            for api, encoding in [('GetComputerNameA', 'ascii'), ('GetComputerNameW', 'utf-16-le')]:
+                with self.subTest(name=name, api=api):
+                    self.computer_fixture(name)
+                    data = (name + '\0').encode(encoding)
+                    self.machine.mem_write(0x11000, b'\xa5' * 64)
+                    self.machine.mem_write(0x12000, struct.pack('<I', len(name) + 1))
+                    self.model.last_error = 321
+                    ok, event = self.call(api, 0x11000, 0x12000)
+                    self.assertTrue(ok, event)
+                    self.assertEqual(self.machine.reg_read(x86.UC_X86_REG_EAX), 1)
+                    self.assertEqual(self.machine.reg_read(x86.UC_X86_REG_ESP), 0x1080c)
+                    self.assertEqual(self.machine.reg_read(x86.UC_X86_REG_EIP), 0x12345678)
+                    self.assertEqual(bytes(self.machine.mem_read(0x11000, len(data) + 2)), data + b'\xa5\xa5')
+                    self.assertEqual(struct.unpack('<I', self.machine.mem_read(0x12000, 4))[0], len(name))
+                    self.assertEqual(event['last_error'], 321)
+                    self.assertEqual(event['computer_name_fixture'], name)
+                    self.assertEqual(event['memory_writes'], [dict(address='0x11000', size=len(data)),
+                                                              dict(address='0x12000', size=4)])
+                    self.assertEqual(self.model.report()['profile']['computer_name'], name)
+
+    def test_computer_name_small_buffer_returns_required_tchars_only(self):
+        for api in ('GetComputerNameA', 'GetComputerNameW'):
+            for capacity in (0, 1, 10):
+                with self.subTest(api=api, capacity=capacity):
+                    self.computer_fixture()
+                    self.machine.mem_write(0x11000, b'\xa5' * 32)
+                    self.machine.mem_write(0x12000, struct.pack('<I', capacity))
+                    ok, event = self.call(api, 0x11000, 0x12000)
+                    self.assertTrue(ok, event)
+                    self.assertEqual(event['result'], '0x0')
+                    self.assertEqual(self.machine.reg_read(x86.UC_X86_REG_EAX), 0)
+                    self.assertEqual(struct.unpack('<I', self.machine.mem_read(0x12000, 4))[0], 11)
+                    self.assertEqual(bytes(self.machine.mem_read(0x11000, 32)), b'\xa5' * 32)
+                    self.assertEqual(event['memory_writes'], [dict(address='0x12000', size=4)])
+                    self.assertEqual(self.result('GetLastError'), 111)
+
+    def test_computer_name_bad_pointers_capacity_and_overlap_do_not_partially_write(self):
+        cases = [(0, 0x12000, 16), (0, 0x12000, 0), (0x50000, 0x12000, 16),
+                 (0x11000, 0, 16), (0x11000, 0x50000, 16),
+                 (0x11000, 0x12ffe, 16), (0x12ff8, 0x12000, 16),
+                 (0xfffffff8, 0x12000, 16), (0x11000, 0x12000, 4097),
+                 (0x11000, 0x12000, 0xffffffff), (0x11000, 0x11000, 16),
+                 (0x11000, 0x11008, 16), (0x11000, 0x10ffe, 16),
+                 (0x11000, 0x11001, 2)]
+        for api in ('GetComputerNameA', 'GetComputerNameW'):
+            for output, size_pointer, capacity in cases:
+                with self.subTest(api=api, output=output, size_pointer=size_pointer, capacity=capacity):
+                    self.computer_fixture()
+                    self.machine.mem_write(0x11000, b'\xa5' * 32)
+                    if 0x10000 <= size_pointer <= 0x12ffc:
+                        self.machine.mem_write(size_pointer, struct.pack('<I', capacity))
+                    before = bytes(self.machine.mem_read(0x10f00, 0x2100))
+                    self.machine.reg_write(x86.UC_X86_REG_EAX, 0xdeadbeef)
+                    self.model.last_error = 321
+                    ok, event = self.call(api, output, size_pointer)
+                    self.assertFalse(ok, event)
+                    self.assertIn('model_error', event)
+                    self.assertNotIn('memory_writes', event)
+                    self.assertNotIn('result', event)
+                    self.assertEqual(bytes(self.machine.mem_read(0x10f00, 0x2100)), before)
+                    self.assertEqual(self.machine.reg_read(x86.UC_X86_REG_EAX), 0xdeadbeef)
+                    self.assertEqual(self.machine.reg_read(x86.UC_X86_REG_ESP), 0x10800)
+                    self.assertEqual(self.model.last_error, 321)
+
+    def test_computer_name_readonly_and_unreadable_arguments_stop(self):
+        for api in ('GetComputerNameA', 'GetComputerNameW'):
+            for capacity in (1, 16):
+                for address, permissions in ((0x11000, uc.UC_PROT_READ),
+                                              (0x12000, uc.UC_PROT_READ),
+                                              (0x12000, uc.UC_PROT_WRITE)):
+                    with self.subTest(api=api, capacity=capacity, address=address, permissions=permissions):
+                        self.computer_fixture()
+                        self.machine.mem_write(0x12000, struct.pack('<I', capacity))
+                        before = bytes(self.machine.mem_read(0x11000, 0x2000))
+                        self.machine.mem_protect(address, 4096, permissions)
+                        ok, event = self.call(api, 0x11000, 0x12000)
+                        self.assertFalse(ok, event)
+                        self.assertNotIn('memory_writes', event)
+                        self.assertEqual(bytes(self.machine.mem_read(0x11000, 0x2000)), before)
+
+    def test_computer_name_preflights_opaque_locks_before_writes(self):
+        for lock_address in (0x11004, 0x11ff0):
+            with self.subTest(lock_address=lock_address):
+                self.computer_fixture()
+                self.result('InitializeCriticalSection', lock_address)
+                self.machine.mem_write(0x12000, struct.pack('<I', 16))
+                before = bytes(self.machine.mem_read(0x11000, 0x2000))
+                ok, event = self.call('GetComputerNameA', 0x11000, 0x12000)
+                self.assertFalse(ok, event)
+                self.assertNotIn('memory_writes', event)
+                self.assertEqual(bytes(self.machine.mem_read(0x11000, 0x2000)), before)
+
+    def test_computer_name_capacity_units_and_declared_extent_are_checked(self):
+        self.computer_fixture()
+        self.machine.mem_write(0x12000, struct.pack('<I', 4096))
+        # ANSI capacity fits one page, Unicode capacity requires two pages and
+        # overlaps the size pointer; validate full declared extent, not only name.
+        self.assertTrue(self.call('GetComputerNameA', 0x11000, 0x12000)[0])
+        self.machine.mem_write(0x12000, struct.pack('<I', 4096))
+        self.assertFalse(self.call('GetComputerNameW', 0x11000, 0x12000)[0])
+        self.assertEqual(self.model.handle('other.dll!GetComputerNameA'), (False, None))
+
     def test_clock_output_and_void_contract(self):
         self.machine.reg_write(x86.UC_X86_REG_EAX, 0xdeadbeef)
         ok, event = self.call('GetSystemTimeAsFileTime', 0x11000)
