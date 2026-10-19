@@ -45,10 +45,14 @@ def validate_limits(max_instructions, max_seconds):
 def trace(path, export, argument, max_instructions, max_seconds, modules=(), thread_model=False,
           dll_attach=False, observe=(), watch=(), startup_model=False, nls_codepage=None, nls_sort=None, nls_case=None,
           after_attach_export=None, reference_import_markers=False, host_after_attach=None, critical_section_layout=None,
-          observer='python'):
+          observer='python', memory_observer=None):
     validate_limits(max_instructions, max_seconds)
     if observer not in ('python', 'rust'):
         raise ValueError('Observer must be python or rust')
+    if memory_observer is None:
+        memory_observer = observer
+    if memory_observer not in ('python', 'rust') or (memory_observer == 'rust' and observer != 'rust'):
+        raise ValueError('Rust memory observer requires the Rust instruction observer')
     if critical_section_layout and not startup_model:
         raise ValueError('Critical-section layout requires the explicit startup model')
     if host_after_attach and (not dll_attach or after_attach_export or export):
@@ -131,7 +135,12 @@ def trace(path, export, argument, max_instructions, max_seconds, modules=(), thr
         module_model.register_guest(path.name, pe)
         module_model.register_guest(host_after_attach.name, host['pe'], is_main=True)
     thread = X86ThreadModel(machine, stack, 0x10000) if thread_model else None
-    startup = StartupModel(machine, nls_codepage, nls_sort, nls_case, critical_section_layout) if startup_model else None
+    memory_hooks = None
+    if memory_observer == 'rust':
+        from native_observer import NativeMemoryHooks
+        memory_hooks = NativeMemoryHooks(machine)
+    startup = StartupModel(machine, nls_codepage, nls_sort, nls_case, critical_section_layout,
+                           memory_hooks=memory_hooks) if startup_model else None
     if startup:
         startup.primary_region = (base, mapped_size)
         if host:
@@ -431,7 +440,14 @@ def trace(path, export, argument, max_instructions, max_seconds, modules=(), thr
         state['instruction_observer'] = dict(mode='python')
     machine.hook_add(uc.UC_HOOK_MEM_INVALID, invalid)
     machine.hook_add(uc.UC_HOOK_INTR, interrupt)
-    machine.hook_add(uc.UC_HOOK_MEM_WRITE, written)
+    if memory_hooks is None:
+        machine.hook_add(uc.UC_HOOK_MEM_WRITE, written)
+    else:
+        # Preserve the existing image-write observer's access-start semantics.
+        # Critical-section guards separately use full interval overlap.
+        memory_hooks.install('image_writes', uc.UC_HOOK_MEM_WRITE, written,
+            [(start, start + size) for start, size in image_ranges], overlap=False)
+    state['instruction_observer']['memory_mode'] = memory_observer
     started = time.monotonic()  # Compilation/setup is excluded from execution timing.
     next_progress = started + 5
     try:
@@ -455,6 +471,8 @@ def trace(path, export, argument, max_instructions, max_seconds, modules=(), thr
                 sync_observer()
             if native is not None:
                 native.check_error()
+            if memory_hooks is not None:
+                memory_hooks.check_error()
             if time.monotonic() >= next_progress:
                 print(json.dumps(dict(progress_instructions=state['instructions'],
                                       elapsed_seconds=round(time.monotonic() - started, 3),
@@ -462,8 +480,14 @@ def trace(path, export, argument, max_instructions, max_seconds, modules=(), thr
                                       image_writes=state['image_write_events'])), flush=True)
                 next_progress = time.monotonic() + 5
     finally:
-        if native is not None:
-            native.close()
+        try:
+            if memory_hooks is not None:
+                memory_hooks.close()
+        finally:
+            if native is not None:
+                native.close()
+    if memory_hooks is not None:
+        state['instruction_observer']['memory_hooks'] = memory_hooks.report()
     state['elapsed_seconds'] = round(time.monotonic() - started, 4)
     state['registers'] = {name: hex(machine.reg_read(reg)) for name, reg in [
         ('eax', x86.UC_X86_REG_EAX), ('ebx', x86.UC_X86_REG_EBX), ('ecx', x86.UC_X86_REG_ECX),
@@ -537,6 +561,8 @@ def main():
     parser.add_argument('--max-seconds', type=float, default=45.)
     parser.add_argument('--observer', choices=['python', 'rust'], default='python',
                         help='Instruction observer; rust requires rustc and Linux x86_64, Python remains the reference')
+    parser.add_argument('--memory-observer', choices=['python', 'rust'],
+                        help='Defaults to --observer; python retains unfiltered memory callbacks for comparison')
     parser.add_argument('--report', required=True, type=Path)
     args = parser.parse_args()
     try:
@@ -548,7 +574,7 @@ def main():
     result = trace(args.file, args.export, args.argument, args.max_instructions, args.max_seconds,
                    args.module, args.thread_model, args.dll_attach, args.observe, args.watch, args.startup_model,
                    args.nls_codepage, args.nls_sort, args.nls_case, args.after_attach_export, args.reference_import_markers,
-                   args.host_after_attach, args.critical_section_layout, args.observer)
+                   args.host_after_attach, args.critical_section_layout, args.observer, args.memory_observer)
     with args.report.open('x', encoding='utf-8') as output:
         json.dump(result, output, indent=2, ensure_ascii=False)
         output.write('\n')

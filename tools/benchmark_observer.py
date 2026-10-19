@@ -32,12 +32,16 @@ def benchmark(instructions=1_000_000, repeats=3):
                            ('stack_writes', bytes.fromhex('ff0424 ebfb'))]:
             path = Path(directory) / (name + '.exe')
             path.write_bytes(synthetic_pe(code))
-            samples = {'python': [], 'rust': []}
+            samples = {'python': [], 'rust_instructions': [], 'rust': []}
+            memory_counters = {}
             expected = None
             for repeat in range(repeats):
                 # Alternate order to reduce systematic first-run bias.
-                for observer in (('python', 'rust') if repeat % 2 == 0 else ('rust', 'python')):
-                    report = trace(path, None, 0, instructions, 120., observer=observer)
+                order = list(samples) if repeat % 2 == 0 else list(reversed(samples))
+                for mode in order:
+                    report = trace(path, None, 0, instructions, 120.,
+                        observer='python' if mode == 'python' else 'rust',
+                        memory_observer='rust' if mode == 'rust' else 'python')
                     if report['reason'] != 'instruction_limit' or report['instructions'] != instructions:
                         raise RuntimeError('Benchmark did not finish the requested instruction budget')
                     semantics = {k: v for k, v in report.items()
@@ -46,15 +50,18 @@ def benchmark(instructions=1_000_000, repeats=3):
                         expected = semantics
                     elif expected != semantics:
                         raise RuntimeError(f'{name}: observer results differ')
-                    samples[observer].append(report['elapsed_seconds'])
+                    samples[mode].append(report['elapsed_seconds'])
+                    memory_counters[mode] = report['instruction_observer'].get('memory_hooks')
             medians = {mode: statistics.median(values) for mode, values in samples.items()}
             result['cases'][name] = dict(seconds=samples, median_seconds=medians,
                 speedup=medians['python'] / medians['rust'] if medians['rust'] else None,
+                speedup_over_rust_instructions=medians['rust_instructions'] / medians['rust'] if medians['rust'] else None,
+                memory_counters=memory_counters,
                 semantic_reports_equal=True,
                 semantic_report_sha256=hashlib.sha256(json.dumps(expected, sort_keys=True).encode()).hexdigest())
     result['source_hashes'] = {name: hashlib.sha256(Path(__file__).with_name(name).read_bytes()).hexdigest()
         for name in ('benchmark_observer.py', 'test_loader_trace.py', 'loader_trace.py',
-                     'native_observer.py', 'trace_observer.rs')}
+                     'native_observer.py', 'trace_observer.rs', 'startup_model.py')}
     return result
 
 

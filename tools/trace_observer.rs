@@ -30,7 +30,7 @@ pub extern "C" fn observer_size() -> usize {
 
 #[no_mangle]
 pub extern "C" fn observer_abi() -> u32 {
-    1
+    2
 }
 
 impl Observer {
@@ -68,4 +68,62 @@ pub unsafe extern "C" fn observer_hook(
         }
     }
     unsafe { (&mut *ptr).record(address) };
+}
+
+type MemoryCallback = unsafe extern "C" fn(*mut c_void, i32, u64, i32, i64, *mut c_void);
+
+#[repr(C)]
+pub struct MemoryFilter {
+    accesses: u64,
+    forwarded: u64,
+    range_count: u32,
+    overlap: u32,
+    ranges: [Range; 128],
+    callback: MemoryCallback,
+    callback_data: *mut c_void,
+}
+
+#[no_mangle]
+pub extern "C" fn memory_filter_size() -> usize {
+    std::mem::size_of::<MemoryFilter>()
+}
+
+impl MemoryFilter {
+    fn relevant(&self, address: u64, size: i32) -> bool {
+        let ranges = &self.ranges[..self.range_count as usize];
+        if self.overlap == 0 {
+            let index = ranges.partition_point(|r| r.start <= address);
+            return index != 0 && address < ranges[index - 1].end;
+        }
+        // Forward unexpected sizes, rather than hide an event from the guard.
+        if size <= 0 {
+            return true;
+        }
+        let end = address.saturating_add(size as u64);
+        let index = ranges.partition_point(|r| r.start < end);
+        index != 0 && address < ranges[index - 1].end
+    }
+}
+
+/// # Safety
+/// `data` must reference a validated MemoryFilter kept alive until hook removal.
+/// Its disjoint, sorted ranges may change only while emulation is stopped or
+/// inside a synchronous Python API callback. No Rust borrow spans a callback.
+#[no_mangle]
+pub unsafe extern "C" fn memory_filter_hook(
+    engine: *mut c_void,
+    kind: i32,
+    address: u64,
+    size: i32,
+    value: i64,
+    data: *mut c_void,
+) {
+    let ptr = data.cast::<MemoryFilter>();
+    unsafe { (*ptr).accesses += 1 };
+    if unsafe { (&*ptr).relevant(address, size) } {
+        unsafe { (*ptr).forwarded += 1 };
+        let callback = unsafe { (*ptr).callback };
+        let callback_data = unsafe { (*ptr).callback_data };
+        unsafe { callback(engine, kind, address, size, value, callback_data) };
+    }
 }

@@ -47,7 +47,8 @@ class StartupModel:
                  'GetUserDefaultLangID': 0, 'DuplicateHandle': 7, 'CloseHandle': 1,
                  'VirtualAlloc': 4, 'VirtualFree': 3, 'GetSystemTime': 1}
 
-    def __init__(self, machine, nls_codepage=None, nls_sort=None, nls_case=None, critical_section_layout=None):
+    def __init__(self, machine, nls_codepage=None, nls_sort=None, nls_case=None, critical_section_layout=None,
+                 memory_hooks=None):
         if critical_section_layout not in (None, 'win10-x86-19041'):
             raise ValueError('Unknown critical-section layout profile')
         self.critical_section_layout = critical_section_layout
@@ -76,7 +77,12 @@ class StartupModel:
         lock_accesses = uc.UC_HOOK_MEM_WRITE
         if critical_section_layout is None:
             lock_accesses |= uc.UC_HOOK_MEM_READ
-        machine.hook_add(lock_accesses, self.guard_critical_section_access)
+        self.native_lock_guard = None
+        if memory_hooks is None:
+            machine.hook_add(lock_accesses, self.guard_critical_section_access)
+        else:
+            self.native_lock_guard = memory_hooks.install('critical_sections', lock_accesses,
+                self.guard_critical_section_access, overlap=True)
         self.trace_state = {}
         self.primary_region = None
         self.additional_image_regions = []
@@ -188,6 +194,7 @@ class StartupModel:
 
             self.locks[address] = dict(depth=0, spin=spin)
             self.lock_addresses = sorted(self.locks)
+            self.update_lock_guard()
             self.sync_critical_section(address, self.locks[address], event)
             return 1 if len(args) == 2 else None
         lock = self.locks.get(address)
@@ -212,7 +219,12 @@ class StartupModel:
         self.sync_critical_section(address, None, event)
         del self.locks[address]
         self.lock_addresses = sorted(self.locks)
+        self.update_lock_guard()
         return None
+
+    def update_lock_guard(self):
+        if self.native_lock_guard is not None:
+            self.native_lock_guard.set_ranges((p, p + 24) for p in self.lock_addresses)
 
     def local_storage_call(self, function, args, event):
         family, operation = function[:3], function[3:]

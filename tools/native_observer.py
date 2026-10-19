@@ -18,6 +18,7 @@ import unicorn as uc
 
 
 CALLBACK = c.CFUNCTYPE(c.c_int, c.c_void_p, c.c_uint64, c.c_uint32, c.c_void_p)
+MEMORY_CALLBACK = c.CFUNCTYPE(None, c.c_void_p, c.c_int, c.c_uint64, c.c_int, c.c_int64, c.c_void_p)
 
 
 class Range(c.Structure):
@@ -28,6 +29,12 @@ class Observer(c.Structure):
     _fields_ = [('instructions', c.c_uint64), ('tail', c.c_uint64 * 24),
                 ('next', c.c_uint32), ('used', c.c_uint32), ('range_count', c.c_uint32),
                 ('ranges', Range * 128), ('callback', CALLBACK), ('callback_data', c.c_void_p)]
+
+
+class MemoryFilter(c.Structure):
+    _fields_ = [('accesses', c.c_uint64), ('forwarded', c.c_uint64),
+                ('range_count', c.c_uint32), ('overlap', c.c_uint32),
+                ('ranges', Range * 128), ('callback', MEMORY_CALLBACK), ('callback_data', c.c_void_p)]
 
 
 def merged_ranges(ranges):
@@ -71,9 +78,12 @@ def build_library():
         library.observer_size.restype = c.c_size_t
         library.observer_abi.argtypes = []
         library.observer_abi.restype = c.c_uint32
-        if library.observer_size() != c.sizeof(Observer) or library.observer_abi() != 1:
+        library.memory_filter_size.argtypes = []
+        library.memory_filter_size.restype = c.c_size_t
+        if (library.observer_size() != c.sizeof(Observer) or library.observer_abi() != 2
+                or library.memory_filter_size() != c.sizeof(MemoryFilter)):
             raise RuntimeError('Rust observer ABI mismatch')
-        metadata = dict(mode='rust', abi=1, source_sha256=hashlib.sha256(source_bytes).hexdigest(),
+        metadata = dict(mode='rust', abi=2, source_sha256=hashlib.sha256(source_bytes).hexdigest(),
             adapter_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
             library_sha256=hashlib.sha256(library_path.read_bytes()).hexdigest(),
             compiler=compiler_version, compiler_flags=flags, host=platform.machine(),
@@ -89,7 +99,8 @@ class NativeObserver:
         from unicorn.unicorn_py3.unicorn import uclib, uc_hook_h
 
         ranges = merged_ranges(ranges)
-        self.library, self.directory, self.metadata = build_library()
+        self.library, self.directory, metadata = build_library()
+        self.metadata = dict(metadata)
         self.machine, self.state, self.tail = machine, state, tail
         self.uclib = uclib
         self.error = None
@@ -137,3 +148,76 @@ class NativeObserver:
             if status:
                 raise uc.UcError(status)
             self.handle.value = 0
+
+
+class NativeMemoryFilter:
+    """Filter only; relevant events still use the original Python semantics."""
+    def __init__(self, machine, kind, callback, ranges=(), *, overlap=True):
+        from unicorn.unicorn_py3.unicorn import uclib, uc_hook_h
+        if not kind or kind & ~(uc.UC_HOOK_MEM_READ | uc.UC_HOOK_MEM_WRITE):
+            raise ValueError('Native memory filter supports read/write hooks only')
+        self.library, self.directory, _ = build_library()
+        self.machine, self.uclib, self.error = machine, uclib, None
+        self.data = MemoryFilter()
+        self.data.overlap = bool(overlap)
+        self.set_ranges(ranges)
+
+        def dispatch(_engine, access, address, size, value, _data):
+            try:
+                callback(machine, access, address, size, value, None)
+            except BaseException as error:
+                self.error = error
+                machine.emu_stop()
+
+        self.callback = MEMORY_CALLBACK(dispatch)
+        self.data.callback = self.callback
+        self.handle = uc_hook_h()
+        status = uclib.uc_hook_add(machine._uch, c.byref(self.handle), kind,
+            c.cast(self.library.memory_filter_hook, c.c_void_p), c.cast(c.pointer(self.data), c.c_void_p), 1, 0)
+        if status:
+            raise uc.UcError(status)
+
+    def set_ranges(self, ranges):
+        # Validate before changing live storage; updates run synchronously.
+        ranges = merged_ranges(ranges)
+        for index, (start, end) in enumerate(ranges):
+            self.data.ranges[index] = Range(start, end)
+        self.data.range_count = len(ranges)
+
+    def report(self):
+        return dict(accesses=self.data.accesses, forwarded_to_python=self.data.forwarded,
+                    filter='overlap' if self.data.overlap else 'access_start')
+
+    def check_error(self):
+        if self.error is not None:
+            raise self.error
+
+    def close(self):
+        if self.handle.value:
+            status = self.uclib.uc_hook_del(self.machine._uch, self.handle)
+            if status:
+                raise uc.UcError(status)
+            self.handle.value = 0
+
+
+class NativeMemoryHooks:
+    def __init__(self, machine):
+        self.machine, self.hooks = machine, {}
+
+    def install(self, name, kind, callback, ranges=(), *, overlap=True):
+        if name in self.hooks:
+            raise ValueError('Duplicate native memory hook name')
+        hook = NativeMemoryFilter(self.machine, kind, callback, ranges, overlap=overlap)
+        self.hooks[name] = hook
+        return hook
+
+    def check_error(self):
+        for hook in self.hooks.values():
+            hook.check_error()
+
+    def report(self):
+        return {name: hook.report() for name, hook in self.hooks.items()}
+
+    def close(self):
+        for hook in reversed(list(self.hooks.values())):
+            hook.close()
