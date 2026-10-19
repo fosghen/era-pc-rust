@@ -24,3 +24,19 @@ jobs:
       - run: cargo +1.90.0 clippy --locked --all-targets -- -D warnings
       - run: cargo +1.90.0 test --locked
       - run: cargo +1.90.0 run --locked -- demo
+      - name: Build Windows x64 release
+        if: matrix.os == 'windows-latest'
+        run: cargo +1.90.0 build --release --locked --target x86_64-pc-windows-msvc
+      - name: Package and smoke-test Windows executable
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: ./scripts/package-windows.ps1
+      - name: Upload Windows portable package
+        if: matrix.os == 'windows-latest'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: era-pc-rust-windows-x64
+          path: |
+            dist/*.zip
+            dist/*.sha256
+          if-no-files-found: error
