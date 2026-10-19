@@ -236,6 +236,20 @@ class LoaderTraceTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'overlaps trace harness'):
             self.run_image(data, startup_model=True)
 
+    def test_virtual_arena_leaves_reference_comdlg_range_free_and_rejects_collisions(self):
+        with tempfile.TemporaryDirectory(prefix='era-virtual-layout-') as directory:
+            path = Path(directory) / 'comdlg32.dll'
+            for base in (0x52080000, VIRTUAL_BASE):
+                module = synthetic_module()
+                struct.pack_into('<I', module, 0x98 + 28, base)
+                path.write_bytes(module)
+                if base == VIRTUAL_BASE:
+                    with self.assertRaisesRegex(ValueError, 'comdlg32.dll.*overlaps'):
+                        self.run_image(synthetic_pe(b'\xc3'), modules=[path], startup_model=True)
+                else:
+                    result = self.run_image(synthetic_pe(b'\xc3'), modules=[path], startup_model=True)
+                    self.assertEqual(result['reason'], 'returned')
+
     def test_reference_iat_markers_stop_unknown_and_model_exact_api(self):
         with tempfile.TemporaryDirectory(prefix='era-reference-iat-') as directory:
             path = Path(directory) / 'reference.dll'

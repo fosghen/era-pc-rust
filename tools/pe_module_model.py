@@ -76,7 +76,7 @@ class ModuleModel:
             if base % 4096 or base + size > 2**32:
                 raise ValueError('Invalid module address range')
             if any(base < start + length and base + size > start for start, length in self.reserved):
-                raise ValueError('Module overlaps existing memory; relocation not modeled')
+                raise ValueError(f'Module {name} at {base:#x}..{base + size:#x} overlaps existing memory; relocation not modeled')
             image = bytearray(pe.get_memory_mapped_image())
             if len(image) > size:
                 raise ValueError('Mapped module exceeds declared size')
