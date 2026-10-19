@@ -65,11 +65,26 @@ def resolver_caller(module_name='KERNEL32.dll', api='GetModuleHandleA'):
     return data
 
 
+def stopped_api_caller(api, arguments, payload=b''):
+    """Own synthetic stdcall caller; the API is only an import stop marker."""
+    data = resolver_caller(api=api)
+    code = b''.join(b'\x68' + struct.pack('<I', value) for value in reversed(arguments))
+    code += bytes.fromhex('ff1560114000 cc')
+    data[512:512+len(code)] = code
+    data.extend(bytes(1024))
+    struct.pack_into('<I', data, 0x98 + 224 + 8, 1536)
+    struct.pack_into('<I', data, 0x98 + 224 + 16, 1536)
+    data[0x400:0x400+len(payload)] = payload
+    return data
+
+
 class LoaderTraceTests(unittest.TestCase):
     def test_limits_are_bounded_for_cli_and_library_entry(self):
         validate_limits(1, .001)
         validate_limits(600_000_000, 900)
-        for count, seconds in ((0, 1), (600_000_001, 1), (1, 0), (1, 901),
+        validate_limits(2_000_000_000, 900)
+        validate_limits(4_000_000_000, 900)
+        for count, seconds in ((0, 1), (4_000_000_001, 1), (1, 0), (1, 901),
                                 (1, float('nan')), (1, float('inf')), (1.5, 1), (True, 1)):
             with self.assertRaises(ValueError):
                 validate_limits(count, seconds)
@@ -307,6 +322,7 @@ class LoaderTraceTests(unittest.TestCase):
         data = synthetic_pe(bytes.fromhex('c6052010400090 c3'))
         result = self.run_image(data, observe=[0x401000], watch=[(0x401020, 16)])
         self.assertEqual(result['execution_observations'][0]['stack_words'][:2], ['0x71000000', '0x0'])
+        self.assertEqual(result['execution_observations'][0]['esp'], '0x70008000')
         self.assertEqual(result['watched_ranges'][0]['changed_byte_count'], 1)
         self.assertEqual(result['watched_ranges'][0]['first_changed_address'], '0x401020')
         self.assertTrue(result['watched_ranges'][0]['initial_all_zero'])
@@ -562,6 +578,94 @@ class LoaderTraceTests(unittest.TestCase):
         self.assertEqual(result['reason'], 'external_import')
         self.assertEqual(result['external_import'], 'KERNEL32.dll!DeviceIoControl')
         self.assertEqual(result['startup_model']['events'], [])
+
+    def test_create_file_arguments_are_metadata_only(self):
+        arguments = [0x401200, 0xc0000000, 3, 0x12345000, 3, 0x40000080, 0xffffffff]
+        for api, filename, encoding in [('CreateFileA', r'\\.\SyntheticDevice', 'ascii'),
+                                         ('CreateFileW', r'C:\синтетический.txt', 'utf-16-le')]:
+            with self.subTest(api=api):
+                result = self.run_image(stopped_api_caller(api, arguments,
+                                        (filename + '\0').encode(encoding)), startup_model=True)
+                self.assertEqual(result['reason'], 'external_import')
+                self.assertEqual(result['external_import'], 'KERNEL32.dll!' + api)
+                self.assertEqual(result['instructions'], 8)
+                self.assertEqual(result['file_request'], dict(filename_address='0x401200',
+                    filename=filename, desired_access='0xc0000000', share_mode='0x3',
+                    security_attributes_address='0x12345000', creation_disposition='0x3',
+                    flags_and_attributes='0x40000080', template_handle='0xffffffff'))
+                self.assertNotIn('file_argument_error', result)
+                self.assertEqual(result['startup_model']['events'], [])
+                self.assertTrue(result['input_unchanged'])
+                self.assertIsNone(result['returned_import_pointer'])
+
+    def test_create_file_name_errors_preserve_stop_and_numeric_metadata(self):
+        cases = [('CreateFileA', 0, b'', 'NULL'),
+                 ('CreateFileW', 0, b'', 'NULL'),
+                 ('CreateFileA', 0x12345000, b'', 'Invalid memory read'),
+                 ('CreateFileW', 0x12345000, b'', 'Invalid memory read'),
+                 ('CreateFileA', 0x401200, b'A' * 260 + b'\0', 'limit'),
+                 ('CreateFileW', 0x401200, ('A' * 260 + '\0').encode('utf-16-le'), 'limit'),
+                 ('CreateFileA', 0x401200, b'\xff\0', 'ascii'),
+                 ('CreateFileW', 0x401200, bytes.fromhex('00d80000'), 'utf-16-le')]
+        for api, address, payload, error in cases:
+            with self.subTest(api=api, address=address, error=error):
+                result = self.run_image(stopped_api_caller(api, [address, 1, 2, 3, 4, 5, 6], payload))
+                self.assertEqual(result['reason'], 'external_import')
+                self.assertEqual(result['instructions'], 8)
+                self.assertIn(error, result['file_argument_error'])
+                self.assertEqual(result['file_request']['filename_address'], hex(address))
+                self.assertEqual(result['file_request']['template_handle'], '0x6')
+                self.assertNotIn('filename', result['file_request'])
+                self.assertTrue(result['input_unchanged'])
+
+    def test_create_file_accepts_terminator_within_limit(self):
+        for api, encoding in [('CreateFileA', 'ascii'), ('CreateFileW', 'utf-16-le')]:
+            with self.subTest(api=api):
+                name = 'A' * 259
+                result = self.run_image(stopped_api_caller(api, [0x401200, 0, 0, 0, 3, 0, 0],
+                                        (name + '\0').encode(encoding)))
+                self.assertEqual(result['reason'], 'external_import')
+                self.assertEqual(result['file_request']['filename'], name)
+                self.assertNotIn('file_argument_error', result)
+
+    def test_device_io_control_records_eight_arguments_without_reading_buffers(self):
+        # Deliberately invalid input/output pointers must not be dereferenced.
+        arguments = [0xffffffff, 0x222004, 0x12345000, 0xffffffff,
+                     0x23456000, 8192, 0x34567000, 0x45678000]
+        result = self.run_image(stopped_api_caller('DeviceIoControl', arguments), startup_model=True)
+        self.assertEqual(result['reason'], 'external_import')
+        self.assertEqual(result['external_import'], 'KERNEL32.dll!DeviceIoControl')
+        self.assertEqual(result['instructions'], 9)
+        self.assertEqual(result['device_io_control_request'], dict(device_handle='0xffffffff',
+            control_code='0x222004', input_buffer_address='0x12345000', input_buffer_size=0xffffffff,
+            output_buffer_address='0x23456000', output_buffer_size=8192,
+            bytes_returned_address='0x34567000', overlapped_address='0x45678000'))
+        self.assertEqual(result['external_stack_words'][1:], [hex(value) for value in arguments])
+        self.assertEqual(result['startup_model']['events'], [])
+        self.assertTrue(result['input_unchanged'])
+        self.assertIsNone(result['returned_import_pointer'])
+
+    def test_external_argument_read_error_preserves_import_stop(self):
+        data = stopped_api_caller('DeviceIoControl', [])
+        # Place ESP at the last stack word, then jump to the API marker.
+        code = bytes.fromhex('bcfcff0070 ff2560114000')
+        data[512:512+len(code)] = code
+        result = self.run_image(data)
+        self.assertEqual(result['reason'], 'external_import')
+        self.assertEqual(result['external_import'], 'KERNEL32.dll!DeviceIoControl')
+        self.assertEqual(result['instructions'], 2)
+        self.assertIn('Invalid memory read', result['external_argument_error'])
+        self.assertNotIn('external_stack_words', result)
+        self.assertNotIn('device_io_control_request', result)
+
+    def test_module_name_read_error_does_not_claim_unreadable_stack(self):
+        result = self.run_image(stopped_api_caller('GetModuleHandleA', [0x12345000]))
+        self.assertEqual(result['reason'], 'external_import')
+        self.assertEqual(result['external_import'], 'KERNEL32.dll!GetModuleHandleA')
+        self.assertEqual(result['external_stack_words'][1], '0x12345000')
+        self.assertIn('Invalid memory read', result['external_argument_error'])
+        self.assertNotIn('external_stack_unreadable', result)
+        self.assertNotIn('module_name_argument', result)
 
     def test_loadlibrary_only_acquires_explicitly_mapped_module(self):
         with tempfile.TemporaryDirectory(prefix='era-module-test-') as directory:

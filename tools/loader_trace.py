@@ -22,7 +22,7 @@ import pefile
 import unicorn as uc
 from unicorn import x86_const as x86
 
-from pe_module_model import ModuleModel, REFERENCE_IMPORT_REGIONS, utf16_z
+from pe_module_model import ModuleModel, REFERENCE_IMPORT_REGIONS, ascii_z, utf16_z
 from x86_thread_model import THREAD_REGIONS, TIB_BASE, X86ThreadModel
 from startup_model import STARTUP_REGIONS, StartupModel
 
@@ -37,9 +37,9 @@ def address_size(text):
 
 
 def validate_limits(max_instructions, max_seconds):
-    if (type(max_instructions) is not int or not 1 <= max_instructions <= 600_000_000
+    if (type(max_instructions) is not int or not 1 <= max_instructions <= 4_000_000_000
             or not 0 < max_seconds <= 900):
-        raise ValueError('Limits: 1..600000000 integer instructions; 0..900 seconds')
+        raise ValueError('Limits: 1..4000000000 integer instructions; 0..900 seconds')
 
 
 def trace(path, export, argument, max_instructions, max_seconds, modules=(), thread_model=False,
@@ -270,6 +270,7 @@ def trace(path, export, argument, max_instructions, max_seconds, modules=(), thr
             event['eax'] = hex(m.reg_read(x86.UC_X86_REG_EAX))
             try:
                 esp = m.reg_read(x86.UC_X86_REG_ESP)
+                event['esp'] = hex(esp)
                 event['stack_words'] = [hex(w) for w in struct.unpack('<9I', m.mem_read(esp, 36))]
             except uc.UcError:
                 event['stack_unreadable'] = True
@@ -319,6 +320,26 @@ def trace(path, export, argument, max_instructions, max_seconds, modules=(), thr
                 try:
                     words = struct.unpack('<9I', m.mem_read(esp, 36))
                     state['external_stack_words'] = [hex(w) for w in words]
+                    module, _, api = external_name.lower().partition('!')
+                    # Read-only metadata at the stop boundary. Never call the
+                    # host OS, dereference buffers, or manufacture an API result.
+                    if module in ('kernel32.dll', 'kernelbase.dll'):
+                        if api in ('createfilea', 'createfilew'):
+                            state['file_request'] = dict(filename_address=hex(words[1]),
+                                desired_access=hex(words[2]), share_mode=hex(words[3]),
+                                security_attributes_address=hex(words[4]), creation_disposition=hex(words[5]),
+                                flags_and_attributes=hex(words[6]), template_handle=hex(words[7]))
+                            try:
+                                decoder = ascii_z if api == 'createfilea' else utf16_z
+                                state['file_request']['filename'] = decoder(m, words[1], limit=260)
+                            except (ValueError, uc.UcError) as error:
+                                state['file_argument_error'] = str(error)
+                        elif api == 'deviceiocontrol':
+                            state['device_io_control_request'] = dict(device_handle=hex(words[1]),
+                                control_code=hex(words[2]), input_buffer_address=hex(words[3]),
+                                input_buffer_size=words[4], output_buffer_address=hex(words[5]),
+                                output_buffer_size=words[6], bytes_returned_address=hex(words[7]),
+                                overlapped_address=hex(words[8]))
                     if external_name.lower() == 'advapi32.dll!regopenkeyexw':
                         try:
                             state['registry_request'] = dict(root_handle=hex(words[1]),
@@ -335,8 +356,8 @@ def trace(path, export, argument, max_instructions, max_seconds, modules=(), thr
                                     break
                                 chars.extend(byte)
                         state['module_name_argument'] = chars.decode('ascii', errors='replace') if words[1] else None
-                except uc.UcError:
-                    pass
+                except uc.UcError as error:
+                    state['external_argument_error'] = str(error)
             m.emu_stop()
             return
         state['instructions'] += 1
