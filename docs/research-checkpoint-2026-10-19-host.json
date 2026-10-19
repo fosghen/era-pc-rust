@@ -1,0 +1,197 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-19",
+  "parent_commit": "784105d9bf3397d93a290ff5ffa984bb056c415e",
+  "path_base": "workspace root containing era-rust and reverse_engineering",
+  "status": "Standalone DLL attach and GrdPrepare return; linked p_perv executes real guest exports and reaches GetModuleHandleA for its DLL; guest module registry tested, long validation pending",
+  "tests": {
+    "synthetic_python_passed": 81,
+    "rust_with_recovered_tests_passed": 59,
+    "unchanged_vendor_inputs_checked": 8
+  },
+  "files": [
+    {
+      "path": "era-rust/README.md",
+      "sha256": "094a548752f2669947a55b5ed2c6a922f0049aebcbf8e82d28d2c31aab751ae4"
+    },
+    {
+      "path": "era-rust/tools/loader_trace.py",
+      "sha256": "c0b1a676c3403b9448b18d4d1443a4a31279206130dc4338c4c81a1c29418776"
+    },
+    {
+      "path": "era-rust/tools/pe_module_model.py",
+      "sha256": "08f66162c2cd730af144d40d16101fd7ac3d214b25f0942b89bfb1c8716ec69b"
+    },
+    {
+      "path": "era-rust/tools/x86_thread_model.py",
+      "sha256": "add7d065ee124b441184629cdd9d87fead60ce3639e310c2bbccc1d0037b4b8a"
+    },
+    {
+      "path": "era-rust/tools/startup_model.py",
+      "sha256": "8023d9aede995b70cc893d215471e4738d265757cd28f68ef0c233817b89507e"
+    },
+    {
+      "path": "era-rust/tools/nls_model.py",
+      "sha256": "8849236f1ddef7da6c24844933c8e051f1164b6785768347f74149acca5cee49"
+    },
+    {
+      "path": "era-rust/tools/test_loader_trace.py",
+      "sha256": "f6cfd6050cdc3c0a6fc7886292adb5bc9b261da37e87cb94f76f338b4c5f586a"
+    },
+    {
+      "path": "era-rust/tools/test_startup_model.py",
+      "sha256": "7084385fcb30531469cf7bbe7237c5a76875fa380d66f49caae2a6670f198e83"
+    },
+    {
+      "path": "era-rust/tools/test_nls_model.py",
+      "sha256": "480e0fca7e17b11d2fdc817b4a015c8643613af36595e374663026f429f0b389"
+    },
+    {
+      "path": "era-rust/tools/requirements-research.txt",
+      "sha256": "0052d0d49b9d27a7f6f0f7420dcd299548bd66b9aa16402938bce076cc064d3b"
+    },
+    {
+      "path": "era-rust/docs/HOST_LINKED_RESEARCH.md",
+      "sha256": "1dc24585b5d9bb12d2d3468a4ccefab7e640b0bf6c1df8ab60e75ac5e01325b0"
+    },
+    {
+      "path": "reverse_engineering/grd_reference_iat_04.json",
+      "sha256": "3c0a92bc3ea4dcc781fed8776b2571a576c7417a6a9fda63200e971e3d0322d2"
+    },
+    {
+      "path": "reverse_engineering/perv_linked_01.json",
+      "sha256": "11657091618b2d00663d96a782ddbb6ee2a4db238299f5f0254c93984f42b4ae"
+    }
+  ],
+  "experiments": [
+    {
+      "report": "grd_reference_iat_04.json",
+      "input_sha256": "0eb1003dc43a6484f8bba7076a442fad8dad506bb80f6e9047d77c82f4c7ce30",
+      "tool_sha256": "38b46e6787d5ac2744e4c0b0619d36bd7151acb2deda6c7e456c18c316f7464d",
+      "module_model_sha256": "dac96cfe10dc642836061bf967c557b9c13b480a528ae08eb8d140311416109f",
+      "thread_model_sha256": "add7d065ee124b441184629cdd9d87fead60ce3639e310c2bbccc1d0037b4b8a",
+      "startup_model_sha256": "bdecb53a376cff02a3f8c798cdfde1a95f89c3694bc53b6062ceb087d676f0f8",
+      "nls_model_sha256": "8849236f1ddef7da6c24844933c8e051f1164b6785768347f74149acca5cee49",
+      "entry": "0x1031e641",
+      "argument": -1,
+      "invocation": "DLL_PROCESS_ATTACH then export in the same CPU/memory state, only on successful attach",
+      "after_attach_export": "GrdPrepare",
+      "limits": {
+        "instructions": 250000000,
+        "seconds": 450.0
+      },
+      "instructions": 192171396,
+      "reason": "returned",
+      "stage_returns": [
+        {
+          "stage": "dll_attach",
+          "instruction_index": 79770249,
+          "eax": "0x1",
+          "esp": "0x70008010"
+        },
+        {
+          "stage": "export_after_attach",
+          "instruction_index": 192171396,
+          "eax": "0x0",
+          "esp": "0x70008008"
+        }
+      ],
+      "image_writes_by_section": {
+        ".data@0x10361000": 1149,
+        ".text@0x10001000": 69366,
+        ".grd0001@0x1065f000": 86370
+      },
+      "input_unchanged": true
+    },
+    {
+      "report": "perv_linked_01.json",
+      "input_sha256": "0eb1003dc43a6484f8bba7076a442fad8dad506bb80f6e9047d77c82f4c7ce30",
+      "tool_sha256": "a83f666c7fd78fc6222dbf5ccc6e02bb8e53ff234ab555c6c34175fcc3c4b594",
+      "module_model_sha256": "dac96cfe10dc642836061bf967c557b9c13b480a528ae08eb8d140311416109f",
+      "thread_model_sha256": "add7d065ee124b441184629cdd9d87fead60ce3639e310c2bbccc1d0037b4b8a",
+      "startup_model_sha256": "790d59f71aee2b55db6da4179dd7bf39f7f747cef94a506da5c2fc9561e80313",
+      "nls_model_sha256": "8849236f1ddef7da6c24844933c8e051f1164b6785768347f74149acca5cee49",
+      "entry": "0x1031e641",
+      "argument": 0,
+      "invocation": "DLL_PROCESS_ATTACH then host PE entry in shared memory; explicit guest DLL exports execute with caller stack",
+      "limits": {
+        "instructions": 300000000,
+        "seconds": 450.0
+      },
+      "instructions": 228685646,
+      "reason": "external_import",
+      "external_import": "api-ms-win-core-libraryloader-l1-2-0.dll!GetModuleHandleA",
+      "external_stack_words": [
+        "0xd32acbd",
+        "0x70007f24",
+        "0x56445247",
+        "0x3233434b",
+        "0x4c4c442e",
+        "0xd356600",
+        "0x400100",
+        "0xd240840",
+        "0xd256538"
+      ],
+      "stage_returns": [
+        {
+          "stage": "dll_attach",
+          "instruction_index": 79770249,
+          "eax": "0x1",
+          "esp": "0x70008010"
+        }
+      ],
+      "host_image": {
+        "name": "p_perv.exe",
+        "sha256": "e4ece1726a1615392ad3e90f2c0c03e49f9b70d50ef7ce1cafa99f9a8385739e",
+        "input_size": 9286968,
+        "base": "0x400000",
+        "entry": "0xd32e768",
+        "input_unchanged": true
+      },
+      "guest_calls": [
+        {
+          "api": "GRDVKC32.DLL!GrdPrepare",
+          "destination": "0x100106d0",
+          "instruction_index": 110897552,
+          "esp": "0x70007f50",
+          "stack_words": [
+            "0xd3343eb",
+            "0xffffffff",
+            "0x3076723",
+            "0x0",
+            "0xdd579283",
+            "0x94139002",
+            "0x96339c76",
+            "0x1",
+            "0xdd579283"
+          ]
+        },
+        {
+          "api": "GRDVKC32.DLL!GrdPrepare",
+          "destination": "0x100106d0",
+          "instruction_index": 228685617,
+          "esp": "0x70007ef4",
+          "stack_words": [
+            "0xd32acbb",
+            "0x1",
+            "0x70007f24",
+            "0x56445247",
+            "0x3233434b",
+            "0x4c4c442e",
+            "0xd356600",
+            "0x400100",
+            "0xd240840"
+          ]
+        }
+      ],
+      "image_writes_by_section": {
+        ".data@0x10361000": 1149,
+        ".text@0x10001000": 69366,
+        ".grd0001@0x1065f000": 86370,
+        "host:.idata@0xd23b000": 46052
+      },
+      "input_unchanged": true
+    }
+  ],
+  "limitation": "Sequential tool versions, no working license bypass or original numerical result; current source includes guest registry not present in perv_linked_01"
+}

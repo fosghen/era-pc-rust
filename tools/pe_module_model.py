@@ -43,6 +43,8 @@ class ModuleModel:
     def __init__(self, machine, paths, occupied, import_markers=False):
         self.machine = machine
         self.modules = {}
+        self.guest_modules = {}
+        self.main_module = None
         self.events = []
         self.observed_calls = 0
         self.address_names = {}
@@ -117,6 +119,24 @@ class ModuleModel:
         self.range_start = min((m['base'] for m in self.modules.values()), default=2**32)
         self.range_end = max((m['base'] + m['size'] for m in self.modules.values()), default=0)
 
+    def register_guest(self, name, pe, is_main=False):
+        """Register an already mapped input, without making it a stop-only module."""
+        name = name.lower()
+        if name in self.modules or name in self.guest_modules or (is_main and self.main_module):
+            raise ValueError('Duplicate guest module identity')
+        symbols = getattr(getattr(pe, 'DIRECTORY_ENTRY_EXPORT', None), 'symbols', [])
+        size = pe.OPTIONAL_HEADER.SizeOfImage
+        if any(s.address and not s.forwarder and not 0 < s.address < size for s in symbols):
+            raise ValueError('Guest export outside image')
+        self.guest_modules[name] = dict(base=pe.OPTIONAL_HEADER.ImageBase, size=size,
+            names={s.name.decode('ascii'): s for s in symbols if s.name},
+            ordinals={s.ordinal: s for s in symbols}, loadlibrary_acquisitions=0)
+        if is_main:
+            self.main_module = name
+
+    def lookup_module(self, name):
+        return self.modules.get(name.lower()) or self.guest_modules.get(name.lower())
+
     def contains(self, address):
         if self.import_markers_enabled and REFERENCE_IMPORT_REGIONS[0][0] <= address < sum(REFERENCE_IMPORT_REGIONS[0]):
             return True
@@ -127,7 +147,7 @@ class ModuleModel:
     def resolve(self, module_name, symbol, depth=0):
         if depth >= 16:
             raise ValueError('Forwarder depth limit')
-        module = self.modules.get(module_name.lower())
+        module = self.lookup_module(module_name)
         if module is None:
             raise ValueError('Module not explicitly mapped: ' + module_name)
         entry = module['ordinals' if isinstance(symbol, int) else 'names'].get(symbol)
@@ -143,7 +163,10 @@ class ModuleModel:
     def handle(self, name):
         """Return (handled, observation). No unsupported function gets a result."""
         module_name, _, function = name.partition('!')
-        if module_name.lower() not in ('kernel32.dll', 'kernelbase.dll') or function not in ('GetModuleHandleA', 'GetModuleHandleW', 'LoadLibraryA', 'GetProcAddress'):
+        allowed = module_name.lower() in ('kernel32.dll', 'kernelbase.dll')
+        if module_name.lower() == 'api-ms-win-core-libraryloader-l1-2-0.dll' and function in ('GetModuleHandleA', 'GetProcAddress'):
+            allowed = True
+        if not allowed or function not in ('GetModuleHandleA', 'GetModuleHandleW', 'LoadLibraryA', 'GetProcAddress'):
             return False, None
         event = dict(api=name)
         self.observed_calls += 1
@@ -155,22 +178,27 @@ class ModuleModel:
             words = struct.unpack('<' + 'I' * (argc + 1), self.machine.mem_read(esp, 4 * (argc + 1)))
             event['return_address'] = hex(words[0])
             if function in ('GetModuleHandleA', 'GetModuleHandleW', 'LoadLibraryA'):
-                requested = (utf16_z if function.endswith('W') else ascii_z)(self.machine, words[1])
+                if words[1] == 0 and function.startswith('GetModuleHandle') and self.main_module:
+                    requested = self.main_module
+                    event['null_name_means_explicit_host'] = True
+                else:
+                    requested = (utf16_z if function.endswith('W') else ascii_z)(self.machine, words[1])
                 event['module'] = requested
                 if '/' in requested or '\\' in requested:
                     raise ValueError('Path-based module lookup not modeled')
                 lookup = requested.lower()
                 if '.' not in lookup:
                     lookup += '.dll'
-                if lookup not in self.modules:
+                module = self.lookup_module(lookup)
+                if module is None:
                     raise ValueError('Requested module not explicitly mapped')
-                result = self.modules[lookup]['base']
+                result = module['base']
                 if function == 'LoadLibraryA':
-                    self.modules[lookup]['loadlibrary_acquisitions'] += 1
+                    module['loadlibrary_acquisitions'] += 1
                     event['assumption'] = 'Module already mapped; no search, dependency loading or DllMain'
             else:
                 event['module_handle'] = hex(words[1])
-                matches = [n for n, m in self.modules.items() if m['base'] == words[1]]
+                matches = [n for n, m in (self.modules | self.guest_modules).items() if m['base'] == words[1]]
                 if not matches:
                     raise ValueError('Unknown module handle')
                 symbol = words[2] if words[2] <= 0xffff else ascii_z(self.machine, words[2])
@@ -197,6 +225,9 @@ class ModuleModel:
                                 mapped_size=module['size'], input_unchanged=unchanged,
                                 loadlibrary_acquisitions=module['loadlibrary_acquisitions']))
         return dict(modules=records, resolver_events=self.events,
+                    guest_modules=[dict(name=name, base=hex(m['base']), size=m['size'],
+                        is_main=name == self.main_module, loadlibrary_acquisitions=m['loadlibrary_acquisitions'])
+                        for name, m in self.guest_modules.items()],
                     observed_resolver_calls=self.observed_calls,
                     reference_import_markers=self.import_markers_enabled,
                     reference_import_bindings=self.import_bindings,

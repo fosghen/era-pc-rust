@@ -54,6 +54,14 @@ class StartupModelTests(unittest.TestCase):
             self.assertEqual(self.call(name), (False, None))
         self.assertEqual(self.model.events, [])
 
+    def test_page_protection_can_target_explicit_second_input_only(self):
+        self.model.primary_region = (0x10000, 0x1000)
+        self.model.additional_image_regions = [(0x11000, 0x1000)]
+        self.assertEqual(self.result('VirtualProtect', 0x11000, 0x1000, 2, 0x12000), 1)
+        self.assertEqual(next(p for a, b, p in self.machine.mem_regions() if a <= 0x11000 <= b), uc.UC_PROT_READ)
+        self.assertFalse(self.call('VirtualProtect', 0x12000, 0x1000, 2, 0x10000)[0])
+        self.assertFalse(self.call('VirtualProtect', 0x10fff, 2, 2, 0x12000)[0])
+
     def test_api_set_contract_is_exact_not_a_wildcard_alias(self):
         self.machine.reg_write(x86.UC_X86_REG_ESP, 0x10800)
         self.machine.mem_write(0x10800, struct.pack('<I', 0x12345678))

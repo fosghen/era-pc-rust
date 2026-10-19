@@ -37,7 +37,9 @@ def address_size(text):
 
 def trace(path, export, argument, max_instructions, max_seconds, modules=(), thread_model=False,
           dll_attach=False, observe=(), watch=(), startup_model=False, nls_codepage=None, nls_sort=None, nls_case=None,
-          after_attach_export=None, reference_import_markers=False):
+          after_attach_export=None, reference_import_markers=False, host_after_attach=None):
+    if host_after_attach and (not dll_attach or after_attach_export or export):
+        raise ValueError('Host continuation requires DLL attach without an explicit export call')
     if reference_import_markers and not modules:
         raise ValueError('Reference import markers require explicit modules')
     if (nls_codepage or nls_sort or nls_case) and not startup_model:
@@ -51,15 +53,31 @@ def trace(path, export, argument, max_instructions, max_seconds, modules=(), thr
         raise ValueError('Only 32-bit x86 PE images supported')
     base = pe.OPTIONAL_HEADER.ImageBase
     image_size = pe.OPTIONAL_HEADER.SizeOfImage
+    host = None
+    image_ranges = [(base, image_size)]
+    if host_after_attach:
+        host_raw = host_after_attach.read_bytes()
+        host_pe = pefile.PE(data=host_raw)
+        host_base = host_pe.OPTIONAL_HEADER.ImageBase
+        host_size = (host_pe.OPTIONAL_HEADER.SizeOfImage + 4095) & ~4095
+        host_entry = host_base + host_pe.OPTIONAL_HEADER.AddressOfEntryPoint
+        if (host_pe.FILE_HEADER.Machine != 0x14c or host_pe.FILE_HEADER.Characteristics & 0x2000
+                or not 0 < host_size <= 256 * 1024 * 1024 or host_base % 4096
+                or host_base + host_size > 2**32 or not host_base <= host_entry < host_base + host_size):
+            raise ValueError('Host must be a bounded x86 executable with an in-image entry')
+        host = dict(pe=host_pe, raw=host_raw, base=host_base, size=host_size, entry=host_entry,
+                    sha256=hashlib.sha256(host_raw).hexdigest())
+        image_ranges.append((host_base, host_pe.OPTIONAL_HEADER.SizeOfImage))
     if dll_attach and (export or not pe.FILE_HEADER.Characteristics & 0x2000):
         raise ValueError('DLL attach requires a DLL entry point, not an export or executable')
     if len(observe) > 32 or len(watch) > 32:
         raise ValueError('At most 32 observation points and watched ranges')
-    if any(not base <= address < base + image_size for address in observe):
-        raise ValueError('Observation point outside primary image')
-    if any(not (1 <= size <= 4096 and base <= address and address + size <= base + image_size)
+    if any(not any(start <= address < start + length for start, length in image_ranges) for address in observe):
+        raise ValueError('Observation point outside input images')
+    if any(not (1 <= size <= 4096 and any(start <= address and address + size <= start + length
+                                        for start, length in image_ranges))
            for address, size in watch):
-        raise ValueError('Watch must be 1..4096 bytes within the primary image')
+        raise ValueError('Watch must be 1..4096 bytes within an input image')
     mapped_size = (image_size + 4095) & ~4095
     if not 0 < mapped_size <= 256 * 1024 * 1024:
         raise ValueError('Image size outside trace limits')
@@ -71,6 +89,11 @@ def trace(path, export, argument, max_instructions, max_seconds, modules=(), thr
         reserved_regions += STARTUP_REGIONS
     if reference_import_markers:
         reserved_regions += REFERENCE_IMPORT_REGIONS
+    if host:
+        if any(host['base'] < start + length and host['base'] + host['size'] > start
+               for start, length in reserved_regions):
+            raise ValueError('Host image overlaps trace harness memory')
+        reserved_regions.append((host['base'], host['size']))
     for reserved, size in reserved_regions:
         if base < reserved + size and base + mapped_size > reserved:
             raise ValueError('Image overlaps trace harness memory')
@@ -83,16 +106,31 @@ def trace(path, export, argument, max_instructions, max_seconds, modules=(), thr
             machine.mem_write(base + section.VirtualAddress, data)
     for address, size in [(stack, 0x10000), (sentinel, 0x1000), (imports_base, 0x10000)]:
         machine.mem_map(address, size)
+    if host:
+        machine.mem_map(host['base'], host['size'])
+        machine.mem_write(host['base'], host['raw'][:host['pe'].OPTIONAL_HEADER.SizeOfHeaders])
+        for section in host['pe'].sections:
+            data = section.get_data()
+            if data:
+                machine.mem_write(host['base'] + section.VirtualAddress, data)
     module_model = ModuleModel(machine, modules, [(base, mapped_size)] + reserved_regions, reference_import_markers)
+    if host:
+        module_model.register_guest(path.name, pe)
+        module_model.register_guest(host_after_attach.name, host['pe'], is_main=True)
     thread = X86ThreadModel(machine, stack, 0x10000) if thread_model else None
     startup = StartupModel(machine, nls_codepage, nls_sort, nls_case) if startup_model else None
     if startup:
         startup.primary_region = (base, mapped_size)
+        if host:
+            startup.additional_image_regions = [(host['base'], host['size'])]
         if thread:
             thread.set_thread_id_fixture(startup.profile['thread_id'])
     functions = {}
     iat_map = []
-    for descriptor in getattr(pe, 'DIRECTORY_ENTRY_IMPORT', []):
+    import_descriptors = list(getattr(pe, 'DIRECTORY_ENTRY_IMPORT', []))
+    if host:
+        import_descriptors += list(getattr(host['pe'], 'DIRECTORY_ENTRY_IMPORT', []))
+    for descriptor in import_descriptors:
         for imp in descriptor.imports:
             marker = imports_base + 16 * len(functions)
             if marker >= imports_base + 0x10000:
@@ -104,6 +142,15 @@ def trace(path, export, argument, max_instructions, max_seconds, modules=(), thr
             iat_map.append(dict(iat_va=hex(imp.address), marker=hex(marker), name=name))
     entry = base + pe.OPTIONAL_HEADER.AddressOfEntryPoint
     next_entry = None
+    guest_exports = {}
+    if host:
+        for symbol in getattr(getattr(pe, 'DIRECTORY_ENTRY_EXPORT', None), 'symbols', []):
+            if symbol.forwarder or not 0 < symbol.address < image_size:
+                continue
+            guest_exports[f'ordinal:{symbol.ordinal}'] = base + symbol.address
+            if symbol.name:
+                guest_exports[symbol.name.decode('ascii')] = base + symbol.address
+        next_entry = host['entry']
     if export or after_attach_export:
         symbols = getattr(getattr(pe, 'DIRECTORY_ENTRY_EXPORT', None), 'symbols', [])
         matches = [s for s in symbols if s.name and s.name.decode() == (export or after_attach_export)]
@@ -138,6 +185,11 @@ def trace(path, export, argument, max_instructions, max_seconds, modules=(), thr
                  iat_markers=iat_map)
     state['active_stage'] = 'dll_attach' if dll_attach else 'single_call'
     state['stage_returns'] = []
+    if host:
+        state['host_image'] = dict(name=host_after_attach.name, sha256=host['sha256'],
+            input_size=len(host['raw']), base=hex(host['base']), entry=hex(host['entry']))
+        state['guest_calls'] = []
+        state['invocation'] = 'DLL_PROCESS_ATTACH then host PE entry in shared memory; explicit guest DLL exports execute with caller stack'
     if after_attach_export:
         state['after_attach_export'] = after_attach_export
         state['invocation'] = 'DLL_PROCESS_ATTACH then export in the same CPU/memory state, only on successful attach'
@@ -155,6 +207,11 @@ def trace(path, export, argument, max_instructions, max_seconds, modules=(), thr
     watch_writes = [deque(maxlen=8) for _ in watched]
     sections = [(base + s.VirtualAddress, base + s.VirtualAddress + max(s.Misc_VirtualSize, s.SizeOfRawData),
                  s.Name.rstrip(b'\0').decode(errors='replace') + '@' + hex(base + s.VirtualAddress)) for s in pe.sections]
+    if host:
+        sections.extend((host['base'] + s.VirtualAddress,
+            host['base'] + s.VirtualAddress + max(s.Misc_VirtualSize, s.SizeOfRawData),
+            'host:' + s.Name.rstrip(b'\0').decode(errors='replace') + '@' + hex(host['base'] + s.VirtualAddress))
+            for s in host['pe'].sections)
     started = time.monotonic()
 
     def instruction(m, address, size, _):
@@ -170,9 +227,10 @@ def trace(path, export, argument, max_instructions, max_seconds, modules=(), thr
                 elif thread and struct.unpack('<I', m.mem_read(TIB_BASE, 4))[0] != 0xffffffff:
                     state['reason'] = 'dll_attach_unrestored_seh'
                 else:
-                    state['active_stage'] = 'export_after_attach'
-                    state['export_start_instruction'] = state['instructions']
-                    m.mem_write(sp, struct.pack('<2I', sentinel, argument & 0xffffffff))
+                    state['active_stage'] = 'host_after_attach' if host else 'export_after_attach'
+                    state['host_start_instruction' if host else 'export_start_instruction'] = state['instructions']
+                    next_arguments = [] if host else [argument & 0xffffffff]
+                    m.mem_write(sp, struct.pack('<' + 'I' * (1 + len(next_arguments)), sentinel, *next_arguments))
                     m.reg_write(x86.UC_X86_REG_ESP, sp)
                     m.reg_write(x86.UC_X86_REG_EIP, next_entry)
                 m.emu_stop()
@@ -192,10 +250,27 @@ def trace(path, export, argument, max_instructions, max_seconds, modules=(), thr
             observations.append(event)
         # Markers are observed but never executed and do not count as instructions.
         external_name = functions.get(address)
+        if host and external_name:
+            module_name, _, symbol_name = external_name.partition('!')
+            if module_name.lower() == path.name.lower() and symbol_name in guest_exports:
+                if len(state['guest_calls']) >= 256:
+                    state['reason'] = 'guest_call_limit'
+                else:
+                    esp = m.reg_read(x86.UC_X86_REG_ESP)
+                    event = dict(api=external_name, destination=hex(guest_exports[symbol_name]),
+                                 instruction_index=state['instructions'], esp=hex(esp))
+                    try:
+                        event['stack_words'] = [hex(w) for w in struct.unpack('<9I', m.mem_read(esp, 36))]
+                    except uc.UcError:
+                        event['stack_unreadable'] = True
+                    state['guest_calls'].append(event)
+                    m.reg_write(x86.UC_X86_REG_EIP, guest_exports[symbol_name])
+                m.emu_stop()
+                return
         if modules and external_name is None and module_model.contains(address):
             names = module_model.address_names.get(address, [])
             external_name = names[0] if names else 'mapped_module!' + hex(address)
-        if external_name and modules:
+        if external_name and (modules or host):
             handled, observation = module_model.handle(external_name)
             if handled:
                 # Resume outside the hook, after the modeled stdcall return.
@@ -306,7 +381,7 @@ def trace(path, export, argument, max_instructions, max_seconds, modules=(), thr
         m.emu_stop()
 
     def written(m, access, address, size, value, _):
-        if base <= address < base + image_size:
+        if any(start <= address < start + length for start, length in image_ranges):
             state['image_write_events'] += 1
             name = next((n for start, end, n in sections if start <= address < end), 'headers_or_gap')
             writes[name] += 1
@@ -357,7 +432,11 @@ def trace(path, export, argument, max_instructions, max_seconds, modules=(), thr
     # Addresses only: no proprietary bytes or disassembly in this shareable report.
     state['tail_instruction_addresses'] = [hex(a) for a in tail]
     state['input_unchanged'] = hashlib.sha256(path.read_bytes()).hexdigest() == digest
-    if modules:
+    if host:
+        state['host_image']['input_unchanged'] = hashlib.sha256(host_after_attach.read_bytes()).hexdigest() == host['sha256']
+        if not state['host_image']['input_unchanged']:
+            raise RuntimeError('Host image changed during trace')
+    if modules or host:
         state['module_model'] = module_model.report()
         state['environment'] += '; opt-in mapped-PE resolver model, no mapped-module code execution'
     if thread:
@@ -396,6 +475,8 @@ def main():
     parser.add_argument('--after-attach-export', help='Call named one-argument export in the same state after successful DLL attach')
     parser.add_argument('--reference-import-markers', action='store_true',
                         help='Replace ordinary IAT entries in reference modules by explicit API stop markers in emulated memory')
+    parser.add_argument('--host-after-attach', type=Path,
+                        help='After DLL attach, run this explicit x86 EXE and route its imports of this DLL to actual guest exports')
     parser.add_argument('--startup-model', action='store_true',
                         help='Opt-in explicitly synthetic startup API fixtures; unknown calls stop')
     parser.add_argument('--nls-codepage', type=Path, help='Explicit read-only SBCS CP1251 reference file')
@@ -417,7 +498,8 @@ def main():
         parser.error('Report already exists; choose a new evidence filename')
     result = trace(args.file, args.export, args.argument, args.max_instructions, args.max_seconds,
                    args.module, args.thread_model, args.dll_attach, args.observe, args.watch, args.startup_model,
-                   args.nls_codepage, args.nls_sort, args.nls_case, args.after_attach_export, args.reference_import_markers)
+                   args.nls_codepage, args.nls_sort, args.nls_case, args.after_attach_export, args.reference_import_markers,
+                   args.host_after_attach)
     with args.report.open('x', encoding='utf-8') as output:
         json.dump(result, output, indent=2, ensure_ascii=False)
         output.write('\n')

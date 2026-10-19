@@ -62,6 +62,7 @@ class StartupModel:
         self.locks = {}
         self.trace_state = {}
         self.primary_region = None
+        self.additional_image_regions = []
         machine.mem_map(STRINGS_BASE, 4096, uc.UC_PROT_READ | uc.UC_PROT_WRITE)
         machine.mem_write(STRINGS_BASE, self.profile['command_line'].encode('ascii') + b'\0')
         machine.mem_write(STRINGS_BASE + 512, (self.profile['command_line'] + '\0').encode('utf-16-le'))
@@ -259,15 +260,15 @@ class StartupModel:
         if function in ('VirtualProtect', 'FlushInstructionCache'):
             if self.primary_region is None:
                 raise ValueError('Primary image range not established')
-            image_start, image_size = self.primary_region
             if function == 'VirtualProtect':
                 address, size, protection, previous = args
             else:
                 process, address, size = args
                 if process != 0xffffffff:
                     raise ValueError('Only current synthetic process supported')
-            if not size or not image_start <= address < address + size <= image_start + image_size:
-                raise ValueError('Memory operation outside primary image')
+            if not size or not any(start <= address < address + size <= start + length
+                                   for start, length in [self.primary_region] + self.additional_image_regions):
+                raise ValueError('Memory operation outside explicit input images')
             first, end = address & ~4095, (address + size + 4095) & ~4095
             if function == 'FlushInstructionCache':
                 self.machine.ctl_remove_cache(first, end)
@@ -487,5 +488,7 @@ class StartupModel:
                                        for p, lock in self.locks.items()},
                     heaps={hex(h): data for h, data in self.heaps.items()},
                     object_handles={hex(h): data for h, data in self.object_handles.items()},
+                    memory_operation_regions=[dict(base=hex(base), size=size)
+                        for base, size in ([self.primary_region] if self.primary_region else []) + self.additional_image_regions],
                     heap_arena=dict(base=hex(HEAP_BASE), capacity=HEAP_CAPACITY, used=self.cursor - HEAP_BASE),
-                    limitations='Explicit synthetic process profile, reversible XOR pointer fixture, single-thread opaque locks/atomics and bounded heaps; 64 TLS/FLS slots each, no direct TEB storage or callback dispatch; unknown last-error reads stop; only the named registry key is assumed absent; NLS data requires explicit files; page permissions apply only to initially RWX primary image; freed blocks not reused/unmapped; unspecified allocation bytes A5; no host API, device, license, filesystem operations, scheduling or time progression; API writes logged separately from CPU writes')
+                    limitations='Explicit synthetic process profile, reversible XOR pointer fixture, single-thread opaque locks/atomics and bounded heaps; 64 TLS/FLS slots each, no direct TEB storage or callback dispatch; unknown last-error reads stop; only the named registry key is assumed absent; NLS data requires explicit files; page permissions apply only to explicit initially RWX input images; freed blocks not reused/unmapped; unspecified allocation bytes A5; no host API, device, license, filesystem operations, scheduling or time progression; API writes logged separately from CPU writes')

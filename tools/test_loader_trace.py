@@ -117,6 +117,105 @@ class LoaderTraceTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'requires DLL attach'):
             self.run_image(synthetic_pe(b'\xc3'), after_attach_export='Probe')
 
+    def test_host_calls_real_guest_export_with_shared_memory_and_caller_stack(self):
+        dll = synthetic_module()
+        struct.pack_into('<H', dll, 0x84 + 18, 0x2102)
+        code = bytes.fromhex('c7050015006078563412 b801000000 c20c00')
+        dll[512:512+len(code)] = code
+        code = bytes.fromhex('8b442404 030500150060 c20400')
+        dll[544:544+len(code)] = code
+        host = resolver_caller(api='Probe')
+        host[0x350:0x350+14] = b'synthetic.exe\0'
+        code = bytes.fromhex('c605f011400042 6802000000 ff1560114000 c3')
+        host[512:512+len(code)] = code
+        with tempfile.TemporaryDirectory(prefix='era-host-test-') as directory:
+            path = Path(directory) / 'host.exe'
+            path.write_bytes(host)
+            result = self.run_image(dll, dll_attach=True, host_after_attach=path,
+                thread_model=True, observe=[0x401000], watch=[(0x4011f0, 1), (0x60001500, 4)])
+            self.assertEqual(result['reason'], 'returned')
+            self.assertEqual(result['registers']['eax'], '0x1234567a')
+            self.assertEqual(result['registers']['esp'], '0x70008004')
+            self.assertEqual(result['active_stage'], 'host_after_attach')
+            self.assertEqual(len(result['guest_calls']), 1)
+            self.assertEqual(result['guest_calls'][0]['api'], 'synthetic.exe!Probe')
+            self.assertEqual(result['guest_calls'][0]['stack_words'][1], '0x2')
+            self.assertEqual(result['execution_observations'][0]['address'], '0x401000')
+            self.assertEqual(result['watched_ranges'][0]['changed_byte_count'], 1)
+            self.assertEqual(result['watched_ranges'][1]['changed_byte_count'], 4)
+            self.assertEqual(result['image_writes_by_section']['host:.text@0x401000'], 1)
+            self.assertTrue(result['host_image']['input_unchanged'])
+            self.assertEqual(path.read_bytes(), host)
+
+    def test_host_continuation_rejects_bad_invocations_and_overlap(self):
+        dll = synthetic_module()
+        struct.pack_into('<H', dll, 0x84 + 18, 0x2102)
+        with self.assertRaisesRegex(ValueError, 'requires DLL attach'):
+            self.run_image(dll, host_after_attach=Path('not-opened.exe'))
+        with self.assertRaisesRegex(ValueError, 'without an explicit export'):
+            self.run_image(dll, dll_attach=True, host_after_attach=Path('not-opened.exe'), after_attach_export='Probe')
+        with tempfile.TemporaryDirectory(prefix='era-host-test-') as directory:
+            path = Path(directory) / 'host.exe'
+            host = synthetic_pe(b'\xc3')
+            struct.pack_into('<I', host, 0x98 + 28, 0x60000000)
+            path.write_bytes(host)
+            with self.assertRaisesRegex(ValueError, 'overlaps trace harness'):
+                self.run_image(dll, dll_attach=True, host_after_attach=path)
+
+    def test_unknown_guest_export_does_not_get_synthetic_success(self):
+        dll = synthetic_module()
+        struct.pack_into('<H', dll, 0x84 + 18, 0x2102)
+        dll[512:520] = bytes.fromhex('b801000000 c20c00')
+        host = resolver_caller(api='Unknown')
+        host[0x350:0x350+14] = b'synthetic.exe\0'
+        host[512:519] = bytes.fromhex('ff1560114000 c3')
+        with tempfile.TemporaryDirectory(prefix='era-host-test-') as directory:
+            path = Path(directory) / 'host.exe'
+            path.write_bytes(host)
+            result = self.run_image(dll, dll_attach=True, host_after_attach=path)
+            self.assertEqual(result['reason'], 'external_import')
+            self.assertEqual(result['external_import'], 'synthetic.exe!Unknown')
+            self.assertEqual(result['guest_calls'], [])
+
+    def test_host_resolves_guest_module_and_executes_getprocaddress_result(self):
+        dll = synthetic_module()
+        struct.pack_into('<H', dll, 0x84 + 18, 0x2102)
+        dll[512:520] = bytes.fromhex('b801000000 c20c00')
+        code = bytes.fromhex('8b442404 83c005 c20400')
+        dll[544:544+len(code)] = code
+        host = resolver_caller(module_name='synthetic.exe')
+        struct.pack_into('<3I', host, 0x340, 0x1170, 0x11d0, 0)
+        struct.pack_into('<3I', host, 0x360, 0x1170, 0x11d0, 0)
+        name = b'\0\0GetProcAddress\0'
+        host[0x3d0:0x3d0+len(name)] = name
+        code = bytes.fromhex('68a0114000 ff1560114000 68c0114000 50 ff1564114000 6a02 ffd0 c3')
+        host[512:512+len(code)] = code
+        with tempfile.TemporaryDirectory(prefix='era-host-test-') as directory:
+            path = Path(directory) / 'host.exe'
+            path.write_bytes(host)
+            result = self.run_image(dll, dll_attach=True, host_after_attach=path)
+        self.assertEqual(result['reason'], 'returned')
+        self.assertEqual(result['registers']['eax'], '0x7')
+        events = result['module_model']['resolver_events']
+        self.assertEqual([e['result'] for e in events], ['0x60000000', '0x60001020'])
+        self.assertEqual(len(result['module_model']['guest_modules']), 2)
+        self.assertEqual(result['module_model']['modules'], [])
+
+    def test_getmodulehandle_null_requires_explicit_host_identity(self):
+        dll = synthetic_module()
+        struct.pack_into('<H', dll, 0x84 + 18, 0x2102)
+        dll[512:520] = bytes.fromhex('b801000000 c20c00')
+        host = resolver_caller()
+        code = bytes.fromhex('6a00 ff1560114000 c3')
+        host[512:512+len(code)] = code
+        with tempfile.TemporaryDirectory(prefix='era-host-test-') as directory:
+            path = Path(directory) / 'host.exe'
+            path.write_bytes(host)
+            result = self.run_image(dll, dll_attach=True, host_after_attach=path)
+        self.assertEqual(result['reason'], 'returned')
+        self.assertEqual(result['registers']['eax'], '0x400000')
+        self.assertTrue(result['module_model']['resolver_events'][0]['null_name_means_explicit_host'])
+
     def test_chained_export_rejects_unrestored_exception_chain(self):
         data = synthetic_module()
         struct.pack_into('<H', data, 0x84 + 18, 0x2102)
