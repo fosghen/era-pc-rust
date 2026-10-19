@@ -1,0 +1,336 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-19",
+  "parent_commit": "fa075f88e12a0eb064fa9a78196afb9498526bfb",
+  "path_base": "workspace root containing era-rust and reverse_engineering",
+  "status": "Measured opt-in uncontended x86 lock layout; linked EXE reaches GetSystemTime; corrected range-guard replay and clock continuation still pending",
+  "tests": {
+    "synthetic_python_passed": 98,
+    "rust_with_recovered_tests_passed": 59
+  },
+  "files": [
+    {
+      "path": "era-rust/tools/loader_trace.py",
+      "sha256": "01ceab5873941afdc5caa94731f5e1020ded765be57efff56fded1139698f5b4"
+    },
+    {
+      "path": "era-rust/tools/pe_module_model.py",
+      "sha256": "c7aa5e5775eaf36b88a08ead627d7fbe60b3bbd1809b6613e414bee808531a2a"
+    },
+    {
+      "path": "era-rust/tools/x86_thread_model.py",
+      "sha256": "add7d065ee124b441184629cdd9d87fead60ce3639e310c2bbccc1d0037b4b8a"
+    },
+    {
+      "path": "era-rust/tools/startup_model.py",
+      "sha256": "ff385d42228daa97036eb261d904d0ca3d8302838cc3c283a4795481429738e8"
+    },
+    {
+      "path": "era-rust/tools/nls_model.py",
+      "sha256": "8849236f1ddef7da6c24844933c8e051f1164b6785768347f74149acca5cee49"
+    },
+    {
+      "path": "era-rust/tools/test_loader_trace.py",
+      "sha256": "8d84cd4763d0b7de73f56e371ce0e42a89f3d5f01c9552065fa0da5a07a69902"
+    },
+    {
+      "path": "era-rust/tools/test_startup_model.py",
+      "sha256": "3754aaafacb466c73ba5b103be524dd0bc5269f7798d01ffc19ac5b48ee6622a"
+    },
+    {
+      "path": "era-rust/tools/test_nls_model.py",
+      "sha256": "480e0fca7e17b11d2fdc817b4a015c8643613af36595e374663026f429f0b389"
+    },
+    {
+      "path": "era-rust/tools/probe_critical_section.ps1",
+      "sha256": "8681bf5ef7daab036e77eb240d13624a92bdf768de24d5af83077ab354903e9d"
+    },
+    {
+      "path": "era-rust/tools/requirements-research.txt",
+      "sha256": "0052d0d49b9d27a7f6f0f7420dcd299548bd66b9aa16402938bce076cc064d3b"
+    },
+    {
+      "path": "era-rust/docs/HOST_LINKED_RESEARCH.md",
+      "sha256": "0a3a2565f9e1326d4948578a0448ff226b046f2ec5334f5e367fc04652295fcb"
+    },
+    {
+      "path": "reverse_engineering/perv_linked_03.json",
+      "sha256": "62837d4ceecd40c3b2f1698967c7da92044c095d655bff9c8f025bd00ee94b9e"
+    },
+    {
+      "path": "reverse_engineering/perv_linked_04.json",
+      "sha256": "5a0b8b1e02878d486e577a1d3014ce1e793bad9d057dca7f243f569b930f141f"
+    },
+    {
+      "path": "reverse_engineering/critical_section_probe_02.json",
+      "sha256": "547994025fc4abab81f51b84a878e61c65a73926d3f509c00f7434844ba6b7cb"
+    }
+  ],
+  "experiments": [
+    {
+      "instructions": 256078777,
+      "reason": "unsupported_critical_section_memory",
+      "external_import": null,
+      "elapsed_seconds": 293.6971,
+      "input_unchanged": true,
+      "stage_returns": [
+        {
+          "stage": "dll_attach",
+          "instruction_index": 80201157,
+          "eax": "0x1",
+          "esp": "0x70008010"
+        }
+      ],
+      "critical_section_access": {
+        "address": "0x1036a93c",
+        "size": 4,
+        "operation": "read"
+      },
+      "limits": {
+        "instructions": 300000000,
+        "seconds": 450
+      },
+      "report": "perv_linked_03.json",
+      "source_commit": "e5239c435c5b3204a221ca138c60354d964523c4",
+      "source_hashes_match_commit": true,
+      "model_hashes": {
+        "tool_sha256": "0f355275cb6f3dc9c602162bbcd55fd1e6a7bb322d161e7397849dd2f2a130bb",
+        "module_model_sha256": "c7aa5e5775eaf36b88a08ead627d7fbe60b3bbd1809b6613e414bee808531a2a",
+        "thread_model_sha256": "add7d065ee124b441184629cdd9d87fead60ce3639e310c2bbccc1d0037b4b8a",
+        "startup_model_sha256": "787550cee4880f4ae3cf34a785d017fe187590a7c20a56e08e48704215be37d3",
+        "nls_model_sha256": "8849236f1ddef7da6c24844933c8e051f1164b6785768347f74149acca5cee49"
+      },
+      "host_input_unchanged": true
+    },
+    {
+      "instructions": 281280045,
+      "reason": "external_import",
+      "external_import": "api-ms-win-core-sysinfo-l1-1-0.dll!GetSystemTime",
+      "elapsed_seconds": 332.6602,
+      "input_unchanged": true,
+      "stage_returns": [
+        {
+          "stage": "dll_attach",
+          "instruction_index": 79771558,
+          "eax": "0x1",
+          "esp": "0x70008010"
+        }
+      ],
+      "critical_section_access": null,
+      "limits": {
+        "instructions": 300000000,
+        "seconds": 450
+      },
+      "report": "perv_linked_04.json",
+      "source_commit": "4bd2a62f3b0a2bb49216bf81bd6bb261fd888666",
+      "source_hashes_match_commit": true,
+      "model_hashes": {
+        "tool_sha256": "01ceab5873941afdc5caa94731f5e1020ded765be57efff56fded1139698f5b4",
+        "module_model_sha256": "c7aa5e5775eaf36b88a08ead627d7fbe60b3bbd1809b6613e414bee808531a2a",
+        "thread_model_sha256": "add7d065ee124b441184629cdd9d87fead60ce3639e310c2bbccc1d0037b4b8a",
+        "startup_model_sha256": "439b0471a1772d47517465b3270db630fde48b0b9d0a1e26dd27babb2b156935",
+        "nls_model_sha256": "8849236f1ddef7da6c24844933c8e051f1164b6785768347f74149acca5cee49"
+      },
+      "host_input_unchanged": true
+    }
+  ],
+  "native_probe": {
+    "report": "critical_section_probe_02.json",
+    "ntdll_file_version": "10.0.19041.4842 (WinBuild.160101.0800)",
+    "ntdll_sha256": "baeb10cd5b9a00a47f6fc53cf088f6cf708d18a499fbb66457f8dd82f641b368",
+    "pointer_size": 4,
+    "processor_count": 12,
+    "scope": "Self-authored API experiment only; own objects; no vendor execution, dongle, driver, registry writes or network",
+    "policy": "Initial PowerShell policy refusal; approved process-local ExecutionPolicy exception; no persistent policy change",
+    "cases": [
+      {
+        "api": "InitializeCriticalSection",
+        "requested_spin": 0,
+        "stages": [
+          {
+            "stage": "initialized",
+            "debug_info_kind": "minus_one",
+            "lock_count": -1,
+            "recursion_count": 0,
+            "owner_kind": "none",
+            "semaphore_kind": "null",
+            "spin_count": 33556432
+          },
+          {
+            "stage": "entered",
+            "debug_info_kind": "minus_one",
+            "lock_count": -2,
+            "recursion_count": 1,
+            "owner_kind": "current_thread",
+            "semaphore_kind": "null",
+            "spin_count": 33556432
+          },
+          {
+            "stage": "recursive",
+            "debug_info_kind": "minus_one",
+            "lock_count": -2,
+            "recursion_count": 2,
+            "owner_kind": "current_thread",
+            "semaphore_kind": "null",
+            "spin_count": 33556432
+          },
+          {
+            "stage": "leave_once",
+            "debug_info_kind": "minus_one",
+            "lock_count": -2,
+            "recursion_count": 1,
+            "owner_kind": "current_thread",
+            "semaphore_kind": "null",
+            "spin_count": 33556432
+          },
+          {
+            "stage": "released",
+            "debug_info_kind": "minus_one",
+            "lock_count": -1,
+            "recursion_count": 0,
+            "owner_kind": "none",
+            "semaphore_kind": "null",
+            "spin_count": 33556432
+          },
+          {
+            "stage": "deleted_storage",
+            "debug_info_kind": "null",
+            "lock_count": 0,
+            "recursion_count": 0,
+            "owner_kind": "none",
+            "semaphore_kind": "null",
+            "spin_count": 0
+          }
+        ]
+      },
+      {
+        "api": "InitializeCriticalSectionAndSpinCount",
+        "requested_spin": 0,
+        "stages": [
+          {
+            "stage": "initialized",
+            "debug_info_kind": "minus_one",
+            "lock_count": -1,
+            "recursion_count": 0,
+            "owner_kind": "none",
+            "semaphore_kind": "null",
+            "spin_count": 33556432
+          },
+          {
+            "stage": "entered",
+            "debug_info_kind": "minus_one",
+            "lock_count": -2,
+            "recursion_count": 1,
+            "owner_kind": "current_thread",
+            "semaphore_kind": "null",
+            "spin_count": 33556432
+          },
+          {
+            "stage": "recursive",
+            "debug_info_kind": "minus_one",
+            "lock_count": -2,
+            "recursion_count": 2,
+            "owner_kind": "current_thread",
+            "semaphore_kind": "null",
+            "spin_count": 33556432
+          },
+          {
+            "stage": "leave_once",
+            "debug_info_kind": "minus_one",
+            "lock_count": -2,
+            "recursion_count": 1,
+            "owner_kind": "current_thread",
+            "semaphore_kind": "null",
+            "spin_count": 33556432
+          },
+          {
+            "stage": "released",
+            "debug_info_kind": "minus_one",
+            "lock_count": -1,
+            "recursion_count": 0,
+            "owner_kind": "none",
+            "semaphore_kind": "null",
+            "spin_count": 33556432
+          },
+          {
+            "stage": "deleted_storage",
+            "debug_info_kind": "null",
+            "lock_count": 0,
+            "recursion_count": 0,
+            "owner_kind": "none",
+            "semaphore_kind": "null",
+            "spin_count": 0
+          }
+        ]
+      },
+      {
+        "api": "InitializeCriticalSectionAndSpinCount",
+        "requested_spin": 4000,
+        "stages": [
+          {
+            "stage": "initialized",
+            "debug_info_kind": "minus_one",
+            "lock_count": -1,
+            "recursion_count": 0,
+            "owner_kind": "none",
+            "semaphore_kind": "null",
+            "spin_count": 4000
+          },
+          {
+            "stage": "entered",
+            "debug_info_kind": "minus_one",
+            "lock_count": -2,
+            "recursion_count": 1,
+            "owner_kind": "current_thread",
+            "semaphore_kind": "null",
+            "spin_count": 4000
+          },
+          {
+            "stage": "recursive",
+            "debug_info_kind": "minus_one",
+            "lock_count": -2,
+            "recursion_count": 2,
+            "owner_kind": "current_thread",
+            "semaphore_kind": "null",
+            "spin_count": 4000
+          },
+          {
+            "stage": "leave_once",
+            "debug_info_kind": "minus_one",
+            "lock_count": -2,
+            "recursion_count": 1,
+            "owner_kind": "current_thread",
+            "semaphore_kind": "null",
+            "spin_count": 4000
+          },
+          {
+            "stage": "released",
+            "debug_info_kind": "minus_one",
+            "lock_count": -1,
+            "recursion_count": 0,
+            "owner_kind": "none",
+            "semaphore_kind": "null",
+            "spin_count": 4000
+          },
+          {
+            "stage": "deleted_storage",
+            "debug_info_kind": "null",
+            "lock_count": 0,
+            "recursion_count": 0,
+            "owner_kind": "none",
+            "semaphore_kind": "null",
+            "spin_count": 0
+          }
+        ]
+      }
+    ]
+  },
+  "limitations": [
+    "No native ERA execution or license validation",
+    "No numerical ERA oracle; protected calculation kernel not recovered",
+    "perv_linked_04 predates fix for accesses starting before critical-section storage",
+    "Windows clock remains a fixed 2024-01-01 UTC fixture; no date selection based on protection result",
+    "Native layout observation is version-specific, not universal ABI",
+    "No vendor bytes, NLS data, memory dumps or executable releases in public payload"
+  ]
+}
