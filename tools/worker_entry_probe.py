@@ -29,6 +29,7 @@ REGION_LIMIT = 8192
 DECODE_CACHE_LIMIT = 4096
 CHUNK = 1024 * 1024
 MAX_RDTSC_VALUES = 1024
+MAX_TICK_COUNT_VALUES = 16
 REGISTERS = {name: getattr(x86, 'UC_X86_REG_' + name.upper()) for name in
              ('eax', 'ebx', 'ecx', 'edx', 'esi', 'edi', 'ebp', 'esp', 'eip', 'eflags')}
 
@@ -54,7 +55,7 @@ def _overlaps(address, size, ranges):
 def probe_worker_entry(source_machine, *, entry, parameter, thread_id, image_ranges,
                        stop_addresses, reference_ranges, creator_tib_range=None,
                        protected_ranges=(), max_instructions=100000, max_seconds=2,
-                       rdtsc_values=(), decode_cache=True):
+                       rdtsc_values=(), decode_cache=True, tick_count_values=()):
     """Clone a stopped UC32 and inspect an artificial stdcall entry, stop-only.
 
     All range arguments contain (start, size), not inclusive end addresses.
@@ -78,6 +79,10 @@ def probe_worker_entry(source_machine, *, entry, parameter, thread_id, image_ran
             any(type(value) is not int or not 0 <= value < 2**64 for value in rdtsc_values)):
         raise ValueError(f'RDTSC fixture must be a tuple/list of at most {MAX_RDTSC_VALUES} uint64 integers')
     rdtsc_values = tuple(rdtsc_values)
+    if (type(tick_count_values) not in (tuple, list) or len(tick_count_values) > MAX_TICK_COUNT_VALUES
+            or any(not _dword(value) for value in tick_count_values)):
+        raise ValueError('GetTickCount fixture must be a tuple/list of at most 16 uint32 integers')
+    tick_count_values = tuple(tick_count_values)
     images = _ranges(image_ranges)
     references = _ranges(reference_ranges)
     opaque = _ranges(protected_ranges)
@@ -137,6 +142,7 @@ def probe_worker_entry(source_machine, *, entry, parameter, thread_id, image_ran
     initial = {name: hex(child.reg_read(reg)) for name, reg in REGISTERS.items()}
     state = dict(reason='running', instructions=0)
     rdtsc_events = []
+    tick_count_events = []
     tail = deque(maxlen=24)
     decoder = cs.Cs(cs.CS_ARCH_X86, cs.CS_MODE_32)
     decoder.detail = True
@@ -157,6 +163,51 @@ def probe_worker_entry(source_machine, *, entry, parameter, thread_id, image_ran
                 stop('callback_error', callback_error=type(error).__name__)
         return wrapper
 
+    def model_tick_count(machine, address):
+        # GetTickCount is a no-argument DWORD API. This is an explicit finite
+        # fixture, not execution of its code or a measurement of any clock.
+        # https://learn.microsoft.com/en-us/windows/win32/api/sysinfoapi/nf-sysinfoapi-gettickcount
+        if state['instructions'] >= max_instructions:
+            stop('instruction_limit')
+            return
+        if len(tick_count_events) >= len(tick_count_values):
+            stop('tick_count_fixture_exhausted', boundary=stops[address], boundary_address=hex(address))
+            return
+        current_sp = machine.reg_read(x86.UC_X86_REG_ESP)
+        error = None
+        return_address = None
+        if not STACK <= current_sp <= STACK + STACK_SIZE - 4:
+            error = 'Return word is outside the synthetic worker stack'
+        else:
+            try:
+                return_address = struct.unpack('<I', machine.mem_read(current_sp, 4))[0]
+            except uc.UcError:
+                error = 'Synthetic worker return word is unreadable'
+        if error is None:
+            if not _overlaps(return_address, 1, images):
+                error = 'Return target is outside input images'
+            elif (_overlaps(return_address, 1, references + creator + opaque + FIXTURES)
+                    or return_address in stops):
+                error = 'Return target intersects a forbidden range or API boundary'
+            elif not any(start <= return_address <= last and permissions & uc.UC_PROT_EXEC
+                         for start, last, permissions in machine.mem_regions()):
+                error = 'Return target is not in executable mapped memory'
+        if error is not None:
+            stop('tick_count_fixture_error', boundary=stops[address], boundary_address=hex(address),
+                 fixture_error=error, stack_address=hex(current_sp),
+                 return_address=hex(return_address) if return_address is not None else None)
+            return
+        value_index = len(tick_count_events)
+        value = tick_count_values[value_index]
+        machine.reg_write(x86.UC_X86_REG_EAX, value)
+        machine.reg_write(x86.UC_X86_REG_ESP, current_sp + 4)
+        machine.reg_write(x86.UC_X86_REG_EIP, return_address)
+        tick_count_events.append(dict(address=hex(address), instruction_index=state['instructions'],
+                                      value_index=value_index, value=hex(value), return_address=hex(return_address)))
+        # A model event is not an executed instruction and consumes no CPU
+        # instruction slot. The finite sequence bounds repeated model events.
+        machine.emu_stop()
+
     @guarded
     def instruction(machine, address, size, _):
         if state['reason'] != 'running':
@@ -175,6 +226,11 @@ def probe_worker_entry(source_machine, *, entry, parameter, thread_id, image_ran
             stop('returned', stack_cleanup_matches=machine.reg_read(x86.UC_X86_REG_ESP) == sp + 8)
             return
         if address in stops:
+            module, separator, function = stops[address].partition('!')
+            if (tick_count_values and separator and module.lower() == 'kernel32.dll'
+                    and function == 'GetTickCount'):
+                model_tick_count(machine, address)
+                return
             stop('external_boundary', boundary=stops[address], boundary_address=hex(address))
             return
         if _overlaps(address, size, references):
@@ -307,8 +363,11 @@ def probe_worker_entry(source_machine, *, entry, parameter, thread_id, image_ran
                               stack_base=hex(STACK), stack_size=STACK_SIZE, tib=hex(TIB),
                               sentinel=hex(SENTINEL), fs_selector='0x13', ss_selector='0x8',
                               mxcsr='0x1f80', other_cpu_state='Fresh Unicorn defaults, not creator state',
-                              rdtsc_values=[hex(value) for value in rdtsc_values]),
+                              rdtsc_values=[hex(value) for value in rdtsc_values],
+                              tick_count_values=[hex(value) for value in tick_count_values]),
                  rdtsc_events=rdtsc_events,
+                 tick_count_events=tick_count_events,
+                 model_event_count=len(tick_count_events),
                  source_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
                  versions=dict(unicorn=uc.__version__, capstone=cs.__version__),
                  observer='python', resume_thread_success=False,
@@ -318,6 +377,6 @@ def probe_worker_entry(source_machine, *, entry, parameter, thread_id, image_ran
                                     protected=[(hex(p), n) for p, n in opaque]),
                  stop_address_count=len(stops),
                  semantics='Artificial entry dependency probe, not a native worker or ResumeThread success',
-                 instruction_count_semantics='Approved instruction hook entries including modeled RDTSC; event instruction_index is zero-based; faulting/memory-stopped instruction may be counted, boundary instructions excluded',
-                 limitations='Stopped source required; independent byte/permission clone, no source CPU/model state inherited; explicit stdcall registers/stack/NT_TIB; optional finite RDTSC sequence writes EDX:EAX without executing RDTSC, preserving flags, no clock progression or native timing; no APIs, TLS, DllMain, callbacks, scheduling, exception dispatch, host/device access or main continuation; memory guards are pre-access observations, not proof of instruction commit; only explicit input-image code allowed; first boundary depends on these artificial assumptions')
+                 instruction_count_semantics='Approved instruction hook entries including modeled RDTSC; event instruction_index is zero-based; faulting/memory-stopped instruction may be counted; API boundary/model events excluded and counted separately',
+                 limitations='Stopped source required; independent byte/permission clone, no source CPU/model state inherited; explicit stdcall registers/stack/NT_TIB; optional finite RDTSC sequence writes EDX:EAX without executing RDTSC, preserving flags, no clock progression or native timing; optional finite kernel32.dll!GetTickCount fixture writes EAX, pops a validated own-stack return and changes EIP only, preserving flags and memory; no native clock or automatic timestamp progression; no other APIs, TLS, DllMain, callbacks, scheduling, exception dispatch, host/device access or main continuation; memory guards are pre-access observations, not proof of instruction commit; only explicit input-image code allowed; first boundary depends on these artificial assumptions')
     return state

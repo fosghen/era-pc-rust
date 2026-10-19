@@ -64,7 +64,7 @@ def trace(path, export, argument, max_instructions, max_seconds, modules=(), thr
           observer='python', memory_observer=None, module_bases=(), api_set_schema=None, computer_name=None,
           get_version_result=None, suspended_threads=False, create_thread_interior=False, event_state=False,
           worker_entry_probe=False, worker_rdtsc_sequences=(), worker_max_instructions=100000,
-          worker_max_seconds=2):
+          worker_max_seconds=2, worker_tick_count_values=()):
     validate_limits(max_instructions, max_seconds)
     if observer not in ('python', 'rust'):
         raise ValueError('Observer must be python or rust')
@@ -93,6 +93,11 @@ def trace(path, export, argument, max_instructions, max_seconds, modules=(), thr
         raise ValueError(f'At most three nonempty worker RDTSC sequences of 1..{WORKER_TIMESTAMP_LIMIT} uint64 values')
     if worker_rdtsc_sequences and not worker_entry_probe:
         raise ValueError('Worker RDTSC sequences require the explicit worker-entry probe')
+    if (type(worker_tick_count_values) not in (tuple, list) or len(worker_tick_count_values) > 16
+            or any(type(v) is not int or not 0 <= v < 2**32 for v in worker_tick_count_values)):
+        raise ValueError('Worker GetTickCount fixture requires at most 16 uint32 values')
+    if worker_tick_count_values and not worker_entry_probe:
+        raise ValueError('Worker GetTickCount fixture requires the explicit worker-entry probe')
     if (type(worker_max_instructions) is not int or not 1 <= worker_max_instructions <= 1_000_000
             or type(worker_max_seconds) not in (int, float) or not 0 < worker_max_seconds <= 10):
         raise ValueError('Worker probe budgets: 1..1000000 integer instructions and 0..10 seconds')
@@ -668,7 +673,8 @@ def trace(path, export, argument, max_instructions, max_seconds, modules=(), thr
                         reference_ranges=[(m['base'], m['size']) for m in module_model.modules.values()],
                         creator_tib_range=(TIB_BASE, 0x1000),
                         protected_ranges=[(address, 24) for address in startup.locks], rdtsc_values=sequence,
-                        max_instructions=worker_max_instructions, max_seconds=worker_max_seconds)
+                        max_instructions=worker_max_instructions, max_seconds=worker_max_seconds,
+                        tick_count_values=worker_tick_count_values)
                 except Exception as error:
                     # Preserve the expensive parent stop even if the optional
                     # disposable diagnostic fails. Never continue its ResumeThread.
@@ -720,6 +726,8 @@ def main():
                         help='Separate child instruction budget, 1..1000000; default 100000')
     parser.add_argument('--worker-max-seconds', type=float, default=2,
                         help='Separate child execution budget, positive and at most 10 seconds; default 2')
+    parser.add_argument('--worker-tick-count', type=integer, action='append', default=[],
+                        help='Explicit finite GetTickCount DWORD fixture, repeat at most 16 times; child only, requires worker-entry probe')
     parser.add_argument('--create-thread-interior', action='store_true',
                         help='Opt-in validated kernel32 CreateThread +11 partial-frame profile; requires suspended threads and reference modules')
     parser.add_argument('--critical-section-layout', choices=['win10-x86-19041'],
@@ -757,7 +765,8 @@ def main():
                    args.host_after_attach, args.critical_section_layout, args.observer, args.memory_observer,
                    args.module_base, args.api_set_schema, args.computer_name, args.get_version_result,
                    args.suspended_threads, args.create_thread_interior, args.event_state, args.worker_entry_probe,
-                   args.worker_rdtsc_sequence, args.worker_max_instructions, args.worker_max_seconds)
+                   args.worker_rdtsc_sequence, args.worker_max_instructions, args.worker_max_seconds,
+                   args.worker_tick_count)
     with args.report.open('x', encoding='utf-8') as output:
         json.dump(result, output, indent=2, ensure_ascii=False)
         output.write('\n')

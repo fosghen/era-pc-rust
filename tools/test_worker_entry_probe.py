@@ -277,6 +277,114 @@ class WorkerProbeTests(unittest.TestCase):
             self.assertEqual(result['reason'], 'returned')
             self.assertEqual(result['limits']['instructions'], value)
 
+    def tick_call(self, prefix=b'', suffix=bytes.fromhex('c20400')):
+        self.source.mem_write(0x11000, bytes.fromhex('b8ffffffff c3'))
+        call_address = 0x10000 + len(prefix)
+        return prefix + b'\xe8' + struct.pack('<i', 0x11000 - call_address - 5) + suffix
+
+    def test_tick_default_empty_and_strict_api_allowlist(self):
+        code = self.tick_call()
+        for values in ((), []):
+            result = self.run_probe(code, stop_addresses={0x11000: 'KERNEL32.dll!GetTickCount'},
+                                    tick_count_values=values)
+            self.assertEqual(result['reason'], 'external_boundary')
+            self.assertEqual(result['instructions'], 1)
+            self.assertEqual(result['tick_count_events'], [])
+        for name in ('kernelbase.dll!GetTickCount', 'api-ms-win-core-sysinfo-l1-1-0.dll!GetTickCount',
+                     'otherkernel32.dll!GetTickCount', 'kernel32.dll!GetTickCount64',
+                     'kernel32.dll!gettickcount', 'GetTickCount', 'kernel32.dll!GetTickCount!suffix'):
+            with self.subTest(name=name):
+                result = self.run_probe(code, stop_addresses={0x11000: name}, tick_count_values=(1,))
+                self.assertEqual(result['reason'], 'external_boundary')
+                self.assertEqual(result['tick_count_events'], [])
+
+    def test_tick_single_value_dword_flags_and_separate_count(self):
+        code = self.tick_call(bytes.fromhex('31c0 f9'))
+        for value in (0, 0x12345678, 0xffffffff):
+            with self.subTest(value=value):
+                reference, result = self.compare_decoder_modes(code,
+                    stop_addresses={0x11000: 'KeRnEl32.DlL!GetTickCount'}, tick_count_values=[value],
+                    max_instructions=1000000, max_seconds=10)
+                self.assertEqual(result['reason'], 'returned')
+                self.assertEqual(result['registers']['eax'], hex(value))
+                self.assertEqual(result['registers']['eflags'], '0x47')
+                self.assertEqual(result['registers']['edx'], '0x0')
+                self.assertEqual(result['instructions'], 4)
+                self.assertTrue(result['stack_cleanup_matches'])
+                self.assertEqual(result['model_event_count'], 1)
+                self.assertEqual(result['tick_count_events'], [dict(address='0x11000', instruction_index=3,
+                    value_index=0, value=hex(value), return_address='0x10008')])
+                self.assertEqual(result['fixture']['tick_count_values'], [hex(value)])
+
+    def test_tick_return_does_not_modify_stack_word(self):
+        # After the model pop, the old return word remains at ESP-4.
+        code = self.tick_call(suffix=bytes.fromhex('8b5424fc c20400'))
+        result = self.run_probe(code, stop_addresses={0x11000: 'kernel32.dll!GetTickCount'},
+                                tick_count_values=[123])
+        self.assertEqual(result['reason'], 'returned')
+        self.assertEqual(result['registers']['eax'], '0x7b')
+        self.assertEqual(result['registers']['edx'], '0x10005')
+
+    def test_tick_exhaustion_preserves_last_value_and_frame(self):
+        code = self.tick_call(suffix=bytes.fromhex('ebf9'))
+        for values in ((123,), tuple(range(16))):
+            reference, result = self.compare_decoder_modes(code,
+                stop_addresses={0x11000: 'kernel32.dll!GetTickCount'}, tick_count_values=values)
+            self.assertEqual(result['reason'], 'tick_count_fixture_exhausted')
+            self.assertEqual(result['registers']['eax'], hex(values[-1]))
+            self.assertEqual(result['registers']['eip'], '0x11000')
+            self.assertEqual(result['registers']['esp'], hex(probe.STACK + probe.STACK_SIZE - 20))
+            self.assertEqual(result['stack_observation']['words'][0], '0x10005')
+            self.assertEqual(result['instructions'], len(values) * 2 + 1)
+            self.assertEqual(result['model_event_count'], len(values))
+            self.assertEqual([event['value_index'] for event in result['tick_count_events']], list(range(len(values))))
+
+    def assert_tick_rejected_atomically(self, code, **options):
+        options['stop_addresses'] = {0x11000: 'kernel32.dll!GetTickCount'}
+        baseline = self.run_probe(code, **options)
+        reference, result = self.compare_decoder_modes(code, tick_count_values=(99,), **options)
+        self.assertEqual(baseline['reason'], 'external_boundary')
+        self.assertEqual(result['reason'], 'tick_count_fixture_error')
+        self.assertEqual(result['registers'], baseline['registers'])
+        self.assertEqual(result['instructions'], baseline['instructions'])
+        self.assertEqual(result['stack_observation'], baseline['stack_observation'])
+        self.assertEqual(result['tick_count_events'], [])
+        self.assertEqual(result['model_event_count'], 0)
+
+    def test_tick_invalid_stack_is_atomic(self):
+        for address in (0, 0x10000, probe.STACK - 1, probe.STACK + probe.STACK_SIZE - 3):
+            with self.subTest(address=address):
+                # Set ESP without accessing it, then JMP (not CALL) to the API.
+                code = b'\xbc' + struct.pack('<I', address)
+                code += b'\xe9' + struct.pack('<i', 0x11000 - 0x1000a)
+                self.assert_tick_rejected_atomically(code)
+
+    def test_tick_invalid_return_is_atomic(self):
+        self.source.mem_map(0x12000, 0x1000, uc.UC_PROT_READ)
+        cases = [(0, {}), (0x11000, dict(image_ranges=((0x10000, 0x2000),))),
+                 (probe.SENTINEL, {}), (0x10080, dict(protected_ranges=((0x10080, 24),))),
+                 (0x10090, dict(reference_ranges=((0x10090, 24),))),
+                 (0x100a0, dict(creator_tib_range=(0x100a0, 24))),
+                 (0x12000, dict(image_ranges=((0x10000, 0x3000),))),
+                 (0x13000, dict(image_ranges=((0x10000, 0x5000),)))]
+        for target, options in cases:
+            with self.subTest(target=target, options=options):
+                code = b'\x68' + struct.pack('<I', target)
+                code += b'\xe9' + struct.pack('<i', 0x11000 - 0x1000a)
+                self.assert_tick_rejected_atomically(code, **options)
+
+    def test_tick_sequence_validation_and_instruction_budget(self):
+        for values in (None, True, '1', (True,), (-1,), (2**32,), (1.0,), [0] * 17, iter([1])):
+            with self.subTest(values=repr(values)), self.assertRaisesRegex(ValueError, 'uint32'):
+                self.run_probe(b'\xc3', tick_count_values=values)
+        code = self.tick_call()
+        result = self.run_probe(code, tick_count_values=[1], max_instructions=1,
+                               stop_addresses={0x11000: 'kernel32.dll!GetTickCount'})
+        self.assertEqual(result['reason'], 'instruction_limit')
+        self.assertEqual(result['instructions'], 1)
+        self.assertEqual(result['tick_count_events'], [])
+        self.assertEqual(result['registers']['eax'], '0x0')
+
 
 if __name__ == '__main__':
     unittest.main()

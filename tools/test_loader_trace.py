@@ -79,6 +79,13 @@ def stopped_api_caller(api, arguments, payload=b''):
 
 
 class LoaderTraceTests(unittest.TestCase):
+    def test_worker_tick_fixture_requires_explicit_bounded_values(self):
+        for values in (None, True, '1', [True], [-1], [2**32], [1.0], [0] * 17):
+            with self.subTest(values=values), self.assertRaisesRegex(ValueError, 'at most 16 uint32'):
+                self.run_image(synthetic_pe(b'\xc3'), worker_tick_count_values=values)
+        with self.assertRaisesRegex(ValueError, 'GetTickCount fixture requires the explicit'):
+            self.run_image(synthetic_pe(b'\xc3'), worker_tick_count_values=[123456])
+
     def test_worker_budgets_are_bounded_and_require_explicit_probe(self):
         for options in (dict(worker_max_instructions=0), dict(worker_max_instructions=1000001),
                         dict(worker_max_instructions=True), dict(worker_max_seconds=True),
@@ -879,6 +886,24 @@ class LoaderTraceTests(unittest.TestCase):
         self.assertEqual(scenarios[0]['clone_manifest'], scenarios[1]['clone_manifest'])
         self.assertEqual(matrix['startup_model'], parent['startup_model'])
         self.assertEqual(matrix['registers'], parent['registers'])
+        # Worker imports one zero-argument clock API. Parent stays stopped at
+        # ResumeThread regardless of the separate child's explicit fixture.
+        for table in (0x400, 0x420):
+            struct.pack_into('<4I', data, table, 0x1240, 0x1260, 0x1280, 0)
+        name = b'\0\0GetTickCount\0'
+        data[0x480:0x480+len(name)] = name
+        data[0x280:0x289] = bytes.fromhex('ff1528124000 c20400')
+        clock_stopped = self.run_image(data, worker_entry_probe=True, **options)
+        clock_modeled = self.run_image(data, worker_entry_probe=True,
+                                      worker_tick_count_values=[0xffffffff], **options)
+        self.assertEqual(clock_stopped['worker_entry_probe']['boundary'], 'KERNEL32.dll!GetTickCount')
+        clock_child = clock_modeled['worker_entry_probe']
+        self.assertEqual(clock_child['reason'], 'returned')
+        self.assertEqual(clock_child['registers']['eax'], '0xffffffff')
+        self.assertEqual(len(clock_child['tick_count_events']), 1)
+        for key in ('registers', 'instructions', 'startup_model'):
+            self.assertEqual(clock_modeled[key], clock_stopped[key])
+        self.assertFalse(clock_child['parent_resume_performed'])
         unknown = self.run_image(stopped_api_caller('ResumeThread', [0x1234]),
                                  worker_entry_probe=True, **options)
         self.assertFalse(unknown['worker_entry_probe']['attempted'])
