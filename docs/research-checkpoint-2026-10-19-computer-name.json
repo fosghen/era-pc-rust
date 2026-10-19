@@ -1,0 +1,91 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-19",
+  "parent_commit": "5e11c2b6380f0f96f55c7d96f0740ebc4247e100",
+  "path_base": "workspace root containing era-rust and reverse_engineering",
+  "status": "Explicit computer-name fixture reaches GetVersion; DLL SHA-256 wrapper confirmed on synthetic inputs.",
+  "files": [
+    {
+      "path": "era-rust/tools/loader_trace.py",
+      "sha256": "6fbd49cd1a715c57d87bfb35814f6a8243339ac6f88ac989f7fa6f40c4f4b73d"
+    },
+    {
+      "path": "era-rust/tools/test_loader_trace.py",
+      "sha256": "f63b092caa4713095a4211d5f307787ad1b9e95f0ef2d5f3f5e30746d7cd685f"
+    },
+    {
+      "path": "era-rust/tools/startup_model.py",
+      "sha256": "2dfa1e9307f410f3ebd807d2c09e93427a6181661e0494f9b546eb729da403f7"
+    },
+    {
+      "path": "era-rust/tools/test_startup_model.py",
+      "sha256": "657c0511ad97eb1ac9a767e9c750f10c4d014717ac1ab8d9c440735633d03831"
+    },
+    {
+      "path": "era-rust/tools/pe_module_model.py",
+      "sha256": "5f9a7221a66e96ef577b142ae6b314db59dac32c624439261ca93d69c191c705"
+    },
+    {
+      "path": "era-rust/tools/api_set_model.py",
+      "sha256": "e20cbe35f772b4a5ad5b025b54ec4db2a56f9d742b3385ef7cb5febbe25b863e"
+    },
+    {
+      "path": "era-rust/tools/native_observer.py",
+      "sha256": "a366daa8829f79054e79ff220748b8710672056b7a8e8f9d195801ef8f9a666c"
+    },
+    {
+      "path": "era-rust/tools/trace_observer.rs",
+      "sha256": "e7511d3a288ac27cc73b9d0f2718f937d82cf5368600cc48c3d75adce9a55adf"
+    },
+    {
+      "path": "era-rust/tools/x86_thread_model.py",
+      "sha256": "add7d065ee124b441184629cdd9d87fead60ce3639e310c2bbccc1d0037b4b8a"
+    },
+    {
+      "path": "era-rust/tools/nls_model.py",
+      "sha256": "8849236f1ddef7da6c24844933c8e051f1164b6785768347f74149acca5cee49"
+    },
+    {
+      "path": "era-rust/tools/requirements-research.txt",
+      "sha256": "0052d0d49b9d27a7f6f0f7420dcd299548bd66b9aa16402938bce076cc064d3b"
+    },
+    {
+      "path": "era-rust/tools/verify_checkpoint.py",
+      "sha256": "235a1c96268395f8e2bcd240403de5864929dcd796e9d667ae26fca3f1040696"
+    },
+    {
+      "path": "era-rust/docs/HOST_LINKED_RESEARCH.md",
+      "sha256": "fd88b8a6241bbe4e4421d6d938bdcf54ea186f9f3d465c4035d0c986a2aca45d"
+    },
+    {
+      "path": "reverse_engineering/perv_computer_name_4b_01.json",
+      "sha256": "b63003bc663e1837104f4bfb92b73136b184d2ec7dd94cc5466fca25b15e1919"
+    },
+    {
+      "path": "reverse_engineering/probe_dll_sha256_wrapper.py",
+      "sha256": "8434ad8a7cc66976be97cfeb235285e7739afa011f4fc37a5fc597be7c0ae08d"
+    },
+    {
+      "path": "reverse_engineering/dll_sha256_wrapper_probe_01.json",
+      "sha256": "93a0356215d200624fd5c0a8cb692e5252801c982ca317ae0b94104fc0ef00e9"
+    }
+  ],
+  "experiment": {
+    "report": "perv_computer_name_4b_01.json",
+    "instructions": 3492948667,
+    "elapsed_seconds": 253.1053,
+    "reason": "external_import",
+    "external_import": "KERNEL32.dll!GetVersion",
+    "return_address": "0x10034638",
+    "computer_name_fixture": "ERA-RE-LAB",
+    "tests_passed": 282,
+    "dll_sha256_probe": "dll_sha256_wrapper_probe_01.json",
+    "sha256_cases_passed": 8
+  },
+  "limitations": [
+    "Explicit synthetic environment, not native Windows or real host identity",
+    "RDTSC and residual stack bytes not controlled; runs are not deterministic",
+    "No license success, bypass or USB interaction established",
+    "Own source and metadata only; no vendor image bytes or memory dumps"
+  ]
+}

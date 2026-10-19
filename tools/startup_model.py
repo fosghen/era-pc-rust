@@ -47,15 +47,18 @@ class StartupModel:
                  'GetCurrentProcess': 0, 'FlushInstructionCache': 3,
                  'GetUserDefaultLangID': 0, 'DuplicateHandle': 7, 'CloseHandle': 1,
                  'VirtualAlloc': 4, 'VirtualFree': 3, 'GetSystemTime': 1,
-                 'GetComputerNameA': 2, 'GetComputerNameW': 2}
+                 'GetComputerNameA': 2, 'GetComputerNameW': 2, 'GetVersion': 0}
 
     def __init__(self, machine, nls_codepage=None, nls_sort=None, nls_case=None, critical_section_layout=None,
-                 memory_hooks=None, computer_name=None):
+                 memory_hooks=None, computer_name=None, get_version_result=None):
         if critical_section_layout not in (None, 'win10-x86-19041'):
             raise ValueError('Unknown critical-section layout profile')
         if computer_name is not None and (not isinstance(computer_name, str)
                 or re.fullmatch(r'[A-Z0-9-]{1,15}', computer_name, flags=re.ASCII) is None):
             raise ValueError('Computer-name fixture must be 1..15 uppercase ASCII letters, digits or hyphens')
+        if get_version_result is not None and (type(get_version_result) is not int
+                or not 0 <= get_version_result <= 0x7fffffff):
+            raise ValueError('GetVersion fixture must be an integer packed NT DWORD in 0..0x7fffffff')
         self.critical_section_layout = critical_section_layout
         self.machine = machine
         self.nls = NlsModel(nls_codepage, nls_sort, nls_case)
@@ -63,6 +66,7 @@ class StartupModel:
         self.profile = dict(filetime=133485408000000000, performance_counter=123456789,
                             process_id=4096, thread_id=4097, tick_count=123456,
                             computer_name=computer_name,
+                            get_version_result=get_version_result,
                             pointer_xor_fixture=0x5a39c6e1,
                             command_line='C:\\era-lab\\host.exe', environment={},
                             startup_flags=0, inherited_handles=False, standard_handles='absent',
@@ -393,6 +397,18 @@ class StartupModel:
         return 1
 
     def invoke(self, function, args, event):
+        if function == 'GetVersion':
+            # https://learn.microsoft.com/en-us/windows/win32/api/sysinfoapi/nf-sysinfoapi-getversion
+            # Manifest-sensitive on Windows. This is an explicitly supplied
+            # packed value, not an OS query or a manifest-derived prediction.
+            result = self.profile['get_version_result']
+            if result is None:
+                raise ValueError('GetVersion fixture is not explicitly selected')
+            event['get_version_result_fixture'] = hex(result)
+            event['decoded_version'] = dict(major=result & 0xff, minor=(result >> 8) & 0xff,
+                                            build=result >> 16, nt_high_bit_clear=True)
+            event['assumption'] = 'Explicit packed NT DWORD; no host version or manifest interpretation; not native compatibility evidence'
+            return result
         if function in ('GetComputerNameA', 'GetComputerNameW'):
             return self.computer_name_call(function, args, event)
         if function in ('VirtualAlloc', 'VirtualFree'):
@@ -621,6 +637,8 @@ class StartupModel:
             return False, None
         if function in ('GetComputerNameA', 'GetComputerNameW') and self.profile['computer_name'] is None:
             return False, None
+        if function == 'GetVersion' and self.profile['get_version_result'] is None:
+            return False, None
         event = dict(api=name, basis='Explicit synthetic startup profile; not a native Windows observation')
         if len(self.events) >= 4096:
             return False, dict(api=name, model_error='Startup event limit')
@@ -659,4 +677,4 @@ class StartupModel:
                     memory_operation_regions=[dict(base=hex(base), size=size)
                         for base, size in ([self.primary_region] if self.primary_region else []) + self.additional_image_regions],
                     heap_arena=dict(base=hex(HEAP_BASE), capacity=HEAP_CAPACITY, used=self.cursor - HEAP_BASE),
-                    limitations='Explicit synthetic process profile; computer name absent unless explicitly supplied, capacity <=4096 TCHARs, only valid disjoint buffers, not host identity; reversible XOR pointer fixture, single-thread locks/atomics and bounded heaps; locks opaque by default, optional measured read-only layout for uncontended spin 0/4000 only; copied locks are not live objects; 64 TLS/FLS slots each, no direct TEB storage or callback dispatch; unknown last-error reads stop; only the named registry key is assumed absent; NLS data requires explicit files; page permissions apply to explicit input images and live virtual allocations; freed heap blocks not reused/unmapped, released virtual allocations unmapped and not reused; unspecified heap allocation bytes A5; no host API, device, license, filesystem operations, scheduling or time progression; API writes logged separately from CPU writes')
+                    limitations='Explicit synthetic process profile; GetVersion absent unless an explicit packed NT DWORD is supplied, no host version or manifest interpretation; computer name absent unless explicitly supplied, capacity <=4096 TCHARs, only valid disjoint buffers, not host identity; reversible XOR pointer fixture, single-thread locks/atomics and bounded heaps; locks opaque by default, optional measured read-only layout for uncontended spin 0/4000 only; copied locks are not live objects; 64 TLS/FLS slots each, no direct TEB storage or callback dispatch; unknown last-error reads stop; only the named registry key is assumed absent; NLS data requires explicit files; page permissions apply to explicit input images and live virtual allocations; freed heap blocks not reused/unmapped, released virtual allocations unmapped and not reused; unspecified heap allocation bytes A5; no host API, device, license, filesystem operations, scheduling or time progression; API writes logged separately from CPU writes')

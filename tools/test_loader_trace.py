@@ -679,6 +679,23 @@ class LoaderTraceTests(unittest.TestCase):
                 self.assertEqual(event['required_tchars'], 11)
                 self.assertEqual(event['buffer_capacity_tchars'], capacity)
 
+    def test_get_version_is_an_explicit_packed_result_not_host_os_detection(self):
+        data = stopped_api_caller('GetVersion', [])
+        with self.assertRaisesRegex(ValueError, 'requires the explicit startup model'):
+            self.run_image(data, get_version_result=0x4a61000a)
+        disabled = self.run_image(data, startup_model=True)
+        self.assertEqual(disabled['reason'], 'external_import')
+        self.assertEqual(disabled['external_import'], 'KERNEL32.dll!GetVersion')
+        for packed in (0, 0x4a61000a, 0x7fffffff):
+            result = self.run_image(data, startup_model=True, get_version_result=packed)
+            self.assertEqual(result['reason'], 'CPU_interrupt')
+            self.assertEqual(result['registers']['eax'], hex(packed))
+            self.assertEqual(result['registers']['esp'], '0x70008000')
+            self.assertTrue(result['input_unchanged'])
+            self.assertEqual(result['startup_model']['profile']['get_version_result'], packed)
+            self.assertEqual(result['startup_model']['events'][0]['arguments'], [])
+            self.assertNotIn('memory_writes', result['startup_model']['events'][0])
+
     def test_create_file_arguments_are_metadata_only(self):
         arguments = [0x401200, 0xc0000000, 3, 0x12345000, 3, 0x40000080, 0xffffffff]
         for api, filename, encoding in [('CreateFileA', r'\\.\SyntheticDevice', 'ascii'),

@@ -22,7 +22,7 @@ class StartupModelTests(unittest.TestCase):
         self.machine.mem_write(0x10800, struct.pack('<' + 'I' * (1 + len(args)), 0x12345678, *args))
         return self.model.handle(module + '!' + name)
 
-    def computer_fixture(self, name='ERA-RE-LAB'):
+    def explicit_fixture(self, **options):
         self.machine = uc.Uc(uc.UC_ARCH_X86, uc.UC_MODE_32)
         self.machine.mem_map(0x10000, 0x3000)
         memory_hooks = None
@@ -31,7 +31,60 @@ class StartupModelTests(unittest.TestCase):
             memory_hooks = type(self.memory_hooks)(self.machine)
             self.memory_hooks = memory_hooks
             self.addCleanup(memory_hooks.close)
-        self.model = StartupModel(self.machine, computer_name=name, memory_hooks=memory_hooks)
+        self.model = StartupModel(self.machine, memory_hooks=memory_hooks, **options)
+
+    def computer_fixture(self, name='ERA-RE-LAB'):
+        self.explicit_fixture(computer_name=name)
+
+    def test_get_version_is_opt_in_without_host_or_manifest_lookup(self):
+        self.assertIsNone(self.model.report()['profile']['get_version_result'])
+        self.machine.reg_write(x86.UC_X86_REG_EAX, 0xdeadbeef)
+        self.assertEqual(self.call('GetVersion'), (False, None))
+        self.assertEqual(self.machine.reg_read(x86.UC_X86_REG_EAX), 0xdeadbeef)
+        self.assertEqual(self.machine.reg_read(x86.UC_X86_REG_ESP), 0x10800)
+        self.assertEqual(self.model.events, [])
+
+    def test_get_version_validates_packed_nt_dword_before_mapping(self):
+        for value in (-1, 0x80000000, 0xffffffff, 2**32, True, False, 0.0, '0x4a61000a', b'123'):
+            with self.subTest(value=value):
+                machine = uc.Uc(uc.UC_ARCH_X86, uc.UC_MODE_32)
+                with self.assertRaisesRegex(ValueError, 'GetVersion fixture'):
+                    StartupModel(machine, get_version_result=value)
+                self.assertEqual(list(machine.mem_regions()), [])
+
+    def test_get_version_returns_exact_packed_value_and_decoded_metadata(self):
+        for value, expected in [(0, (0, 0, 0)), (0x7fffffff, (255, 255, 32767)),
+                                 (0x4a61000a, (10, 0, 19041)), (0x23f00206, (6, 2, 9200))]:
+            for last_error in (0, 321, None):
+                with self.subTest(value=value, last_error=last_error):
+                    self.explicit_fixture(get_version_result=value)
+                    self.model.last_error = last_error
+                    self.machine.mem_write(0x10800, struct.pack('<I', 0x12345678))
+                    before = bytes(self.machine.mem_read(0x10000, 0x3000))
+                    ok, event = self.call('GetVersion')
+                    self.assertTrue(ok, event)
+                    self.assertEqual(self.machine.reg_read(x86.UC_X86_REG_EAX), value)
+                    self.assertEqual(self.machine.reg_read(x86.UC_X86_REG_ESP), 0x10804)
+                    self.assertEqual(self.machine.reg_read(x86.UC_X86_REG_EIP), 0x12345678)
+                    self.assertEqual(bytes(self.machine.mem_read(0x10000, 0x3000)), before)
+                    self.assertEqual(event['arguments'], [])
+                    self.assertEqual(event['result'], hex(value))
+                    self.assertEqual(event['get_version_result_fixture'], hex(value))
+                    self.assertEqual(event['decoded_version'], dict(major=expected[0], minor=expected[1],
+                                                                   build=expected[2], nt_high_bit_clear=True))
+                    self.assertNotIn('memory_writes', event)
+                    self.assertEqual(event['last_error'], last_error)
+                    self.assertEqual(self.model.last_error, last_error)
+                    self.assertEqual(self.model.report()['profile']['get_version_result'], value)
+
+    def test_get_version_does_not_enable_related_or_unknown_apis(self):
+        self.explicit_fixture(get_version_result=0x4a61000a)
+        for module, name in [('other.dll', 'GetVersion'), ('KERNEL32.dll', 'GetVersionExA'),
+                              ('KERNEL32.dll', 'GetVersionExW'), ('ntdll.dll', 'RtlGetVersion')]:
+            with self.subTest(module=module, name=name):
+                self.assertEqual(self.call(name, module=module), (False, None))
+        self.assertEqual(self.model.events, [])
+        self.assertTrue(self.call('GetVersion', module='KERNELBASE.dll')[0])
 
     def test_computer_name_is_opt_in_without_host_identity_lookup(self):
         self.assertIsNone(self.model.report()['profile']['computer_name'])
