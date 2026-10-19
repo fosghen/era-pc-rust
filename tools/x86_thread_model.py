@@ -28,6 +28,7 @@ class X86ThreadModel:
         self.stack_low, self.stack_high = stack_base, stack_base + stack_size
         self.events = []
         self.read_events = 0
+        self.thread_id_fixture = None
         for address, size in THREAD_REGIONS:
             machine.mem_map(address, size, uc.UC_PROT_READ | uc.UC_PROT_WRITE)
         # An explicit 32-bit SS is needed when loading real segment descriptors:
@@ -44,11 +45,19 @@ class X86ThreadModel:
         machine.mem_write(TIB_BASE, struct.pack('<7I', 0xffffffff, self.stack_high,
                                                self.stack_low, 0, 0, 0, TIB_BASE))
 
+    def set_thread_id_fixture(self, value):
+        if self.thread_id_fixture is not None or not 0 < value <= 0xffffffff:
+            raise ValueError('Thread ID fixture must be set once to a nonzero DWORD')
+        self.machine.mem_write(TIB_BASE + 0x24, struct.pack('<I', value))
+        self.thread_id_fixture = value
+
     def install_hooks(self, state):
         def access(machine, kind, address, size, value, _):
             offset = address - TIB_BASE
             write = kind == uc.UC_MEM_WRITE
             supported = 0 <= offset and offset + size <= (4 if write else 28)
+            if not write and self.thread_id_fixture is not None and 0x24 <= offset and offset + size <= 0x28:
+                supported = True
             if not supported:
                 state.update(reason='unsupported_thread_field', thread_access=dict(
                     offset=hex(offset), size=size, operation='write' if write else 'read',
@@ -92,5 +101,6 @@ class X86ThreadModel:
                     stack_limit=hex(self.stack_low), stack_base=hex(self.stack_high),
                     initial_exception_list='0xffffffff', final_exception_list=hex(head),
                     exception_list_writes=self.events, tib_reads=self.read_events,
+                    thread_id_fixture=self.thread_id_fixture,
                     seh_chain=chain, seh_chain_stop=chain_stop,
-                    limitations='One synthetic NT_TIB with initially empty SEH chain; only ExceptionList writable; no PEB, TLS, OS dispatch, unwind or Windows segment-selector fidelity')
+                    limitations='One synthetic NT_TIB with initially empty SEH chain; only ExceptionList writable; optional read-only x86 TEB thread ID at 0x24 comes from explicit startup fixture; no PEB, TLS, OS dispatch, unwind or Windows segment-selector fidelity')

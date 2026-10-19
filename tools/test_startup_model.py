@@ -17,10 +17,10 @@ class StartupModelTests(unittest.TestCase):
         self.machine.mem_map(0x10000, 0x3000)
         self.model = StartupModel(self.machine)
 
-    def call(self, name, *args):
+    def call(self, name, *args, module='KERNEL32.dll'):
         self.machine.reg_write(x86.UC_X86_REG_ESP, 0x10800)
         self.machine.mem_write(0x10800, struct.pack('<' + 'I' * (1 + len(args)), 0x12345678, *args))
-        return self.model.handle('KERNEL32.dll!' + name)
+        return self.model.handle(module + '!' + name)
 
     def test_clock_output_and_void_contract(self):
         self.machine.reg_write(x86.UC_X86_REG_EAX, 0xdeadbeef)
@@ -53,6 +53,51 @@ class StartupModelTests(unittest.TestCase):
         for name in ('DeviceIoControl', 'CreateFileW', 'GrdLogin'):
             self.assertEqual(self.call(name), (False, None))
         self.assertEqual(self.model.events, [])
+
+    def test_api_set_contract_is_exact_not_a_wildcard_alias(self):
+        self.machine.reg_write(x86.UC_X86_REG_ESP, 0x10800)
+        self.machine.mem_write(0x10800, struct.pack('<I', 0x12345678))
+        contract = 'api-ms-win-core-processthreads-l1-1-0.dll!'
+        self.assertTrue(self.model.handle(contract + 'GetCurrentProcess')[0])
+        self.assertEqual(self.machine.reg_read(x86.UC_X86_REG_EAX), 0xffffffff)
+        self.assertEqual(self.machine.reg_read(x86.UC_X86_REG_ESP), 0x10804)
+        for name in (contract + 'CreateThread', 'unknown.dll!GetCurrentProcess',
+                     'api-ms-win-core-processthreads-l1-1-99.dll!GetCurrentProcess'):
+            self.assertEqual(self.model.handle(name), (False, None))
+
+    def test_duplicate_current_thread_and_close_preserve_object_identity(self):
+        self.assertEqual(self.result('DuplicateHandle', 0xffffffff, 0xfffffffe, 0xffffffff, 0x11000, 1, 0, 2), 1)
+        handle = struct.unpack('<I', self.machine.mem_read(0x11000, 4))[0]
+        self.assertEqual(self.model.object_handles[handle], dict(object='current_thread', inheritable=False, active=True))
+        self.assertEqual(self.result('DuplicateHandle', 0xffffffff, handle, 0xffffffff, 0x11004, 0, 1, 2), 1)
+        second = struct.unpack('<I', self.machine.mem_read(0x11004, 4))[0]
+        self.assertNotEqual(handle, second)
+        self.assertEqual(self.result('CloseHandle', handle), 1)
+        self.assertTrue(self.model.object_handles[second]['active'])
+        self.assertFalse(self.call('CloseHandle', handle)[0])
+        self.assertFalse(self.call('DuplicateHandle', 0xffffffff, handle, 0xffffffff, 0x11000, 0, 0, 2)[0])
+
+    def test_duplicate_handle_rejects_unknown_objects_and_outputs_without_mutation(self):
+        for source, target, output, options in [(123, 0xffffffff, 0x11000, 2),
+                (0xfffffffe, 123, 0x11000, 2), (0xfffffffe, 0xffffffff, 0, 2),
+                (0xfffffffe, 0xffffffff, 0x11000, 3)]:
+            self.assertFalse(self.call('DuplicateHandle', 0xffffffff, source, target, output, 0, 0, options)[0])
+            self.assertEqual(self.model.object_handles, {})
+        self.assertFalse(self.call('CloseHandle', 0xffffffff)[0])
+
+    def test_handle_api_set_and_budget_are_explicit(self):
+        contract = 'api-ms-win-core-handle-l1-1-0.dll'
+        for _ in range(128):
+            self.assertTrue(self.call('DuplicateHandle', 0xffffffff, 0xffffffff,
+                                     0xffffffff, 0x11000, 0, 0, 2, module=contract)[0])
+        before = bytes(self.machine.mem_read(0x11000, 4))
+        ok, event = self.call('DuplicateHandle', 0xffffffff, 0xffffffff,
+                             0xffffffff, 0x11000, 0, 0, 2, module=contract)
+        self.assertFalse(ok)
+        self.assertIn('budget', event['model_error'])
+        self.assertEqual(bytes(self.machine.mem_read(0x11000, 4)), before)
+        handle = struct.unpack('<I', before)[0]
+        self.assertTrue(self.call('CloseHandle', handle, module=contract)[0])
 
     def result(self, name, *args):
         ok, event = self.call(name, *args)

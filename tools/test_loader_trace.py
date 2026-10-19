@@ -130,6 +130,42 @@ class LoaderTraceTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'require the explicit startup model'):
             self.run_image(synthetic_pe(b'\xc3'), nls_codepage='unopened-path')
 
+    def test_reference_iat_markers_stop_unknown_and_model_exact_api(self):
+        with tempfile.TemporaryDirectory(prefix='era-reference-iat-') as directory:
+            path = Path(directory) / 'reference.dll'
+            for api in ('UnknownApi', 'GetCurrentProcess'):
+                reference = resolver_caller(api=api)
+                struct.pack_into('<I', reference, 0x98 + 28, 0x60000000)
+                path.write_bytes(reference)
+                # An indirect call through the reference DLL's IAT, not its code.
+                image = synthetic_pe(bytes.fromhex('ff1560110060 c3'))
+                result = self.run_image(image, modules=[path], startup_model=True,
+                                        reference_import_markers=True)
+                if api == 'UnknownApi':
+                    self.assertEqual(result['reason'], 'external_import')
+                    self.assertEqual(result['external_import'], 'KERNEL32.dll!UnknownApi')
+                    self.assertEqual(result['instructions'], 1)
+                else:
+                    self.assertEqual(result['reason'], 'returned')
+                    self.assertEqual(result['registers']['eax'], '0xffffffff')
+                bindings = result['module_model']['reference_import_bindings']
+                self.assertEqual(len(bindings), 1)
+                self.assertEqual(bindings[0]['iat_va'], '0x60001160')
+                self.assertTrue(result['module_model']['modules'][0]['input_unchanged'])
+                self.assertEqual(path.read_bytes(), reference)
+            write = synthetic_pe(bytes.fromhex('c7056011006000000000 c3'))
+            rejected = self.run_image(write, modules=[path], reference_import_markers=True)
+            self.assertEqual(rejected['reason'], 'unmapped_or_protected_memory')
+            self.assertEqual(rejected['access'], uc.UC_MEM_WRITE_PROT)
+
+    def test_reference_marker_option_requires_modules_and_reserves_address(self):
+        with self.assertRaisesRegex(ValueError, 'require explicit modules'):
+            self.run_image(synthetic_pe(b'\xc3'), reference_import_markers=True)
+        data = synthetic_pe(b'\xc3')
+        struct.pack_into('<I', data, 0x98 + 28, 0x75000000)
+        with self.assertRaisesRegex(ValueError, 'overlaps trace harness'):
+            self.run_image(data, modules=['never-opened.dll'], reference_import_markers=True)
+
     def test_observations_and_watch_do_not_export_code_bytes(self):
         data = synthetic_pe(bytes.fromhex('c6052010400090 c3'))
         result = self.run_image(data, observe=[0x401000], watch=[(0x401020, 16)])
@@ -170,6 +206,23 @@ class LoaderTraceTests(unittest.TestCase):
         result = self.run_image(synthetic_pe(bytes.fromhex('a100000000 c3')), thread_model=True)
         self.assertEqual(result['reason'], 'unmapped_or_protected_memory')
         self.assertEqual(result['memory_address'], '0x0')
+
+    def test_copied_thread_id_reader_requires_and_matches_startup_fixture(self):
+        data = synthetic_pe(bytes.fromhex('64a118000000 8b4024 c3'))
+        missing = self.run_image(data, thread_model=True)
+        self.assertEqual(missing['reason'], 'unsupported_thread_field')
+        self.assertEqual(missing['thread_access']['offset'], '0x24')
+        result = self.run_image(data, thread_model=True, startup_model=True)
+        self.assertEqual(result['reason'], 'returned')
+        self.assertEqual(int(result['registers']['eax'], 16), result['startup_model']['profile']['thread_id'])
+        self.assertEqual(result['thread_model']['thread_id_fixture'], 4097)
+
+    def test_thread_id_field_is_read_only_and_neighbors_remain_unknown(self):
+        for code, offset in [('64c7052400000001000000 c3', '0x24'),
+                             ('64a120000000 c3', '0x20'), ('64a128000000 c3', '0x28')]:
+            result = self.run_image(synthetic_pe(bytes.fromhex(code)), thread_model=True, startup_model=True)
+            self.assertEqual(result['reason'], 'unsupported_thread_field')
+            self.assertEqual(result['thread_access']['offset'], offset)
 
     def test_thread_unknown_peb_field_is_not_zero_filled(self):
         result = self.run_image(synthetic_pe(bytes.fromhex('64a130000000 cc')), thread_model=True)

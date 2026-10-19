@@ -12,6 +12,8 @@ import pefile
 import unicorn as uc
 from unicorn import x86_const as x86
 
+REFERENCE_IMPORT_REGIONS = [(0x75000000, 0x100000)]
+
 
 def ascii_z(machine, address, limit=260):
     if not address:
@@ -38,13 +40,24 @@ def utf16_z(machine, address, limit=260):
 
 
 class ModuleModel:
-    def __init__(self, machine, paths, occupied):
+    def __init__(self, machine, paths, occupied, import_markers=False):
         self.machine = machine
         self.modules = {}
         self.events = []
         self.observed_calls = 0
         self.address_names = {}
         self.reserved = list(occupied)
+        self.import_bindings = []
+        bound_slots = set()
+        self.import_markers_enabled = import_markers
+        if import_markers:
+            start, length = REFERENCE_IMPORT_REGIONS[0]
+            if any((a, n) != (start, length) and start < a + n and start + length > a
+                   for a, n in self.reserved):
+                raise ValueError('Reference import markers overlap reserved memory')
+            machine.mem_map(start, length, uc.UC_PROT_READ | uc.UC_PROT_EXEC)
+            if (start, length) not in self.reserved:
+                self.reserved.append((start, length))
         for path in paths:
             path = Path(path)
             name = path.name.lower()
@@ -60,11 +73,29 @@ class ModuleModel:
                 raise ValueError('Invalid module address range')
             if any(base < start + length and base + size > start for start, length in self.reserved):
                 raise ValueError('Module overlaps existing memory; relocation not modeled')
-            image = pe.get_memory_mapped_image()
+            image = bytearray(pe.get_memory_mapped_image())
             if len(image) > size:
                 raise ValueError('Mapped module exceeds declared size')
+            if import_markers:
+                for descriptor in getattr(pe, 'DIRECTORY_ENTRY_IMPORT', []):
+                    for imp in descriptor.imports:
+                        marker = REFERENCE_IMPORT_REGIONS[0][0] + 16 * len(self.import_bindings)
+                        if marker >= sum(REFERENCE_IMPORT_REGIONS[0]):
+                            raise ValueError('Reference import marker budget exceeded')
+                        offset = imp.address - base
+                        if not 0 <= offset <= len(image) - 4:
+                            raise ValueError('Reference IAT outside mapped image')
+                        symbol = imp.name.decode('ascii') if imp.name else f'ordinal:{imp.ordinal}'
+                        imported_name = descriptor.dll.decode('ascii') + '!' + symbol
+                        if imp.address in bound_slots:
+                            raise ValueError('Duplicate reference IAT slot')
+                        bound_slots.add(imp.address)
+                        struct.pack_into('<I', image, offset, marker)
+                        self.address_names[marker] = [imported_name]
+                        self.import_bindings.append(dict(source_module=name, iat_va=hex(imp.address),
+                            marker=hex(marker), imported_name=imported_name))
             machine.mem_map(base, size)
-            machine.mem_write(base, image)
+            machine.mem_write(base, bytes(image))
             # Execution fetches are allowed only so the tracer can stop BEFORE
             # executing any instruction from these modules. Writes are forbidden.
             machine.mem_protect(base, size, uc.UC_PROT_READ | uc.UC_PROT_EXEC)
@@ -87,6 +118,8 @@ class ModuleModel:
         self.range_end = max((m['base'] + m['size'] for m in self.modules.values()), default=0)
 
     def contains(self, address):
+        if self.import_markers_enabled and REFERENCE_IMPORT_REGIONS[0][0] <= address < sum(REFERENCE_IMPORT_REGIONS[0]):
+            return True
         if not self.range_start <= address < self.range_end:
             return False
         return any(m['base'] <= address < m['base'] + m['size'] for m in self.modules.values())
@@ -165,4 +198,6 @@ class ModuleModel:
                                 loadlibrary_acquisitions=module['loadlibrary_acquisitions']))
         return dict(modules=records, resolver_events=self.events,
                     observed_resolver_calls=self.observed_calls,
-                    limitations='Preferred bases only; no DLL initialization, relocation, API-set mapping, last-error state or OS execution; unknown operations stop')
+                    reference_import_markers=self.import_markers_enabled,
+                    reference_import_bindings=self.import_bindings,
+                    limitations='Preferred bases only; optional ordinary IAT stop markers are synthetic call boundaries, not resolved Windows addresses; no delayed-import binding, DLL initialization, relocation, API-set schema loading, last-error state or OS execution; unknown operations stop')

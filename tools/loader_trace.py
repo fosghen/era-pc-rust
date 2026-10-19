@@ -21,7 +21,7 @@ import pefile
 import unicorn as uc
 from unicorn import x86_const as x86
 
-from pe_module_model import ModuleModel, utf16_z
+from pe_module_model import ModuleModel, REFERENCE_IMPORT_REGIONS, utf16_z
 from x86_thread_model import THREAD_REGIONS, TIB_BASE, X86ThreadModel
 from startup_model import STARTUP_REGIONS, StartupModel
 
@@ -37,7 +37,9 @@ def address_size(text):
 
 def trace(path, export, argument, max_instructions, max_seconds, modules=(), thread_model=False,
           dll_attach=False, observe=(), watch=(), startup_model=False, nls_codepage=None, nls_sort=None, nls_case=None,
-          after_attach_export=None):
+          after_attach_export=None, reference_import_markers=False):
+    if reference_import_markers and not modules:
+        raise ValueError('Reference import markers require explicit modules')
     if (nls_codepage or nls_sort or nls_case) and not startup_model:
         raise ValueError('NLS references require the explicit startup model')
     if after_attach_export and not dll_attach:
@@ -67,6 +69,8 @@ def trace(path, export, argument, max_instructions, max_seconds, modules=(), thr
         reserved_regions += THREAD_REGIONS
     if startup_model:
         reserved_regions += STARTUP_REGIONS
+    if reference_import_markers:
+        reserved_regions += REFERENCE_IMPORT_REGIONS
     for reserved, size in reserved_regions:
         if base < reserved + size and base + mapped_size > reserved:
             raise ValueError('Image overlaps trace harness memory')
@@ -79,11 +83,13 @@ def trace(path, export, argument, max_instructions, max_seconds, modules=(), thr
             machine.mem_write(base + section.VirtualAddress, data)
     for address, size in [(stack, 0x10000), (sentinel, 0x1000), (imports_base, 0x10000)]:
         machine.mem_map(address, size)
-    module_model = ModuleModel(machine, modules, [(base, mapped_size)] + reserved_regions)
+    module_model = ModuleModel(machine, modules, [(base, mapped_size)] + reserved_regions, reference_import_markers)
     thread = X86ThreadModel(machine, stack, 0x10000) if thread_model else None
     startup = StartupModel(machine, nls_codepage, nls_sort, nls_case) if startup_model else None
     if startup:
         startup.primary_region = (base, mapped_size)
+        if thread:
+            thread.set_thread_id_fixture(startup.profile['thread_id'])
     functions = {}
     iat_map = []
     for descriptor in getattr(pe, 'DIRECTORY_ENTRY_IMPORT', []):
@@ -388,6 +394,8 @@ def main():
     parser.add_argument('--dll-attach', action='store_true',
                         help='Call DLL PE entry as (image_base, DLL_PROCESS_ATTACH, NULL), not an export')
     parser.add_argument('--after-attach-export', help='Call named one-argument export in the same state after successful DLL attach')
+    parser.add_argument('--reference-import-markers', action='store_true',
+                        help='Replace ordinary IAT entries in reference modules by explicit API stop markers in emulated memory')
     parser.add_argument('--startup-model', action='store_true',
                         help='Opt-in explicitly synthetic startup API fixtures; unknown calls stop')
     parser.add_argument('--nls-codepage', type=Path, help='Explicit read-only SBCS CP1251 reference file')
@@ -403,13 +411,13 @@ def main():
     parser.add_argument('--max-seconds', type=float, default=45.)
     parser.add_argument('--report', required=True, type=Path)
     args = parser.parse_args()
-    if not 1 <= args.max_instructions <= 200_000_000 or not 0 < args.max_seconds <= 300:
-        parser.error('Limits: 1..200000000 instructions; 0..300 seconds')
+    if not 1 <= args.max_instructions <= 300_000_000 or not 0 < args.max_seconds <= 450:
+        parser.error('Limits: 1..300000000 instructions; 0..450 seconds')
     if args.report.exists():
         parser.error('Report already exists; choose a new evidence filename')
     result = trace(args.file, args.export, args.argument, args.max_instructions, args.max_seconds,
                    args.module, args.thread_model, args.dll_attach, args.observe, args.watch, args.startup_model,
-                   args.nls_codepage, args.nls_sort, args.nls_case, args.after_attach_export)
+                   args.nls_codepage, args.nls_sort, args.nls_case, args.after_attach_export, args.reference_import_markers)
     with args.report.open('x', encoding='utf-8') as output:
         json.dump(result, output, indent=2, ensure_ascii=False)
         output.write('\n')

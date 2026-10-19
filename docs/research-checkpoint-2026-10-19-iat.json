@@ -1,0 +1,192 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-19",
+  "parent_commit": "3ae49b2b8de4e0538e95a3c6a5b45fbc049d7f43",
+  "path_base": "workspace root containing era-rust and reverse_engineering",
+  "status": "Reference IAT boundary resolved using explicit synthetic markers; DuplicateHandle reached; copied thread-id reader modeled; final chained completion not yet confirmed",
+  "tests": {
+    "synthetic_python_passed": 75,
+    "rust_with_recovered_tests_passed": 59
+  },
+  "files": [
+    {
+      "path": "era-rust/README.md",
+      "sha256": "4d3355e8d821de83c5151d0c05c44e77480d5910bfdfddd37ac1d1be4e3354b0"
+    },
+    {
+      "path": "era-rust/tools/loader_trace.py",
+      "sha256": "38b46e6787d5ac2744e4c0b0619d36bd7151acb2deda6c7e456c18c316f7464d"
+    },
+    {
+      "path": "era-rust/tools/pe_module_model.py",
+      "sha256": "dac96cfe10dc642836061bf967c557b9c13b480a528ae08eb8d140311416109f"
+    },
+    {
+      "path": "era-rust/tools/x86_thread_model.py",
+      "sha256": "add7d065ee124b441184629cdd9d87fead60ce3639e310c2bbccc1d0037b4b8a"
+    },
+    {
+      "path": "era-rust/tools/startup_model.py",
+      "sha256": "bdecb53a376cff02a3f8c798cdfde1a95f89c3694bc53b6062ceb087d676f0f8"
+    },
+    {
+      "path": "era-rust/tools/nls_model.py",
+      "sha256": "8849236f1ddef7da6c24844933c8e051f1164b6785768347f74149acca5cee49"
+    },
+    {
+      "path": "era-rust/tools/test_loader_trace.py",
+      "sha256": "58d5c1be37b8b789b7e20c6d6d6847e4efce849d90cb11d80031055bcb486dc3"
+    },
+    {
+      "path": "era-rust/tools/test_startup_model.py",
+      "sha256": "a866b9bc94a205cea78f0077d0052bb7d4ee5d8ad9514c3cc8b412378b364105"
+    },
+    {
+      "path": "era-rust/tools/test_nls_model.py",
+      "sha256": "480e0fca7e17b11d2fdc817b4a015c8643613af36595e374663026f429f0b389"
+    },
+    {
+      "path": "era-rust/tools/requirements-research.txt",
+      "sha256": "0052d0d49b9d27a7f6f0f7420dcd299548bd66b9aa16402938bce076cc064d3b"
+    },
+    {
+      "path": "era-rust/docs/REFERENCE_IAT_RESEARCH.md",
+      "sha256": "c1caa4b1f765c28282d1c56f12bc25f84a5b448830ebd310672396ca58742328"
+    },
+    {
+      "path": "reverse_engineering/grd_reference_iat_01.json",
+      "sha256": "8eb0d677df000077155d69dbb6b90001085f4fe16616f3350a7b8eb41d92c83c"
+    },
+    {
+      "path": "reverse_engineering/grd_reference_iat_02.json",
+      "sha256": "43af855ecaafd1e6c3acabd4a5230036f215d014d5971b29f47138fbf4266889"
+    },
+    {
+      "path": "reverse_engineering/grd_reference_iat_03.json",
+      "sha256": "8cd737f8de580c926d8f9f40ec481387c09ea6a4c62435808c04ced38ce14f5c"
+    }
+  ],
+  "experiments": [
+    {
+      "report": "grd_reference_iat_01.json",
+      "reference_iat_slots": 6209,
+      "input_sha256": "0eb1003dc43a6484f8bba7076a442fad8dad506bb80f6e9047d77c82f4c7ce30",
+      "tool_sha256": "fa4531cf31aaf62701cae19f031c29cb035ba7f0ea348af706d07ea811d898d7",
+      "module_model_sha256": "093cbbd75393c58a7cc40f0d99c2cf74b6fb44764af049724cd3e60d3c77d86e",
+      "thread_model_sha256": "3bd37dbb9431e6acc3525cae27c5883b8c46a4b78cf6e0428503ccf2e3e75ebd",
+      "startup_model_sha256": "9da57d54996b2d8b0da0c59b698ea0b547ab7fa53a65e5fb5d53a8d172a100e4",
+      "nls_model_sha256": "8849236f1ddef7da6c24844933c8e051f1164b6785768347f74149acca5cee49",
+      "entry": "0x1031e641",
+      "argument": -1,
+      "invocation": "DLL_PROCESS_ATTACH then export in the same CPU/memory state, only on successful attach",
+      "after_attach_export": "GrdPrepare",
+      "limits": {
+        "instructions": 200000000,
+        "seconds": 300.0
+      },
+      "instructions": 193609222,
+      "reason": "external_import",
+      "external_import": "api-ms-win-core-handle-l1-1-0.dll!DuplicateHandle",
+      "external_stack_words": [
+        "0x10010787",
+        "0xffffffff",
+        "0xfffffffe",
+        "0xffffffff",
+        "0x1036a4b0",
+        "0x1",
+        "0x0",
+        "0x2",
+        "0x0"
+      ],
+      "stage_returns": [
+        {
+          "stage": "dll_attach",
+          "instruction_index": 82656831,
+          "eax": "0x1",
+          "esp": "0x70008010"
+        }
+      ],
+      "image_writes_by_section": {
+        ".data@0x10361000": 1148,
+        ".text@0x10001000": 69366,
+        ".grd0001@0x1065f000": 86370
+      },
+      "input_unchanged": true
+    },
+    {
+      "report": "grd_reference_iat_02.json",
+      "reference_iat_slots": 6209,
+      "input_sha256": "0eb1003dc43a6484f8bba7076a442fad8dad506bb80f6e9047d77c82f4c7ce30",
+      "tool_sha256": "fa4531cf31aaf62701cae19f031c29cb035ba7f0ea348af706d07ea811d898d7",
+      "module_model_sha256": "093cbbd75393c58a7cc40f0d99c2cf74b6fb44764af049724cd3e60d3c77d86e",
+      "thread_model_sha256": "3bd37dbb9431e6acc3525cae27c5883b8c46a4b78cf6e0428503ccf2e3e75ebd",
+      "startup_model_sha256": "bdecb53a376cff02a3f8c798cdfde1a95f89c3694bc53b6062ceb087d676f0f8",
+      "nls_model_sha256": "8849236f1ddef7da6c24844933c8e051f1164b6785768347f74149acca5cee49",
+      "entry": "0x1031e641",
+      "argument": -1,
+      "invocation": "DLL_PROCESS_ATTACH then export in the same CPU/memory state, only on successful attach",
+      "after_attach_export": "GrdPrepare",
+      "limits": {
+        "instructions": 200000000,
+        "seconds": 300.0
+      },
+      "instructions": 194662940,
+      "reason": "unsupported_thread_field",
+      "thread_access": {
+        "offset": "0x24",
+        "size": 4,
+        "operation": "read",
+        "instruction": "0x10001b86"
+      },
+      "stage_returns": [
+        {
+          "stage": "dll_attach",
+          "instruction_index": 79543321,
+          "eax": "0x1",
+          "esp": "0x70008010"
+        }
+      ],
+      "image_writes_by_section": {
+        ".data@0x10361000": 1148,
+        ".text@0x10001000": 69366,
+        ".grd0001@0x1065f000": 86370
+      },
+      "input_unchanged": true
+    },
+    {
+      "report": "grd_reference_iat_03.json",
+      "reference_iat_slots": 6209,
+      "input_sha256": "0eb1003dc43a6484f8bba7076a442fad8dad506bb80f6e9047d77c82f4c7ce30",
+      "tool_sha256": "3ada3dc142726c629f145853c1afbf11e3d360cb33a6b4d28c1a253c60ac9bf6",
+      "module_model_sha256": "093cbbd75393c58a7cc40f0d99c2cf74b6fb44764af049724cd3e60d3c77d86e",
+      "thread_model_sha256": "add7d065ee124b441184629cdd9d87fead60ce3639e310c2bbccc1d0037b4b8a",
+      "startup_model_sha256": "bdecb53a376cff02a3f8c798cdfde1a95f89c3694bc53b6062ceb087d676f0f8",
+      "nls_model_sha256": "8849236f1ddef7da6c24844933c8e051f1164b6785768347f74149acca5cee49",
+      "entry": "0x1031e641",
+      "argument": -1,
+      "invocation": "DLL_PROCESS_ATTACH then export in the same CPU/memory state, only on successful attach",
+      "after_attach_export": "GrdPrepare",
+      "limits": {
+        "instructions": 200000000,
+        "seconds": 300.0
+      },
+      "instructions": 200000000,
+      "reason": "instruction_limit",
+      "stage_returns": [
+        {
+          "stage": "dll_attach",
+          "instruction_index": 83132208,
+          "eax": "0x1",
+          "esp": "0x70008010"
+        }
+      ],
+      "image_writes_by_section": {
+        ".data@0x10361000": 1143,
+        ".text@0x10001000": 69366,
+        ".grd0001@0x1065f000": 86248
+      },
+      "input_unchanged": true
+    }
+  ],
+  "limitation": "Successive model versions; no native Windows execution, working bypass or numerical ERA oracle"
+}

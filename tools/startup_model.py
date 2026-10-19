@@ -38,7 +38,7 @@ class StartupModel:
                  'IsProcessorFeaturePresent': 1, 'GetUserDefaultUILanguage': 0,
                  'RegOpenKeyExW': 5, 'VirtualProtect': 4,
                  'GetCurrentProcess': 0, 'FlushInstructionCache': 3,
-                 'GetUserDefaultLangID': 0}
+                 'GetUserDefaultLangID': 0, 'DuplicateHandle': 7, 'CloseHandle': 1}
 
     def __init__(self, machine, nls_codepage=None, nls_sort=None, nls_case=None):
         self.machine = machine
@@ -67,6 +67,34 @@ class StartupModel:
         machine.mem_write(STRINGS_BASE + 512, (self.profile['command_line'] + '\0').encode('utf-16-le'))
         machine.mem_protect(STRINGS_BASE, 4096, uc.UC_PROT_READ)
         self.environment_blocks = set()
+        self.object_handles = {}
+
+    def object_handle_call(self, function, args, event):
+        if function == 'CloseHandle':
+            record = self.object_handles.get(args[0])
+            if not record or not record['active']:
+                raise ValueError('Only live model-owned real handles can be closed')
+            record['active'] = False
+            return 1
+        source_process, source, target_process, output, desired_access, inherit, options = args
+        if source_process != 0xffffffff or target_process != 0xffffffff or options != 2 or inherit not in (0, 1):
+            raise ValueError('Only same-process DUPLICATE_SAME_ACCESS supported')
+        if source in (0xffffffff, 0xfffffffe):
+            obj = 'current_process' if source == 0xffffffff else 'current_thread'
+        else:
+            record = self.object_handles.get(source)
+            if not record or not record['active']:
+                raise ValueError('Source is not a known live process/thread handle')
+            obj = record['object']
+        if len(self.object_handles) >= 128:
+            raise ValueError('Object handle model budget exceeded')
+        handle = 0x76000000 + 4 * len(self.object_handles)
+        # Validate/write before changing the ownership registry. The desired
+        # access argument is ignored by the explicit SAME_ACCESS contract.
+        self.write(output, struct.pack('<I', handle), event)
+        self.object_handles[handle] = dict(object=obj, inheritable=bool(inherit), active=True)
+        event['object_handle'] = hex(handle)
+        return 1
 
     def critical_section_call(self, function, args):
         address = args[0]
@@ -222,6 +250,8 @@ class StartupModel:
         event.setdefault('memory_writes', []).append(dict(address=hex(address), size=len(data)))
 
     def invoke(self, function, args, event):
+        if function in ('DuplicateHandle', 'CloseHandle'):
+            return self.object_handle_call(function, args, event)
         if function == 'GetUserDefaultLangID':
             return self.profile['user_language']
         if function == 'GetCurrentProcess':
@@ -419,6 +449,12 @@ class StartupModel:
         module, _, function = name.partition('!')
         allowed_module = (module.lower() == 'advapi32.dll' if function == 'RegOpenKeyExW'
                           else module.lower() in ('kernel32.dll', 'kernelbase.dll'))
+        # Exact API contract listed in Microsoft's GetCurrentProcess metadata;
+        # this is not a wildcard API-set alias or a host DLL loader.
+        if module.lower() == 'api-ms-win-core-processthreads-l1-1-0.dll' and function == 'GetCurrentProcess':
+            allowed_module = True
+        if module.lower() == 'api-ms-win-core-handle-l1-1-0.dll' and function in ('DuplicateHandle', 'CloseHandle'):
+            allowed_module = True
         if not allowed_module or function not in self.ARGUMENTS:
             return False, None
         event = dict(api=name, basis='Explicit synthetic startup profile; not a native Windows observation')
@@ -450,5 +486,6 @@ class StartupModel:
                     critical_sections={hex(p): {k: v for k, v in lock.items() if k != 'hook'}
                                        for p, lock in self.locks.items()},
                     heaps={hex(h): data for h, data in self.heaps.items()},
+                    object_handles={hex(h): data for h, data in self.object_handles.items()},
                     heap_arena=dict(base=hex(HEAP_BASE), capacity=HEAP_CAPACITY, used=self.cursor - HEAP_BASE),
                     limitations='Explicit synthetic process profile, reversible XOR pointer fixture, single-thread opaque locks/atomics and bounded heaps; 64 TLS/FLS slots each, no direct TEB storage or callback dispatch; unknown last-error reads stop; only the named registry key is assumed absent; NLS data requires explicit files; page permissions apply only to initially RWX primary image; freed blocks not reused/unmapped; unspecified allocation bytes A5; no host API, device, license, filesystem operations, scheduling or time progression; API writes logged separately from CPU writes')
