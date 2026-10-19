@@ -1,0 +1,148 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-19",
+  "parent_commit": "e9ccc5b61346c50348290a7451a0c8821c9455e9",
+  "path_base": "workspace root containing era-rust and reverse_engineering",
+  "status": "Read-only worker wait-array observation identifies three nonsignaled parent-model events, not USB handles.",
+  "files": [
+    {
+      "path": "era-rust/tools/loader_trace.py",
+      "sha256": "aa3552cf08ff0de89bcdcc8ba13a1835aac48d1f213c85366294d46b9df90bce"
+    },
+    {
+      "path": "era-rust/tools/test_loader_trace.py",
+      "sha256": "981322a9924f014bc393266daea6dae6f69677f5e01a07450351f257072df765"
+    },
+    {
+      "path": "era-rust/tools/startup_model.py",
+      "sha256": "cb18f9f642a7bb0167c3719be5b3e4bc2ff3a41f793e99ab92234b2d0bedf637"
+    },
+    {
+      "path": "era-rust/tools/test_startup_model.py",
+      "sha256": "a1d4a141e53df293bf52df90c4acb4111aca6aa4227d57b53bd396a4cad11a5a"
+    },
+    {
+      "path": "era-rust/tools/interior_api_model.py",
+      "sha256": "a73eb6d72b4feea0c3cb0b11d25027ab91c0053a60f5a08485a2e0b82120001b"
+    },
+    {
+      "path": "era-rust/tools/test_interior_api_model.py",
+      "sha256": "36b7717c214a7e6dc07ba03a77b4974dc4f3a481f9229b858949e088895c39ba"
+    },
+    {
+      "path": "era-rust/tools/pe_module_model.py",
+      "sha256": "5f9a7221a66e96ef577b142ae6b314db59dac32c624439261ca93d69c191c705"
+    },
+    {
+      "path": "era-rust/tools/api_set_model.py",
+      "sha256": "e20cbe35f772b4a5ad5b025b54ec4db2a56f9d742b3385ef7cb5febbe25b863e"
+    },
+    {
+      "path": "era-rust/tools/native_observer.py",
+      "sha256": "a366daa8829f79054e79ff220748b8710672056b7a8e8f9d195801ef8f9a666c"
+    },
+    {
+      "path": "era-rust/tools/trace_observer.rs",
+      "sha256": "e7511d3a288ac27cc73b9d0f2718f937d82cf5368600cc48c3d75adce9a55adf"
+    },
+    {
+      "path": "era-rust/tools/x86_thread_model.py",
+      "sha256": "add7d065ee124b441184629cdd9d87fead60ce3639e310c2bbccc1d0037b4b8a"
+    },
+    {
+      "path": "era-rust/tools/nls_model.py",
+      "sha256": "8849236f1ddef7da6c24844933c8e051f1164b6785768347f74149acca5cee49"
+    },
+    {
+      "path": "era-rust/tools/requirements-research.txt",
+      "sha256": "0052d0d49b9d27a7f6f0f7420dcd299548bd66b9aa16402938bce076cc064d3b"
+    },
+    {
+      "path": "era-rust/tools/verify_checkpoint.py",
+      "sha256": "235a1c96268395f8e2bcd240403de5864929dcd796e9d667ae26fca3f1040696"
+    },
+    {
+      "path": "era-rust/docs/HOST_LINKED_RESEARCH.md",
+      "sha256": "329451580d46aecc0c32a649303ff6719d73cf3923ae387065943fa4b6d7fc26"
+    },
+    {
+      "path": "era-rust/tools/worker_entry_probe.py",
+      "sha256": "23c210490b237386ec6c5a329c500d542fca45ea6a1f45c692d63e2d73095c3e"
+    },
+    {
+      "path": "era-rust/tools/test_worker_entry_probe.py",
+      "sha256": "08bffb719ab36868af312f9f77f3cd45d7607a0f38e18d6886e733573bcaea94"
+    },
+    {
+      "path": "era-rust/tools/pe_tls_metadata.py",
+      "sha256": "7ce3cd2220121e4d6145d7234bc8173b8b57de3afa94ed378bdd6d60605d9e6c"
+    },
+    {
+      "path": "era-rust/tools/test_pe_tls_metadata.py",
+      "sha256": "6462a153f31665888096f3f5154c9fcd62675b96499ec93f385edf965d546ece"
+    },
+    {
+      "path": "era-rust/tools/test_native_observer.py",
+      "sha256": "b281244600781d02b4fb839ab5ee0903e0dd9f41d7617f120f5aa4e2e14bb7c8"
+    },
+    {
+      "path": "reverse_engineering/static_tls_metadata_01.json",
+      "sha256": "06ad6764a241e922c71b7bf51013a706617a4ce530687416e2008a39e5abe458"
+    },
+    {
+      "path": "era-rust/docs/GUARDANT_TRANSPORT_MAP.md",
+      "sha256": "ad98a78cbeb470e54e3da9a8d70fe00ba5d425737c93ca0e4ea36619331281e0"
+    },
+    {
+      "path": "reverse_engineering/perv_worker_wait_metadata_4b_01.json",
+      "sha256": "5cd7b511683296ad0a279c6a3e207e82c5dbf4dbc9e590d4fb9473d77d641e43"
+    }
+  ],
+  "experiment": {
+    "report": "perv_worker_wait_metadata_4b_01.json",
+    "instructions": 3499228550,
+    "elapsed_seconds": 240.5825,
+    "external_import": "api-ms-win-core-processthreads-l1-1-0.dll!ResumeThread",
+    "child_instructions": 763083,
+    "child_elapsed_seconds": 6.384175683997455,
+    "child_external_boundary": "api-ms-win-core-synch-l1-2-1.dll!WaitForMultipleObjects",
+    "rdtsc_sequence": {
+      "start": 123456789,
+      "step": 100000,
+      "count": 1024
+    },
+    "tick_values": [
+      123456
+    ],
+    "used_rdtsc": 414,
+    "wait": {
+      "count": 3,
+      "array_address": "0x7801ffcc",
+      "wait_all": false,
+      "timeout_ms": 60000,
+      "handles": [
+        "0x76000018",
+        "0x7600000c",
+        "0x76000010"
+      ],
+      "parent_model_objects": [
+        "event:5",
+        "event:2",
+        "event:3"
+      ],
+      "parent_model_signaled": [
+        false,
+        false,
+        false
+      ]
+    },
+    "clone_manifests_equal": true,
+    "tests_passed": 428
+  },
+  "limitations": [
+    "Raw handles correlated with synthetic parent model, not native Windows objects",
+    "No wait execution, timeout result, scheduler or main continuation",
+    "No USB interaction, successful licensing or key bypass",
+    "Own source and metadata only; no vendor bytes or memory dumps"
+  ]
+}

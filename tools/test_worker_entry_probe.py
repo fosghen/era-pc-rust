@@ -385,6 +385,90 @@ class WorkerProbeTests(unittest.TestCase):
         self.assertEqual(result['tick_count_events'], [])
         self.assertEqual(result['registers']['eax'], '0x0')
 
+    def wait_caller(self, handles=(0x76000000, 0x76000004, 0x76000008), count=None,
+                    array=None, wait_all=0, timeout=60000):
+        self.source.mem_write(0x11000, b'\x90')
+        code = b''.join(b'\x68' + struct.pack('<I', value) for value in reversed(handles))
+        code += bytes.fromhex('89e1')  # ECX = address of our own-stack array.
+        code += b'\x68' + struct.pack('<I', timeout)
+        code += b'\x68' + struct.pack('<I', wait_all)
+        code += b'\x51' if array is None else b'\x68' + struct.pack('<I', array)
+        code += b'\x68' + struct.pack('<I', len(handles) if count is None else count)
+        code += b'\xe8' + struct.pack('<i', 0x11000 - (0x10000 + len(code) + 5))
+        return code
+
+    def observe_wait(self, code, name='kernel32.dll!WaitForMultipleObjects'):
+        reference, result = self.compare_decoder_modes(code, stop_addresses={0x11000: name})
+        baseline = self.run_probe(code, stop_addresses={0x11000: 'fixture!Uninterpreted'})
+        ignored = {'elapsed_seconds', 'setup_seconds', 'wait_observation', 'boundary'}
+        self.assertEqual(*[{key: value for key, value in report.items() if key not in ignored}
+                           for report in (baseline, result)])
+        self.assertEqual(result['reason'], 'external_boundary')
+        self.assertEqual(result['model_event_count'], 0)
+        return result
+
+    def test_wait_observation_counts_order_duplicates_and_bool(self):
+        for handles in ((0x76000008,), (0x76000008, 0x76000000, 0x76000008), tuple(range(64))):
+            for wait_all in (0, 1, 2, 0xffffffff):
+                with self.subTest(count=len(handles), wait_all=wait_all):
+                    code = self.wait_caller(handles=handles, wait_all=wait_all, timeout=0xffffffff)
+                    result = self.observe_wait(code, 'API-MS-WIN-CORE-SYNCH-L1-2-1.DLL!WaitForMultipleObjects')
+                    observed = result['wait_observation']
+                    self.assertNotIn('error', observed)
+                    self.assertEqual(observed['count_raw'], len(handles))
+                    self.assertEqual(observed['handles'], [hex(value) for value in handles])
+                    self.assertEqual(observed['array_address'], hex(probe.STACK + probe.STACK_SIZE - 16 - 4 * len(handles)))
+                    self.assertEqual(observed['return_address_candidate'], hex(0x10000 + len(code)))
+                    self.assertEqual(observed['wait_all_raw'], wait_all)
+                    self.assertEqual(observed['wait_all'], bool(wait_all))
+                    self.assertEqual(observed['timeout_ms'], 0xffffffff)
+                    self.assertFalse(observed['handles_validated'])
+                    self.assertEqual(observed['duplicate_handles'], len(set(handles)) != len(handles))
+
+    def test_wait_observation_bad_count_retains_frame_but_no_handles(self):
+        for count in (0, 65, 0xffffffff):
+            result = self.observe_wait(self.wait_caller(count=count))
+            observed = result['wait_observation']
+            self.assertEqual(observed['count_raw'], count)
+            self.assertIn('count', observed['error'])
+            self.assertIsNone(observed['handles'])
+            self.assertIsNone(observed['duplicate_handles'])
+
+    def test_wait_observation_rejects_outside_crossing_and_overflow_arrays(self):
+        for array in (0, 0x10000, probe.TIB, probe.STACK - 1,
+                      probe.STACK + probe.STACK_SIZE - 8, 0xfffffffc):
+            with self.subTest(array=array):
+                result = self.observe_wait(self.wait_caller(array=array))
+                observed = result['wait_observation']
+                self.assertIn('error', observed)
+                self.assertEqual(observed['array_address'], hex(array))
+                self.assertIsNone(observed['handles'])
+                self.assertIsNone(observed['duplicate_handles'])
+                if array == 0xfffffffc:
+                    self.assertIn('overflows', observed['error'])
+
+    def test_wait_observation_rejects_short_or_outside_frame(self):
+        for address in (probe.STACK + probe.STACK_SIZE - 16, probe.STACK - 1, 0x10000):
+            code = b'\xbc' + struct.pack('<I', address)
+            code += b'\xe9' + struct.pack('<i', 0x11000 - 0x1000a)
+            result = self.observe_wait(code)
+            observed = result['wait_observation']
+            self.assertIn('20-byte frame', observed['error'])
+            self.assertIsNone(observed['handles'])
+            self.assertNotIn('count_raw', observed)
+
+    def test_wait_observation_strict_module_and_function_allowlist(self):
+        code = self.wait_caller()
+        for name in ('kernelbase.dll!WaitForMultipleObjects',
+                     'api-ms-win-core-synch-l1-1-0.dll!WaitForMultipleObjects',
+                     'otherkernel32.dll!WaitForMultipleObjects', 'kernel32.dll!WaitForMultipleObjectsEx',
+                     'kernel32.dll!waitformultipleobjects', 'WaitForMultipleObjects'):
+            with self.subTest(name=name):
+                result = self.observe_wait(code, name)
+                self.assertNotIn('wait_observation', result)
+        result = self.observe_wait(code, 'KERNEL32.DLL!WaitForMultipleObjects')
+        self.assertEqual(len(result['wait_observation']['handles']), 3)
+
 
 if __name__ == '__main__':
     unittest.main()

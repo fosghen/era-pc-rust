@@ -334,9 +334,42 @@ def probe_worker_entry(source_machine, *, entry, parameter, thread_id, image_ran
                             timeout=max(1, int(min(remaining, 0.1) * 1000000)))
         except uc.UcError as error:
             stop('emulator_error', emulator_error=str(error))
-    # Bounded raw metadata from our own stack only; not an ABI interpretation
-    # and never a dereference of argument pointers or copied process buffers.
+    # Bounded metadata from our own stack only. The named wait-array observation
+    # below is the sole pointer follow; it cannot access copied process buffers.
     stopped_sp = child.reg_read(x86.UC_X86_REG_ESP)
+    module, separator, function = state.get('boundary', '').partition('!')
+    if (state['reason'] == 'external_boundary' and separator and function == 'WaitForMultipleObjects'
+            and module.lower() in ('kernel32.dll', 'api-ms-win-core-synch-l1-2-1.dll')):
+        observation = dict(stack_address=hex(stopped_sp), max_handles=64, handles=None,
+            handles_validated=False, duplicate_handles=None,
+            scope='Read-only stopped WaitForMultipleObjects frame and at most 64 raw handle DWORDs '
+                  'entirely within the synthetic worker stack; no Windows object validation or wait execution')
+        state['wait_observation'] = observation
+        if not STACK <= stopped_sp <= STACK + STACK_SIZE - 20:
+            observation['error'] = 'Complete 20-byte frame is outside the synthetic worker stack'
+        else:
+            try:
+                frame = bytes(child.mem_read(stopped_sp, 20))
+                return_address, count, array, wait_all, timeout = struct.unpack('<5I', frame)
+                observation.update(count_raw=count, array_address=hex(array), wait_all_raw=wait_all,
+                    wait_all=bool(wait_all), timeout_ms=timeout, return_address_candidate=hex(return_address))
+            except uc.UcError:
+                observation['error'] = 'Synthetic worker wait frame is unreadable'
+            else:
+                size = count * 4
+                if not 1 <= count <= 64:
+                    observation['error'] = 'Raw handle count must be within the 1..64 observation limit'
+                elif array + size > 2**32:
+                    observation['error'] = 'Handle-array range overflows the x86 address space'
+                elif not STACK <= array <= STACK + STACK_SIZE - size:
+                    observation['error'] = 'Complete handle array is outside the synthetic worker stack'
+                else:
+                    try:
+                        handles = struct.unpack('<' + 'I' * count, child.mem_read(array, size))
+                        observation.update(handles=[hex(value) for value in handles],
+                                           duplicate_handles=len(set(handles)) != len(handles))
+                    except uc.UcError:
+                        observation['error'] = 'Synthetic worker handle array is unreadable'
     stack_observation = dict(address=hex(stopped_sp), words=[],
         scope='At most nine raw DWORDs within the synthetic worker stack; not validated API arguments')
     if STACK <= stopped_sp < STACK + STACK_SIZE:
