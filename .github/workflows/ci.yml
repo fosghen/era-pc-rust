@@ -20,7 +20,7 @@ jobs:
           python3 -m venv .research-venv
           .research-venv/bin/pip install --disable-pip-version-check -r tools/requirements-research.txt
       - name: Test tracing on synthetic PE images only
-        run: .research-venv/bin/python -m unittest discover -s tools -p 'test_loader_trace.py' -v
+        run: .research-venv/bin/python -m unittest discover -s tools -p 'test_*.py' -v
   test:
     strategy:
       fail-fast: false

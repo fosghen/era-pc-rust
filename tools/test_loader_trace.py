@@ -5,7 +5,7 @@ import tempfile
 import unittest
 
 from loader_trace import trace
-from pe_module_model import ModuleModel
+from pe_module_model import ModuleModel, utf16_z
 import unicorn as uc
 
 
@@ -227,6 +227,66 @@ class LoaderTraceTests(unittest.TestCase):
         self.assertEqual(result['external_import'], 'KERNEL32.dll!GetModuleHandleA')
         self.assertIn('not explicitly mapped', result['unresolved_module_call']['model_error'])
         self.assertNotIn('result', result['module_model']['resolver_events'][0])
+
+    def test_wide_module_lookup_uses_explicit_mapping(self):
+        with tempfile.TemporaryDirectory(prefix='era-module-test-') as directory:
+            path = Path(directory) / 'kernel32.dll'
+            path.write_bytes(synthetic_module())
+            data = resolver_caller(api='GetModuleHandleW')
+            value = 'KeRnEl32\0'.encode('utf-16-le')
+            data[0x3a0:0x3a0+len(value)] = value
+            result = self.run_image(data, modules=[path])
+        self.assertEqual(result['external_import'], 'kernel32.dll!Probe')
+        event = result['module_model']['resolver_events'][0]
+        self.assertEqual(event['module'], 'KeRnEl32')
+        self.assertEqual(event['result'], '0x60000000')
+        self.assertEqual(result['module_model']['modules'][0]['loadlibrary_acquisitions'], 0)
+
+    def test_wide_strings_are_bounded_and_validate_encoding(self):
+        machine = uc.Uc(uc.UC_ARCH_X86, uc.UC_MODE_32)
+        machine.mem_map(0x10000, 4096)
+        machine.mem_write(0x10000, 'тест\0'.encode('utf-16-le'))
+        self.assertEqual(utf16_z(machine, 0x10000), 'тест')
+        with self.assertRaisesRegex(ValueError, 'NULL'):
+            utf16_z(machine, 0)
+        with self.assertRaisesRegex(ValueError, 'limit'):
+            utf16_z(machine, 0x10000, 2)
+        machine.mem_write(0x10000, bytes.fromhex('00d80000'))
+        with self.assertRaises(UnicodeError):
+            utf16_z(machine, 0x10000)
+
+    def test_startup_heap_region_reserved_before_modules(self):
+        with tempfile.TemporaryDirectory(prefix='era-module-test-') as directory:
+            path = Path(directory) / 'kernel32.dll'
+            data = synthetic_module()
+            struct.pack_into('<I', data, 0x98 + 28, 0x50000000)
+            path.write_bytes(data)
+            with self.assertRaisesRegex(ValueError, 'overlaps'):
+                self.run_image(synthetic_pe(b'\xc3'), modules=[path], startup_model=True)
+
+    def test_startup_is_opt_in_and_resumes_at_stdcall_return(self):
+        data = resolver_caller(api='QueryPerformanceCounter')
+        data[512:527] = bytes.fromhex('68a0114000 ff1560114000 c3 909090')
+        disabled = self.run_image(data)
+        self.assertEqual(disabled['reason'], 'external_import')
+        self.assertEqual(disabled['external_import'], 'KERNEL32.dll!QueryPerformanceCounter')
+        enabled = self.run_image(data, startup_model=True, watch=[(0x4011a0, 8)])
+        self.assertEqual(enabled['reason'], 'returned')
+        self.assertEqual(enabled['instructions'], 3)
+        self.assertEqual(enabled['registers']['eax'], '0x1')
+        self.assertEqual(enabled['registers']['esp'], '0x70008004')
+        self.assertTrue(enabled['input_unchanged'])
+        self.assertGreater(enabled['watched_ranges'][0]['changed_byte_count'], 0)
+        # Host-side model writes are logged separately from CPU writes.
+        self.assertEqual(enabled['image_write_events'], 0)
+        self.assertEqual(enabled['startup_model']['events'][0]['memory_writes'],
+                         [dict(address='0x4011a0', size=8)])
+
+    def test_startup_model_does_not_swallow_device_imports(self):
+        result = self.run_image(resolver_caller(api='DeviceIoControl'), startup_model=True)
+        self.assertEqual(result['reason'], 'external_import')
+        self.assertEqual(result['external_import'], 'KERNEL32.dll!DeviceIoControl')
+        self.assertEqual(result['startup_model']['events'], [])
 
     def test_loadlibrary_only_acquires_explicitly_mapped_module(self):
         with tempfile.TemporaryDirectory(prefix='era-module-test-') as directory:

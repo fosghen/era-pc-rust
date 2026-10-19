@@ -23,6 +23,7 @@ from unicorn import x86_const as x86
 
 from pe_module_model import ModuleModel
 from x86_thread_model import THREAD_REGIONS, X86ThreadModel
+from startup_model import STARTUP_REGIONS, StartupModel
 
 
 def integer(text):
@@ -35,7 +36,7 @@ def address_size(text):
 
 
 def trace(path, export, argument, max_instructions, max_seconds, modules=(), thread_model=False,
-          dll_attach=False, observe=(), watch=()):
+          dll_attach=False, observe=(), watch=(), startup_model=False):
     raw = path.read_bytes()
     digest = hashlib.sha256(raw).hexdigest()
     pe = pefile.PE(data=raw)
@@ -59,6 +60,8 @@ def trace(path, export, argument, max_instructions, max_seconds, modules=(), thr
     reserved_regions = [(stack, 0x10000), (sentinel, 0x1000), (imports_base, 0x10000)]
     if thread_model:
         reserved_regions += THREAD_REGIONS
+    if startup_model:
+        reserved_regions += STARTUP_REGIONS
     for reserved, size in reserved_regions:
         if base < reserved + size and base + mapped_size > reserved:
             raise ValueError('Image overlaps trace harness memory')
@@ -73,6 +76,7 @@ def trace(path, export, argument, max_instructions, max_seconds, modules=(), thr
         machine.mem_map(address, size)
     module_model = ModuleModel(machine, modules, [(base, mapped_size)] + reserved_regions)
     thread = X86ThreadModel(machine, stack, 0x10000) if thread_model else None
+    startup = StartupModel(machine) if startup_model else None
     functions = {}
     iat_map = []
     for descriptor in getattr(pe, 'DIRECTORY_ENTRY_IMPORT', []):
@@ -101,6 +105,7 @@ def trace(path, export, argument, max_instructions, max_seconds, modules=(), thr
                  tool_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
                  module_model_sha256=hashlib.sha256(Path(__file__).with_name('pe_module_model.py').read_bytes()).hexdigest(),
                  thread_model_sha256=hashlib.sha256(Path(__file__).with_name('x86_thread_model.py').read_bytes()).hexdigest(),
+                 startup_model_sha256=hashlib.sha256(Path(__file__).with_name('startup_model.py').read_bytes()).hexdigest(),
                  entry=hex(entry), export=export, argument=argument,
                  invocation='DLL_PROCESS_ATTACH entry (no dependency initialization)' if dll_attach else 'Single entry/export call',
                  initial_stack_arguments=[hex(value) for value in arguments],
@@ -150,6 +155,13 @@ def trace(path, export, argument, max_instructions, max_seconds, modules=(), thr
                 return
             if observation:
                 state['unresolved_module_call'] = observation
+        if external_name and startup:
+            handled, observation = startup.handle(external_name)
+            if handled:
+                m.emu_stop()
+                return
+            if observation:
+                state['unresolved_startup_call'] = observation
         if address == sentinel or external_name:
             state['reason'] = 'returned' if address == sentinel else 'external_import'
             if external_name:
@@ -256,6 +268,9 @@ def trace(path, export, argument, max_instructions, max_seconds, modules=(), thr
         state['environment'] += '; opt-in mapped-PE resolver model, no mapped-module code execution'
     if thread:
         state['thread_model'] = thread.report()
+    if startup:
+        state['startup_model'] = startup.report()
+        state['environment'] += '; opt-in synthetic startup fixture (not native Windows values)'
     if observed:
         state['execution_observations'] = observations
     if watched:
@@ -283,6 +298,8 @@ def main():
                         help='Opt-in minimal x86 NT_TIB/FS; no exception dispatch or unknown TEB fields')
     parser.add_argument('--dll-attach', action='store_true',
                         help='Call DLL PE entry as (image_base, DLL_PROCESS_ATTACH, NULL), not an export')
+    parser.add_argument('--startup-model', action='store_true',
+                        help='Opt-in explicitly synthetic startup API fixtures; unknown calls stop')
     parser.add_argument('--observe', action='append', type=integer, default=[],
                         help='Record bounded stack observations at a primary-image instruction address')
     parser.add_argument('--watch', action='append', type=address_size, default=[],
@@ -298,7 +315,7 @@ def main():
     if args.report.exists():
         parser.error('Report already exists; choose a new evidence filename')
     result = trace(args.file, args.export, args.argument, args.max_instructions, args.max_seconds,
-                   args.module, args.thread_model, args.dll_attach, args.observe, args.watch)
+                   args.module, args.thread_model, args.dll_attach, args.observe, args.watch, args.startup_model)
     with args.report.open('x', encoding='utf-8') as output:
         json.dump(result, output, indent=2, ensure_ascii=False)
         output.write('\n')

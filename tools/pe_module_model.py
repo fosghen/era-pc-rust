@@ -25,6 +25,18 @@ def ascii_z(machine, address, limit=260):
     raise ValueError('String exceeds model limit')
 
 
+def utf16_z(machine, address, limit=260):
+    if not address:
+        raise ValueError('NULL string not modeled')
+    chars = bytearray()
+    for offset in range(limit):
+        value = machine.mem_read(address + 2 * offset, 2)
+        if value == b'\0\0':
+            return chars.decode('utf-16-le')
+        chars.extend(value)
+    raise ValueError('String exceeds model limit')
+
+
 class ModuleModel:
     def __init__(self, machine, paths, occupied):
         self.machine = machine
@@ -98,7 +110,7 @@ class ModuleModel:
     def handle(self, name):
         """Return (handled, observation). No unsupported function gets a result."""
         module_name, _, function = name.partition('!')
-        if module_name.lower() not in ('kernel32.dll', 'kernelbase.dll') or function not in ('GetModuleHandleA', 'LoadLibraryA', 'GetProcAddress'):
+        if module_name.lower() not in ('kernel32.dll', 'kernelbase.dll') or function not in ('GetModuleHandleA', 'GetModuleHandleW', 'LoadLibraryA', 'GetProcAddress'):
             return False, None
         event = dict(api=name)
         self.observed_calls += 1
@@ -109,8 +121,8 @@ class ModuleModel:
             argc = 2 if function == 'GetProcAddress' else 1
             words = struct.unpack('<' + 'I' * (argc + 1), self.machine.mem_read(esp, 4 * (argc + 1)))
             event['return_address'] = hex(words[0])
-            if function in ('GetModuleHandleA', 'LoadLibraryA'):
-                requested = ascii_z(self.machine, words[1])
+            if function in ('GetModuleHandleA', 'GetModuleHandleW', 'LoadLibraryA'):
+                requested = (utf16_z if function.endswith('W') else ascii_z)(self.machine, words[1])
                 event['module'] = requested
                 if '/' in requested or '\\' in requested:
                     raise ValueError('Path-based module lookup not modeled')

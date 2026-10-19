@@ -1,0 +1,397 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-19",
+  "parent_commit": "dc231a3",
+  "path_base": "workspace root, containing era-rust and reverse_engineering",
+  "status": "No working bypass; synthetic startup reaches TlsAlloc; DLL attach not complete",
+  "tests": {
+    "synthetic_python_passed": 37,
+    "rust_with_recovered_tests_passed": 59,
+    "unchanged_vendor_inputs_checked": 8
+  },
+  "files": [
+    {
+      "path": "era-rust/README.md",
+      "sha256": "bf165fec330cad71c82e23b4e8da9a0f76e20fc8db2a58537393616ae49b6cf2"
+    },
+    {
+      "path": "era-rust/.github/workflows/ci.yml",
+      "sha256": "6561171a8db4e4b8cb9063cc14966615a1c41b29cd1a7fb8fb4c6329bcd5a0f8"
+    },
+    {
+      "path": "era-rust/tools/loader_trace.py",
+      "sha256": "851db3dcc28ff17a2d02978d2226e7a23e0f02bc0405cdcfa7befc23920bc5f4"
+    },
+    {
+      "path": "era-rust/tools/pe_module_model.py",
+      "sha256": "a16b0acd9e123ebaba26c154debcda6ac47c787e4adb89ab9617c7983c68373f"
+    },
+    {
+      "path": "era-rust/tools/x86_thread_model.py",
+      "sha256": "3bd37dbb9431e6acc3525cae27c5883b8c46a4b78cf6e0428503ccf2e3e75ebd"
+    },
+    {
+      "path": "era-rust/tools/startup_model.py",
+      "sha256": "20f5099e0366330f70ad1f08413a634f92f5b9d68e68f0a951189a83b212c286"
+    },
+    {
+      "path": "era-rust/tools/test_loader_trace.py",
+      "sha256": "c4d6adc3d867f48766ed7243071f82aee315ea31c5806d279e119e5f66eeb984"
+    },
+    {
+      "path": "era-rust/tools/test_startup_model.py",
+      "sha256": "c5cdb37d2b51bde777761d520b8ba479b8e996dd5844a4eaa90d1c2ed2d73a1f"
+    },
+    {
+      "path": "era-rust/tools/requirements-research.txt",
+      "sha256": "0052d0d49b9d27a7f6f0f7420dcd299548bd66b9aa16402938bce076cc064d3b"
+    },
+    {
+      "path": "era-rust/docs/CRT_STARTUP_RESEARCH.md",
+      "sha256": "d09a051340fae32f75f16934db03470739b5dc8af1736beb34b13ce29c4ad2af"
+    },
+    {
+      "path": "reverse_engineering/grd_crt_startup_01.json",
+      "sha256": "b072c1a8463fb085a2ed94bc3e851ce368420adbccbf030d022230696dab21b8"
+    },
+    {
+      "path": "reverse_engineering/grd_crt_startup_02.json",
+      "sha256": "7d7b5a5edad926f7c35d7ab39846c73ba2521b00a9c04b5df6717deded780968"
+    },
+    {
+      "path": "reverse_engineering/grd_crt_startup_03.json",
+      "sha256": "5bfe531f3522861ae1f6114646d9c0d82b2b4e46cf340fd6c20feec947efa0b8"
+    },
+    {
+      "path": "reverse_engineering/grd_crt_startup_04.json",
+      "sha256": "b1627a77b86de2f7c4de470b9e4e258941fe8fd839d7ea6fbbe13c1ca2bc1253"
+    }
+  ],
+  "experiments": [
+    {
+      "report": "grd_crt_startup_01.json",
+      "input_sha256": "0eb1003dc43a6484f8bba7076a442fad8dad506bb80f6e9047d77c82f4c7ce30",
+      "tool_sha256": "f6f5a1b906b37114b3a2ad4bcf42af4486aa85988bce2ec9d0baa72191ad9b06",
+      "module_model_sha256": "e3ff2dd0044dbd23e51a6164c3e0f9ba40e77be2848a4141c3438eaba4ec07de",
+      "thread_model_sha256": "3bd37dbb9431e6acc3525cae27c5883b8c46a4b78cf6e0428503ccf2e3e75ebd",
+      "startup_model_sha256": "39bf878835e357a9f6cf03e165178f4efb36a891b20427659722c5aecd1b9eba",
+      "invocation": "DLL_PROCESS_ATTACH entry (no dependency initialization)",
+      "entry": "0x1031e641",
+      "initial_stack_arguments": [
+        "0x10000000",
+        "0x1",
+        "0x0"
+      ],
+      "instructions": 129,
+      "reason": "external_import",
+      "external_import": "KERNEL32.dll!HeapCreate",
+      "external_stack_words": [
+        "0x1032ace9",
+        "0x0",
+        "0x1000",
+        "0x0",
+        "0x1031e400",
+        "0x9aca1",
+        "0x0",
+        "0x1",
+        "0x10000000"
+      ],
+      "image_writes_by_section": {
+        ".data@0x10361000": 2
+      },
+      "input_unchanged": true
+    },
+    {
+      "report": "grd_crt_startup_02.json",
+      "input_sha256": "0eb1003dc43a6484f8bba7076a442fad8dad506bb80f6e9047d77c82f4c7ce30",
+      "tool_sha256": "851db3dcc28ff17a2d02978d2226e7a23e0f02bc0405cdcfa7befc23920bc5f4",
+      "module_model_sha256": "e3ff2dd0044dbd23e51a6164c3e0f9ba40e77be2848a4141c3438eaba4ec07de",
+      "thread_model_sha256": "3bd37dbb9431e6acc3525cae27c5883b8c46a4b78cf6e0428503ccf2e3e75ebd",
+      "startup_model_sha256": "5a2f275a13f3478dc5b58a6860c442d3ddd5026ab401b2328abcb9352dc6f5aa",
+      "invocation": "DLL_PROCESS_ATTACH entry (no dependency initialization)",
+      "entry": "0x1031e641",
+      "initial_stack_arguments": [
+        "0x10000000",
+        "0x1",
+        "0x0"
+      ],
+      "instructions": 142,
+      "reason": "external_import",
+      "external_import": "KERNEL32.dll!GetModuleHandleW",
+      "external_stack_words": [
+        "0x10325a8e",
+        "0x10351330",
+        "0x0",
+        "0x1031e410",
+        "0x9aca1",
+        "0x0",
+        "0x1",
+        "0x10000000",
+        "0x70007f88"
+      ],
+      "image_writes_by_section": {
+        ".data@0x10361000": 3
+      },
+      "input_unchanged": true
+    },
+    {
+      "report": "grd_crt_startup_03.json",
+      "input_sha256": "0eb1003dc43a6484f8bba7076a442fad8dad506bb80f6e9047d77c82f4c7ce30",
+      "tool_sha256": "851db3dcc28ff17a2d02978d2226e7a23e0f02bc0405cdcfa7befc23920bc5f4",
+      "module_model_sha256": "a16b0acd9e123ebaba26c154debcda6ac47c787e4adb89ab9617c7983c68373f",
+      "thread_model_sha256": "3bd37dbb9431e6acc3525cae27c5883b8c46a4b78cf6e0428503ccf2e3e75ebd",
+      "startup_model_sha256": "20f5099e0366330f70ad1f08413a634f92f5b9d68e68f0a951189a83b212c286",
+      "invocation": "DLL_PROCESS_ATTACH entry (no dependency initialization)",
+      "entry": "0x1031e641",
+      "initial_stack_arguments": [
+        "0x10000000",
+        "0x1",
+        "0x0"
+      ],
+      "instructions": 173,
+      "reason": "external_import",
+      "external_import": "KERNEL32.dll!TlsAlloc",
+      "external_stack_words": [
+        "0x10325b27",
+        "0x1",
+        "0x0",
+        "0x1031e410",
+        "0x9aca1",
+        "0x0",
+        "0x1",
+        "0x10000000",
+        "0x70007f88"
+      ],
+      "image_writes_by_section": {
+        ".data@0x10361000": 7
+      },
+      "input_unchanged": true
+    },
+    {
+      "report": "grd_crt_startup_04.json",
+      "input_sha256": "0eb1003dc43a6484f8bba7076a442fad8dad506bb80f6e9047d77c82f4c7ce30",
+      "tool_sha256": "851db3dcc28ff17a2d02978d2226e7a23e0f02bc0405cdcfa7befc23920bc5f4",
+      "module_model_sha256": "a16b0acd9e123ebaba26c154debcda6ac47c787e4adb89ab9617c7983c68373f",
+      "thread_model_sha256": "3bd37dbb9431e6acc3525cae27c5883b8c46a4b78cf6e0428503ccf2e3e75ebd",
+      "startup_model_sha256": "20f5099e0366330f70ad1f08413a634f92f5b9d68e68f0a951189a83b212c286",
+      "invocation": "DLL_PROCESS_ATTACH entry (no dependency initialization)",
+      "entry": "0x1031e641",
+      "initial_stack_arguments": [
+        "0x10000000",
+        "0x1",
+        "0x0"
+      ],
+      "instructions": 173,
+      "reason": "external_import",
+      "external_import": "KERNEL32.dll!TlsAlloc",
+      "external_stack_words": [
+        "0x10325b27",
+        "0x1",
+        "0x0",
+        "0x1031e410",
+        "0x9aca1",
+        "0x0",
+        "0x1",
+        "0x10000000",
+        "0x70007f88"
+      ],
+      "image_writes_by_section": {
+        ".data@0x10361000": 7
+      },
+      "input_unchanged": true
+    }
+  ],
+  "replay": {
+    "reports": [
+      "grd_crt_startup_03.json",
+      "grd_crt_startup_04.json"
+    ],
+    "matching": [
+      "tool_sha256",
+      "module_model_sha256",
+      "thread_model_sha256",
+      "startup_model_sha256",
+      "instructions",
+      "registers",
+      "external_import",
+      "external_stack_words",
+      "watched_ranges",
+      "thread_model",
+      "module_model",
+      "startup_model",
+      "image_writes_by_section"
+    ],
+    "scope": "Recorded checkpoint equality only; not native Windows equivalence"
+  },
+  "final_startup_state": {
+    "profile": {
+      "filetime": 133485408000000000,
+      "performance_counter": 123456789,
+      "process_id": 4096,
+      "thread_id": 4097,
+      "tick_count": 123456
+    },
+    "events": [
+      {
+        "api": "KERNEL32.dll!GetSystemTimeAsFileTime",
+        "basis": "Explicit synthetic startup profile; not a native Windows observation",
+        "return_address": "0x1032aedf",
+        "arguments": [
+          "0x70007fec"
+        ],
+        "memory_writes": [
+          {
+            "address": "0x70007fec",
+            "size": 8
+          }
+        ],
+        "result": null
+      },
+      {
+        "api": "KERNEL32.dll!GetCurrentProcessId",
+        "basis": "Explicit synthetic startup profile; not a native Windows observation",
+        "return_address": "0x1032aeeb",
+        "arguments": [],
+        "result": "0x1000"
+      },
+      {
+        "api": "KERNEL32.dll!GetCurrentThreadId",
+        "basis": "Explicit synthetic startup profile; not a native Windows observation",
+        "return_address": "0x1032aef3",
+        "arguments": [],
+        "result": "0x1001"
+      },
+      {
+        "api": "KERNEL32.dll!GetTickCount",
+        "basis": "Explicit synthetic startup profile; not a native Windows observation",
+        "return_address": "0x1032aefb",
+        "arguments": [],
+        "result": "0x1e240"
+      },
+      {
+        "api": "KERNEL32.dll!QueryPerformanceCounter",
+        "basis": "Explicit synthetic startup profile; not a native Windows observation",
+        "return_address": "0x1032af07",
+        "arguments": [
+          "0x70007fe4"
+        ],
+        "memory_writes": [
+          {
+            "address": "0x70007fe4",
+            "size": 8
+          }
+        ],
+        "result": "0x1"
+      },
+      {
+        "api": "KERNEL32.dll!HeapCreate",
+        "basis": "Explicit synthetic startup profile; not a native Windows observation",
+        "return_address": "0x1032ace9",
+        "arguments": [
+          "0x0",
+          "0x1000",
+          "0x0"
+        ],
+        "result": "0x74000000"
+      }
+    ],
+    "heaps": {
+      "0x74000000": {
+        "limit": 16777216,
+        "live": 0,
+        "active": true
+      }
+    },
+    "heap_arena": {
+      "base": "0x50000000",
+      "capacity": 16777216,
+      "used": 0
+    },
+    "limitations": "Synthetic clock/IDs and bounded single-thread heaps; freed blocks not reused or unmapped; unspecified allocation contents filled A5 unless zero requested; no OS calls, device, license, filesystem, scheduling or time progression; API writes logged separately from CPU write events"
+  },
+  "final_module_state": {
+    "modules": [
+      {
+        "name": "kernel32.dll",
+        "sha256": "d62d3ca4f677eb06ba81b1eba82f375c0c345f0e8f8097c92fc5e36e4d72294e",
+        "base": "0x6b800000",
+        "mapped_size": 983040,
+        "input_unchanged": true,
+        "loadlibrary_acquisitions": 0
+      }
+    ],
+    "resolver_events": [
+      {
+        "api": "KERNEL32.dll!GetModuleHandleW",
+        "return_address": "0x10325a8e",
+        "module": "KERNEL32.DLL",
+        "result": "0x6b800000",
+        "basis": "Explicitly mapped PE module/export table"
+      },
+      {
+        "api": "KERNEL32.dll!GetProcAddress",
+        "return_address": "0x10325aac",
+        "module_handle": "0x6b800000",
+        "module": "kernel32.dll",
+        "symbol": "FlsAlloc",
+        "result": "0x6b8220c0",
+        "basis": "Explicitly mapped PE module/export table"
+      },
+      {
+        "api": "KERNEL32.dll!GetProcAddress",
+        "return_address": "0x10325ab9",
+        "module_handle": "0x6b800000",
+        "module": "kernel32.dll",
+        "symbol": "FlsGetValue",
+        "result": "0x6b81ea10",
+        "basis": "Explicitly mapped PE module/export table"
+      },
+      {
+        "api": "KERNEL32.dll!GetProcAddress",
+        "return_address": "0x10325ac6",
+        "module_handle": "0x6b800000",
+        "module": "kernel32.dll",
+        "symbol": "FlsSetValue",
+        "result": "0x6b821480",
+        "basis": "Explicitly mapped PE module/export table"
+      },
+      {
+        "api": "KERNEL32.dll!GetProcAddress",
+        "return_address": "0x10325ad3",
+        "module_handle": "0x6b800000",
+        "module": "kernel32.dll",
+        "symbol": "FlsFree",
+        "result": "0x6b8222f0",
+        "basis": "Explicitly mapped PE module/export table"
+      }
+    ],
+    "observed_resolver_calls": 5,
+    "limitations": "Preferred bases only; no DLL initialization, relocation, API-set mapping, last-error state or OS execution; unknown operations stop"
+  },
+  "final_watched_ranges": [
+    {
+      "address": "0x10364ac0",
+      "size": 8,
+      "initial_sha256": "29b5066f8e977a643aebc158d86968765fbcdec85d9c5fcff28cc9f68782d5e4",
+      "final_sha256": "d10307a56efa11e90bcb0faef81d138f0c00ea53b63411ed1eb0f4e16d74c20f",
+      "initial_all_zero": false,
+      "final_all_zero": false,
+      "changed_byte_count": 8,
+      "first_changed_address": "0x10364ac0",
+      "last_changed_address": "0x10364ac7",
+      "baseline": "Mapped image after harness IAT markers, before CPU execution; bytes not exported"
+    },
+    {
+      "address": "0x1037f8e8",
+      "size": 4,
+      "initial_sha256": "df3f619804a92fdb4057192dc43dd748ea778adc52bc498ce80524c014b81119",
+      "final_sha256": "b4219b03c6138e78bb63fa88419ffd3315d0341fd89ece74b1947ea74274b54a",
+      "initial_all_zero": true,
+      "final_all_zero": false,
+      "changed_byte_count": 1,
+      "first_changed_address": "0x1037f8eb",
+      "last_changed_address": "0x1037f8eb",
+      "baseline": "Mapped image after harness IAT markers, before CPU execution; bytes not exported"
+    }
+  ]
+}
