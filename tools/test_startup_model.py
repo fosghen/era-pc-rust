@@ -262,6 +262,66 @@ class StartupModelTests(unittest.TestCase):
         self.machine.emu_start(0x10000, 0x10006)
         self.assertEqual(self.model.trace_state['reason'], 'unsupported_critical_section_memory')
 
+    def enable_measured_lock_layout(self):
+        self.machine = uc.Uc(uc.UC_ARCH_X86, uc.UC_MODE_32)
+        self.machine.mem_map(0x10000, 0x3000)
+        self.model = StartupModel(self.machine, critical_section_layout='win10-x86-19041')
+
+    def test_measured_lock_layout_tracks_recursion_and_deletion(self):
+        self.enable_measured_lock_layout()
+        for spin in (0, 4000):
+            self.result('InitializeCriticalSectionAndSpinCount', 0x11000, spin)
+            for api, depth in ((None, 0), ('EnterCriticalSection', 1),
+                               ('TryEnterCriticalSection', 2), ('LeaveCriticalSection', 1),
+                               ('LeaveCriticalSection', 0)):
+                if api:
+                    self.result(api, 0x11000)
+                self.assertEqual(struct.unpack('<IiiIII', self.machine.mem_read(0x11000, 24)),
+                    (0xffffffff, -2 if depth else -1, depth, 4097 if depth else 0, 0, spin or 0x020007d0))
+            self.result('DeleteCriticalSection', 0x11000)
+            self.assertEqual(bytes(self.machine.mem_read(0x11000, 24)), bytes(24))
+        self.result('InitializeCriticalSection', 0x11000)
+        self.assertEqual(struct.unpack('<I', self.machine.mem_read(0x11014, 4))[0], 0x020007d0)
+
+    def test_measured_lock_layout_can_be_copied_but_copy_is_not_a_live_lock(self):
+        self.enable_measured_lock_layout()
+        self.result('InitializeCriticalSection', 0x11000)
+        # mov esi,11000; mov edi,12000; mov ecx,6; rep movsd
+        self.machine.mem_write(0x10000, bytes.fromhex('be00100100 bf00200100 b906000000 f3a5'))
+        self.machine.emu_start(0x10000, 0x10011)
+        self.assertEqual(self.machine.mem_read(0x11000, 24), self.machine.mem_read(0x12000, 24))
+        self.assertEqual(self.model.trace_state, {})
+        self.assertFalse(self.call('EnterCriticalSection', 0x12000)[0])
+
+    def test_measured_lock_layout_still_rejects_direct_and_api_writes(self):
+        self.enable_measured_lock_layout()
+        self.result('InitializeCriticalSection', 0x11000)
+        self.assertFalse(self.call('QueryPerformanceCounter', 0x11000)[0])
+        self.machine.mem_write(0x10000, bytes.fromhex('a300100100 90'))
+        self.machine.emu_start(0x10000, 0x10006)
+        self.assertEqual(self.model.trace_state['reason'], 'unsupported_critical_section_memory')
+        self.assertEqual(self.model.trace_state['critical_section_access']['operation'], 'write')
+
+    def test_measured_lock_rejects_unknown_spin_without_mutation(self):
+        self.enable_measured_lock_layout()
+        for spin in (1, 2000, 0x80000000):
+            self.assertFalse(self.call('InitializeCriticalSectionAndSpinCount', 0x11000, spin)[0])
+            self.assertEqual(self.model.locks, {})
+            self.assertEqual(bytes(self.machine.mem_read(0x11000, 24)), bytes(24))
+
+    def test_measured_lock_rejects_readonly_storage_without_changing_depth(self):
+        self.enable_measured_lock_layout()
+        self.result('InitializeCriticalSection', 0x11000)
+        self.machine.mem_protect(0x11000, 4096, uc.UC_PROT_READ)
+        self.assertFalse(self.call('EnterCriticalSection', 0x11000)[0])
+        self.assertEqual(self.model.locks[0x11000]['depth'], 0)
+
+    def test_unknown_lock_layout_rejected_before_mapping(self):
+        machine = uc.Uc(uc.UC_ARCH_X86, uc.UC_MODE_32)
+        with self.assertRaises(ValueError):
+            StartupModel(machine, critical_section_layout='unmeasured')
+        self.assertEqual(list(machine.mem_regions()), [])
+
     def test_interlocked_wraparound_and_compare_exchange(self):
         pointer = 0x11000
         self.machine.mem_write(pointer, bytes.fromhex('ffffffff'))

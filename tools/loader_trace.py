@@ -38,7 +38,9 @@ def address_size(text):
 
 def trace(path, export, argument, max_instructions, max_seconds, modules=(), thread_model=False,
           dll_attach=False, observe=(), watch=(), startup_model=False, nls_codepage=None, nls_sort=None, nls_case=None,
-          after_attach_export=None, reference_import_markers=False, host_after_attach=None):
+          after_attach_export=None, reference_import_markers=False, host_after_attach=None, critical_section_layout=None):
+    if critical_section_layout and not startup_model:
+        raise ValueError('Critical-section layout requires the explicit startup model')
     if host_after_attach and (not dll_attach or after_attach_export or export):
         raise ValueError('Host continuation requires DLL attach without an explicit export call')
     if reference_import_markers and not modules:
@@ -119,7 +121,7 @@ def trace(path, export, argument, max_instructions, max_seconds, modules=(), thr
         module_model.register_guest(path.name, pe)
         module_model.register_guest(host_after_attach.name, host['pe'], is_main=True)
     thread = X86ThreadModel(machine, stack, 0x10000) if thread_model else None
-    startup = StartupModel(machine, nls_codepage, nls_sort, nls_case) if startup_model else None
+    startup = StartupModel(machine, nls_codepage, nls_sort, nls_case, critical_section_layout) if startup_model else None
     if startup:
         startup.primary_region = (base, mapped_size)
         if host:
@@ -480,6 +482,8 @@ def main():
                         help='After DLL attach, run this explicit x86 EXE and route its imports of this DLL to actual guest exports')
     parser.add_argument('--startup-model', action='store_true',
                         help='Opt-in explicitly synthetic startup API fixtures; unknown calls stop')
+    parser.add_argument('--critical-section-layout', choices=['win10-x86-19041'],
+                        help='Opt-in measured uncontended x86 lock layout fixture; direct guest writes still stop')
     parser.add_argument('--nls-codepage', type=Path, help='Explicit read-only SBCS CP1251 reference file')
     parser.add_argument('--nls-sort', type=Path, help='Explicit read-only sortdefault.nls classification reference')
     parser.add_argument('--nls-case', type=Path, help='Explicit read-only l_intl.nls simple BMP case reference')
@@ -500,7 +504,7 @@ def main():
     result = trace(args.file, args.export, args.argument, args.max_instructions, args.max_seconds,
                    args.module, args.thread_model, args.dll_attach, args.observe, args.watch, args.startup_model,
                    args.nls_codepage, args.nls_sort, args.nls_case, args.after_attach_export, args.reference_import_markers,
-                   args.host_after_attach)
+                   args.host_after_attach, args.critical_section_layout)
     with args.report.open('x', encoding='utf-8') as output:
         json.dump(result, output, indent=2, ensure_ascii=False)
         output.write('\n')

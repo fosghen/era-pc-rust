@@ -66,6 +66,13 @@ def resolver_caller(module_name='KERNEL32.dll', api='GetModuleHandleA'):
 
 
 class LoaderTraceTests(unittest.TestCase):
+    def test_lock_layout_requires_startup_and_is_reported(self):
+        with self.assertRaisesRegex(ValueError, 'requires the explicit startup model'):
+            self.run_image(synthetic_pe(b'\xc3'), critical_section_layout='win10-x86-19041')
+        result = self.run_image(synthetic_pe(b'\xc3'), startup_model=True,
+                                critical_section_layout='win10-x86-19041')
+        self.assertEqual(result['startup_model']['critical_section_layout'], 'win10-x86-19041')
+
     def run_image(self, image, limit=100, modules=(), thread_model=False, argument=0, **options):
         with tempfile.TemporaryDirectory(prefix='era-trace-test-') as directory:
             path = Path(directory) / 'synthetic.exe'

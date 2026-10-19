@@ -45,7 +45,10 @@ class StartupModel:
                  'GetUserDefaultLangID': 0, 'DuplicateHandle': 7, 'CloseHandle': 1,
                  'VirtualAlloc': 4, 'VirtualFree': 3}
 
-    def __init__(self, machine, nls_codepage=None, nls_sort=None, nls_case=None):
+    def __init__(self, machine, nls_codepage=None, nls_sort=None, nls_case=None, critical_section_layout=None):
+        if critical_section_layout not in (None, 'win10-x86-19041'):
+            raise ValueError('Unknown critical-section layout profile')
+        self.critical_section_layout = critical_section_layout
         self.machine = machine
         self.nls = NlsModel(nls_codepage, nls_sort, nls_case)
         self.events = []
@@ -135,7 +138,21 @@ class StartupModel:
         event['object_handle'] = hex(handle)
         return 1
 
-    def critical_section_call(self, function, args):
+    def sync_critical_section(self, address, lock, event):
+        if self.critical_section_layout is None:
+            return
+        self.writable(address, 24)
+        depth = lock['depth'] if lock else 0
+        data = (struct.pack('<IiiIII', 0xffffffff, -2 if depth else -1, depth,
+                            self.profile['thread_id'] if depth else 0, 0,
+                            lock['spin'] or 0x020007d0) if lock else bytes(24))
+        # API-side writes do not fire Unicorn CPU hooks. Guest writes still stop.
+        self.machine.mem_write(address, data)
+        event.setdefault('memory_writes', []).append(dict(address=hex(address), size=24,
+            operation='critical_section_layout_fixture'))
+        event['layout_basis'] = 'Own x86 ntdll 10.0.19041.4842 uncontended probe; synthetic thread ID; not portable Windows ABI'
+
+    def critical_section_call(self, function, args, event):
         address = args[0]
         if function.startswith('Initialize'):
             self.writable(address, 24)  # x86 CRITICAL_SECTION storage, opaque.
@@ -143,8 +160,13 @@ class StartupModel:
                 raise ValueError('Critical section overlaps an active object')
             if len(self.locks) >= 128:
                 raise ValueError('Critical section model budget')
+            spin = args[1] if len(args) == 2 else 0
+            if self.critical_section_layout and spin not in (0, 4000):
+                raise ValueError('Spin count not measured for the selected layout fixture')
 
             def direct_access(machine, kind, pointer, size, value, _):
+                if self.critical_section_layout and kind == uc.UC_MEM_READ:
+                    return
                 self.trace_state.update(reason='unsupported_critical_section_memory',
                                         critical_section_access=dict(address=hex(pointer), size=size,
                                             operation='write' if kind == uc.UC_MEM_WRITE else 'read'))
@@ -152,21 +174,29 @@ class StartupModel:
 
             hook = self.machine.hook_add(uc.UC_HOOK_MEM_READ | uc.UC_HOOK_MEM_WRITE,
                                          direct_access, begin=address, end=address + 23)
-            self.locks[address] = dict(depth=0, spin=args[1] if len(args) == 2 else 0, hook=hook)
+            self.locks[address] = dict(depth=0, spin=spin, hook=hook)
+            self.sync_critical_section(address, self.locks[address], event)
             return 1 if len(args) == 2 else None
         lock = self.locks.get(address)
         if lock is None:
             raise ValueError('Critical section not initialized in this model')
+        if self.critical_section_layout:
+            self.writable(address, 24)
         if function in ('EnterCriticalSection', 'TryEnterCriticalSection'):
+            if lock['depth'] == 0x7fffffff:
+                raise ValueError('Critical section recursion exceeds layout range')
             lock['depth'] += 1  # One modeled thread; reentrant, no contention.
+            self.sync_critical_section(address, lock, event)
             return 1 if function.startswith('Try') else None
         if function == 'LeaveCriticalSection':
             if not lock['depth']:
                 raise ValueError('Critical section is not owned')
             lock['depth'] -= 1
+            self.sync_critical_section(address, lock, event)
             return None
         if lock['depth']:
             raise ValueError('Deleting an owned critical section is not modeled')
+        self.sync_critical_section(address, None, event)
         self.machine.hook_del(lock['hook'])
         del self.locks[address]
         return None
@@ -460,7 +490,7 @@ class StartupModel:
             event['previous_value'] = hex(old)
             return old if 'Exchange' in function else new
         if 'CriticalSection' in function:
-            return self.critical_section_call(function, args)
+            return self.critical_section_call(function, args, event)
         if function in ('EncodePointer', 'DecodePointer'):
             # Deliberately synthetic reversible mapping, not Windows' secret
             # algorithm or any dongle key. Only the API pair's round trip holds.
@@ -523,6 +553,7 @@ class StartupModel:
 
     def report(self):
         return dict(profile=self.profile, events=self.events,
+                    critical_section_layout=self.critical_section_layout or 'opaque-stop-on-access',
                     nls=self.nls.report(),
                     local_storage=self.slots, last_error=self.last_error,
                     critical_sections={hex(p): {k: v for k, v in lock.items() if k != 'hook'}
@@ -536,4 +567,4 @@ class StartupModel:
                     memory_operation_regions=[dict(base=hex(base), size=size)
                         for base, size in ([self.primary_region] if self.primary_region else []) + self.additional_image_regions],
                     heap_arena=dict(base=hex(HEAP_BASE), capacity=HEAP_CAPACITY, used=self.cursor - HEAP_BASE),
-                    limitations='Explicit synthetic process profile, reversible XOR pointer fixture, single-thread opaque locks/atomics and bounded heaps; 64 TLS/FLS slots each, no direct TEB storage or callback dispatch; unknown last-error reads stop; only the named registry key is assumed absent; NLS data requires explicit files; page permissions apply to explicit input images and live virtual allocations; freed heap blocks not reused/unmapped, released virtual allocations unmapped and not reused; unspecified heap allocation bytes A5; no host API, device, license, filesystem operations, scheduling or time progression; API writes logged separately from CPU writes')
+                    limitations='Explicit synthetic process profile, reversible XOR pointer fixture, single-thread locks/atomics and bounded heaps; locks opaque by default, optional measured read-only layout for uncontended spin 0/4000 only; copied locks are not live objects; 64 TLS/FLS slots each, no direct TEB storage or callback dispatch; unknown last-error reads stop; only the named registry key is assumed absent; NLS data requires explicit files; page permissions apply to explicit input images and live virtual allocations; freed heap blocks not reused/unmapped, released virtual allocations unmapped and not reused; unspecified heap allocation bytes A5; no host API, device, license, filesystem operations, scheduling or time progression; API writes logged separately from CPU writes')
