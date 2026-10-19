@@ -1,0 +1,123 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-19",
+  "parent_commit": "9d4ecbda2e4e0ac18fe97f2244ea4a97e778cef3",
+  "path_base": "workspace root containing era-rust and reverse_engineering",
+  "status": "Corrected memory guard reproduces GetSystemTime boundary; UTC fixture passes that call; longer 600m-instruction trace pending",
+  "tests": {
+    "synthetic_python_passed": 107,
+    "rust_with_recovered_tests_passed": 59
+  },
+  "files": [
+    {
+      "path": "era-rust/tools/loader_trace.py",
+      "sha256": "4ed8975f102e5c21151c51097061d2e115668435391b952bb33d727c29311491"
+    },
+    {
+      "path": "era-rust/tools/startup_model.py",
+      "sha256": "ff385d42228daa97036eb261d904d0ca3d8302838cc3c283a4795481429738e8"
+    },
+    {
+      "path": "era-rust/tools/pe_module_model.py",
+      "sha256": "c7aa5e5775eaf36b88a08ead627d7fbe60b3bbd1809b6613e414bee808531a2a"
+    },
+    {
+      "path": "era-rust/tools/x86_thread_model.py",
+      "sha256": "add7d065ee124b441184629cdd9d87fead60ce3639e310c2bbccc1d0037b4b8a"
+    },
+    {
+      "path": "era-rust/tools/nls_model.py",
+      "sha256": "8849236f1ddef7da6c24844933c8e051f1164b6785768347f74149acca5cee49"
+    },
+    {
+      "path": "era-rust/tools/verify_checkpoint.py",
+      "sha256": "235a1c96268395f8e2bcd240403de5864929dcd796e9d667ae26fca3f1040696"
+    },
+    {
+      "path": "era-rust/tools/test_loader_trace.py",
+      "sha256": "cdce1f9b8e537f52833933a6b00afc0e5133d6f03bfc017404ca35f345f09e95"
+    },
+    {
+      "path": "era-rust/tools/test_startup_model.py",
+      "sha256": "3754aaafacb466c73ba5b103be524dd0bc5269f7798d01ffc19ac5b48ee6622a"
+    },
+    {
+      "path": "era-rust/tools/test_verify_checkpoint.py",
+      "sha256": "c766303ed4a8451a9e2a4037f560c6e5344f1c8438a5bb5aacd19d5702b8b68c"
+    },
+    {
+      "path": "era-rust/docs/HOST_LINKED_RESEARCH.md",
+      "sha256": "5fbd3d3146f2d4417bb3beaa882ac64ef6f64f82b74c85eb35c669ef504fddc4"
+    },
+    {
+      "path": "reverse_engineering/perv_linked_05.json",
+      "sha256": "60cf4d50b039fa2039c574633667f99a455a1f45bf4d9443ad7459f7ac3d8fe7"
+    },
+    {
+      "path": "reverse_engineering/perv_linked_06.json",
+      "sha256": "49df1794791e64e845a2fe141e6c1c67df67780dbe801161d2167557e2491d0a"
+    }
+  ],
+  "experiments": [
+    {
+      "instructions": 288052740,
+      "reason": "external_import",
+      "external_import": "api-ms-win-core-sysinfo-l1-1-0.dll!GetSystemTime",
+      "elapsed_seconds": 407.3846,
+      "input_unchanged": true,
+      "limits": {
+        "instructions": 300000000,
+        "seconds": 450
+      },
+      "report": "perv_linked_05.json",
+      "source_commit": "88fbff047544fca5e3b17662809162be14c88430",
+      "source_hashes_match_commit": true,
+      "model_hashes": {
+        "tool_sha256": "01ceab5873941afdc5caa94731f5e1020ded765be57efff56fded1139698f5b4",
+        "module_model_sha256": "c7aa5e5775eaf36b88a08ead627d7fbe60b3bbd1809b6613e414bee808531a2a",
+        "thread_model_sha256": "add7d065ee124b441184629cdd9d87fead60ce3639e310c2bbccc1d0037b4b8a",
+        "startup_model_sha256": "822f7be3a5dfa26735e737267826c57463423f40aea823548398d605ce8d6b03",
+        "nls_model_sha256": "8849236f1ddef7da6c24844933c8e051f1164b6785768347f74149acca5cee49"
+      },
+      "host_input_unchanged": true,
+      "init_prot_app_observed": false
+    },
+    {
+      "instructions": 300000000,
+      "reason": "instruction_limit",
+      "external_import": null,
+      "elapsed_seconds": 419.0851,
+      "input_unchanged": true,
+      "limits": {
+        "instructions": 300000000,
+        "seconds": 450
+      },
+      "report": "perv_linked_06.json",
+      "source_commit": "fa075f88e12a0eb064fa9a78196afb9498526bfb",
+      "source_hashes_match_commit": true,
+      "model_hashes": {
+        "tool_sha256": "01ceab5873941afdc5caa94731f5e1020ded765be57efff56fded1139698f5b4",
+        "module_model_sha256": "c7aa5e5775eaf36b88a08ead627d7fbe60b3bbd1809b6613e414bee808531a2a",
+        "thread_model_sha256": "add7d065ee124b441184629cdd9d87fead60ce3639e310c2bbccc1d0037b4b8a",
+        "startup_model_sha256": "ff385d42228daa97036eb261d904d0ca3d8302838cc3c283a4795481429738e8",
+        "nls_model_sha256": "8849236f1ddef7da6c24844933c8e051f1164b6785768347f74149acca5cee49"
+      },
+      "host_input_unchanged": true,
+      "init_prot_app_observed": false
+    }
+  ],
+  "replay04_vs05": {
+    "external_import": true,
+    "external_stack_words": true,
+    "registers": true,
+    "image_writes_by_section": true,
+    "watched_ranges": true
+  },
+  "limitations": [
+    "No license success or numerical calculation demonstrated",
+    "No vendor files or memory snapshots included",
+    "Fixed UTC fixture is not native clock observation",
+    "Instruction counts differ; RDTSC is not fixed",
+    "Hash verification is not proof of authenticity or numerical equivalence"
+  ]
+}
