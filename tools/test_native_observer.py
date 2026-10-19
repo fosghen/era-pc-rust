@@ -12,11 +12,14 @@ import test_startup_model as startup_fixtures
 
 
 def semantic_report(result):
+    def child_semantics(child):
+        return {key: value for key, value in child.items() if key not in ('elapsed_seconds', 'setup_seconds')}
     report = {key: value for key, value in result.items()
               if key not in ('elapsed_seconds', 'instruction_observer')}
     if 'worker_entry_probe' in report:
-        report['worker_entry_probe'] = {key: value for key, value in report['worker_entry_probe'].items()
-                                        if key not in ('elapsed_seconds', 'setup_seconds')}
+        report['worker_entry_probe'] = child_semantics(report['worker_entry_probe'])
+    if 'worker_entry_probe_scenarios' in report:
+        report['worker_entry_probe_scenarios'] = [child_semantics(child) for child in report['worker_entry_probe_scenarios']]
     return report
 
 

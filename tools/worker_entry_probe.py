@@ -51,7 +51,8 @@ def _overlaps(address, size, ranges):
 
 def probe_worker_entry(source_machine, *, entry, parameter, thread_id, image_ranges,
                        stop_addresses, reference_ranges, creator_tib_range=None,
-                       protected_ranges=(), max_instructions=100000, max_seconds=2):
+                       protected_ranges=(), max_instructions=100000, max_seconds=2,
+                       rdtsc_values=()):
     """Clone a stopped UC32 and inspect an artificial stdcall entry, stop-only.
 
     All range arguments contain (start, size), not inclusive end addresses.
@@ -69,6 +70,10 @@ def probe_worker_entry(source_machine, *, entry, parameter, thread_id, image_ran
     if (type(max_seconds) not in (int, float) or not math.isfinite(max_seconds)
             or not 0 < max_seconds <= 10):
         raise ValueError('Execution time budget must be positive and <=10 seconds')
+    if (type(rdtsc_values) not in (tuple, list) or len(rdtsc_values) > 64 or
+            any(type(value) is not int or not 0 <= value < 2**64 for value in rdtsc_values)):
+        raise ValueError('RDTSC fixture must be a tuple/list of at most 64 uint64 integers')
+    rdtsc_values = tuple(rdtsc_values)
     images = _ranges(image_ranges)
     references = _ranges(reference_ranges)
     opaque = _ranges(protected_ranges)
@@ -127,6 +132,7 @@ def probe_worker_entry(source_machine, *, entry, parameter, thread_id, image_ran
     child.reg_write(x86.UC_X86_REG_MXCSR, 0x1f80)
     initial = {name: hex(child.reg_read(reg)) for name, reg in REGISTERS.items()}
     state = dict(reason='running', instructions=0)
+    rdtsc_events = []
     tail = deque(maxlen=24)
     decoder = cs.Cs(cs.CS_ARCH_X86, cs.CS_MODE_32)
     decoder.detail = True
@@ -176,6 +182,22 @@ def probe_worker_entry(source_machine, *, entry, parameter, thread_id, image_ran
         decoded = next(decoder.disasm(bytes(machine.mem_read(address, size)), address, count=1), None)
         if decoded is None:
             stop('unsupported_instruction')
+            return
+        if decoded.id == cs.x86_const.X86_INS_RDTSC and rdtsc_values:
+            if len(rdtsc_events) == len(rdtsc_values):
+                stop('rdtsc_fixture_exhausted', boundary_address=hex(address))
+                return
+            value = rdtsc_values[len(rdtsc_events)]
+            machine.reg_write(x86.UC_X86_REG_EAX, value & 0xffffffff)
+            machine.reg_write(x86.UC_X86_REG_EDX, value >> 32)
+            machine.reg_write(x86.UC_X86_REG_EIP, (address + size) & 0xffffffff)
+            rdtsc_events.append(dict(address=hex(address), instruction_index=state['instructions'],
+                                     value=hex(value)))
+            state['instructions'] += 1
+            tail.append(hex(address))
+            # Resume only from the outer loop, without executing actual RDTSC.
+            # No flags, other registers, timestamps or model objects are changed.
+            machine.emu_stop()
             return
         # Do not silently obtain time/CPU/I/O or privileged environment behavior.
         if decoded.group(cs.CS_GRP_PRIVILEGE) or decoded.mnemonic.split()[-1] in ('syscall', 'sysenter', 'sysret', 'sysexit', 'int', 'int1',
@@ -243,7 +265,9 @@ def probe_worker_entry(source_machine, *, entry, parameter, thread_id, image_ran
                  fixture=dict(entry=hex(entry), parameter=hex(parameter), thread_id=thread_id,
                               stack_base=hex(STACK), stack_size=STACK_SIZE, tib=hex(TIB),
                               sentinel=hex(SENTINEL), fs_selector='0x13', ss_selector='0x8',
-                              mxcsr='0x1f80', other_cpu_state='Fresh Unicorn defaults, not creator state'),
+                              mxcsr='0x1f80', other_cpu_state='Fresh Unicorn defaults, not creator state',
+                              rdtsc_values=[hex(value) for value in rdtsc_values]),
+                 rdtsc_events=rdtsc_events,
                  source_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
                  versions=dict(unicorn=uc.__version__, capstone=cs.__version__),
                  observer='python', resume_thread_success=False,
@@ -253,6 +277,6 @@ def probe_worker_entry(source_machine, *, entry, parameter, thread_id, image_ran
                                     protected=[(hex(p), n) for p, n in opaque]),
                  stop_address_count=len(stops),
                  semantics='Artificial entry dependency probe, not a native worker or ResumeThread success',
-                 instruction_count_semantics='Approved instruction hook entries; faulting/memory-stopped instruction may be counted, boundary instructions excluded',
-                 limitations='Stopped source required; independent byte/permission clone, no source CPU/model state inherited; explicit stdcall registers/stack/NT_TIB; no APIs, TLS, DllMain, callbacks, scheduling, exception dispatch, host/device access or main continuation; memory guards are pre-access observations, not proof of instruction commit; only explicit input-image code allowed; first boundary depends on these artificial assumptions')
+                 instruction_count_semantics='Approved instruction hook entries including modeled RDTSC; event instruction_index is zero-based; faulting/memory-stopped instruction may be counted, boundary instructions excluded',
+                 limitations='Stopped source required; independent byte/permission clone, no source CPU/model state inherited; explicit stdcall registers/stack/NT_TIB; optional finite RDTSC sequence writes EDX:EAX without executing RDTSC, preserving flags, no clock progression or native timing; no APIs, TLS, DllMain, callbacks, scheduling, exception dispatch, host/device access or main continuation; memory guards are pre-access observations, not proof of instruction commit; only explicit input-image code allowed; first boundary depends on these artificial assumptions')
     return state

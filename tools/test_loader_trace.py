@@ -4,7 +4,7 @@ import struct
 import tempfile
 import unittest
 
-from loader_trace import trace, validate_limits, module_base
+from loader_trace import trace, validate_limits, module_base, rdtsc_sequence
 from pe_module_model import ModuleModel, utf16_z
 from startup_model import VIRTUAL_BASE
 import unicorn as uc
@@ -79,6 +79,17 @@ def stopped_api_caller(api, arguments, payload=b''):
 
 
 class LoaderTraceTests(unittest.TestCase):
+    def test_worker_rdtsc_sequence_is_explicit_and_bounded(self):
+        self.assertEqual(rdtsc_sequence('0x100000000:2:3'), (0x100000000, 0x100000002, 0x100000004))
+        for text in ('0:1:0', '0:1:65', '-1:0:1', '0:-1:1', '0xffffffffffffffff:1:2', 'bad', '0:1:2:3'):
+            with self.subTest(text=text), self.assertRaises(ValueError):
+                rdtsc_sequence(text)
+        with self.assertRaisesRegex(ValueError, 'require the explicit worker-entry probe'):
+            self.run_image(synthetic_pe(b'\xc3'), worker_rdtsc_sequences=[(1,)])
+        for sequences in ([(1,)] * 4, [()], [(True,)], [(2**64,)], [(-1,)], None):
+            with self.subTest(sequences=sequences), self.assertRaisesRegex(ValueError, 'At most three'):
+                self.run_image(synthetic_pe(b'\xc3'), worker_rdtsc_sequences=sequences)
+
     def test_module_base_argument_parsing_and_explicit_reference_requirement(self):
         self.assertEqual(module_base('OLEAUT32.dll=0x61000000'), ('OLEAUT32.dll', 0x61000000))
         self.assertEqual(module_base('sample.dll=4096'), ('sample.dll', 4096))
@@ -843,6 +854,17 @@ class LoaderTraceTests(unittest.TestCase):
         self.assertEqual(child['reason'], 'returned')
         self.assertEqual(child['registers']['eax'], '0x2a')
         self.assertTrue(probed['input_unchanged'])
+        data[0x280:0x285] = bytes.fromhex('0f31 c20400')
+        matrix = self.run_image(data, worker_entry_probe=True,
+                                worker_rdtsc_sequences=[(1,), (0x123456789abcdef0,)], **options)
+        self.assertEqual(matrix['worker_entry_probe']['reason'], 'unsupported_instruction')
+        scenarios = matrix['worker_entry_probe_scenarios']
+        self.assertEqual([item['reason'] for item in scenarios], ['returned', 'returned'])
+        self.assertEqual([item['registers']['eax'] for item in scenarios], ['0x1', '0x9abcdef0'])
+        self.assertEqual([item['registers']['edx'] for item in scenarios], ['0x0', '0x12345678'])
+        self.assertEqual(scenarios[0]['clone_manifest'], scenarios[1]['clone_manifest'])
+        self.assertEqual(matrix['startup_model'], parent['startup_model'])
+        self.assertEqual(matrix['registers'], parent['registers'])
         unknown = self.run_image(stopped_api_caller('ResumeThread', [0x1234]),
                                  worker_entry_probe=True, **options)
         self.assertFalse(unknown['worker_entry_probe']['attempted'])

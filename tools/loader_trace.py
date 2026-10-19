@@ -43,6 +43,14 @@ def module_base(text):
     return name, integer(address)
 
 
+def rdtsc_sequence(text):
+    start, step, count = (int(part, 0) for part in text.split(':'))
+    if not (0 <= start < 2**64 and 0 <= step < 2**64 and 1 <= count <= 64
+            and start + step * (count - 1) < 2**64):
+        raise ValueError('RDTSC sequence requires uint64 start:step:count, count 1..64 and no overflow')
+    return tuple(start + step * index for index in range(count))
+
+
 def validate_limits(max_instructions, max_seconds):
     if (type(max_instructions) is not int or not 1 <= max_instructions <= 4_000_000_000
             or not 0 < max_seconds <= 900):
@@ -54,7 +62,7 @@ def trace(path, export, argument, max_instructions, max_seconds, modules=(), thr
           after_attach_export=None, reference_import_markers=False, host_after_attach=None, critical_section_layout=None,
           observer='python', memory_observer=None, module_bases=(), api_set_schema=None, computer_name=None,
           get_version_result=None, suspended_threads=False, create_thread_interior=False, event_state=False,
-          worker_entry_probe=False):
+          worker_entry_probe=False, worker_rdtsc_sequences=()):
     validate_limits(max_instructions, max_seconds)
     if observer not in ('python', 'rust'):
         raise ValueError('Observer must be python or rust')
@@ -76,6 +84,13 @@ def trace(path, export, argument, max_instructions, max_seconds, modules=(), thr
         raise ValueError('Event-state fixture requires the explicit startup model')
     if worker_entry_probe and not (startup_model and thread_model and suspended_threads):
         raise ValueError('Worker-entry probe requires startup model, thread model and suspended threads')
+    if (not isinstance(worker_rdtsc_sequences, (tuple, list)) or len(worker_rdtsc_sequences) > 3
+            or any(not isinstance(seq, (tuple, list)) or not 1 <= len(seq) <= 64
+                   or any(type(v) is not int or not 0 <= v < 2**64 for v in seq)
+                   for seq in worker_rdtsc_sequences)):
+        raise ValueError('At most three nonempty worker RDTSC sequences of 1..64 uint64 values')
+    if worker_rdtsc_sequences and not worker_entry_probe:
+        raise ValueError('Worker RDTSC sequences require the explicit worker-entry probe')
     if create_thread_interior and not (startup_model and suspended_threads and modules):
         raise ValueError('Interior CreateThread profile requires startup model, suspended threads and reference modules')
     if host_after_attach and (not dll_attach or after_attach_export or export):
@@ -638,22 +653,30 @@ def trace(path, export, argument, max_instructions, max_seconds, modules=(), thr
         else:
             stops = {address: names[0] for address, names in module_model.address_names.items() if names}
             stops.update(functions)
-            try:
-                child = probe_worker_entry(machine, entry=int(worker['start_address'], 16),
-                    parameter=int(worker['parameter'], 16), thread_id=worker['thread_id'],
-                    image_ranges=image_ranges, stop_addresses=stops,
-                    reference_ranges=[(m['base'], m['size']) for m in module_model.modules.values()],
-                    creator_tib_range=(TIB_BASE, 0x1000),
-                    protected_ranges=[(address, 24) for address in startup.locks])
-            except Exception as error:
-                # Preserve the expensive parent stop even if the optional
-                # disposable diagnostic fails. Never continue its ResumeThread.
-                child = dict(reason='probe_error', error_type=type(error).__name__, error=str(error))
-            child.update(attempted=True, parent_stop=state['external_import'],
-                parent_instruction_index=state['instructions'], parent_return_address=words[0],
-                thread_handle=hex(handle), object_id=record['object'],
-                parent_resume_performed=False, parent_thread_execution_started=False)
-            state['worker_entry_probe'] = child
+            def run_child(sequence=()):
+                try:
+                    child = probe_worker_entry(machine, entry=int(worker['start_address'], 16),
+                        parameter=int(worker['parameter'], 16), thread_id=worker['thread_id'],
+                        image_ranges=image_ranges, stop_addresses=stops,
+                        reference_ranges=[(m['base'], m['size']) for m in module_model.modules.values()],
+                        creator_tib_range=(TIB_BASE, 0x1000),
+                        protected_ranges=[(address, 24) for address in startup.locks], rdtsc_values=sequence)
+                except Exception as error:
+                    # Preserve the expensive parent stop even if the optional
+                    # disposable diagnostic fails. Never continue its ResumeThread.
+                    child = dict(reason='probe_error', error_type=type(error).__name__, error=str(error))
+                child.update(attempted=True, parent_stop=state['external_import'],
+                    parent_instruction_index=state['instructions'], parent_return_address=words[0],
+                    thread_handle=hex(handle), object_id=record['object'],
+                    parent_resume_performed=False, parent_thread_execution_started=False)
+                # Each probe has a disposable engine with callback cycles;
+                # reclaim it before constructing another full memory clone.
+                import gc
+                gc.collect()
+                return child
+            state['worker_entry_probe'] = run_child()
+            if worker_rdtsc_sequences:
+                state['worker_entry_probe_scenarios'] = [run_child(sequence) for sequence in worker_rdtsc_sequences]
     return state
 
 
@@ -683,6 +706,8 @@ def main():
                         help='Opt-in local event Set/Reset and immediately decidable waits only; no blocking or scheduling')
     parser.add_argument('--worker-entry-probe', action='store_true',
                         help='Separate disposable stop-only worker entry experiment at ResumeThread; no main continuation, TLS initialization or Windows thread startup')
+    parser.add_argument('--worker-rdtsc-sequence', type=rdtsc_sequence, action='append', default=[],
+                        help='Explicit artificial start:step:count timestamp sequence, at most 3 independent child scenarios; requires worker-entry probe')
     parser.add_argument('--create-thread-interior', action='store_true',
                         help='Opt-in validated kernel32 CreateThread +11 partial-frame profile; requires suspended threads and reference modules')
     parser.add_argument('--critical-section-layout', choices=['win10-x86-19041'],
@@ -719,7 +744,8 @@ def main():
                    args.nls_codepage, args.nls_sort, args.nls_case, args.after_attach_export, args.reference_import_markers,
                    args.host_after_attach, args.critical_section_layout, args.observer, args.memory_observer,
                    args.module_base, args.api_set_schema, args.computer_name, args.get_version_result,
-                   args.suspended_threads, args.create_thread_interior, args.event_state, args.worker_entry_probe)
+                   args.suspended_threads, args.create_thread_interior, args.event_state, args.worker_entry_probe,
+                   args.worker_rdtsc_sequence)
     with args.report.open('x', encoding='utf-8') as output:
         json.dump(result, output, indent=2, ensure_ascii=False)
         output.write('\n')

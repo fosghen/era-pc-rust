@@ -1100,3 +1100,19 @@ Watch template `0x0d1ab000:60` остался нулевым, без CPU writes;
 `0x0090e7e4:4` остался ненулевым и неизменным. Эти свойства относятся к
 нашему mapped state: они не означают, что native static TLS инициализирована.
 Ни ResumeThread, ни worker completion, ни успешная лицензия не смоделированы.
+
+### Следующий контролируемый опыт: явные RDTSC sequences
+
+Добавлен `--worker-rdtsc-sequence START:STEP:COUNT`: максимум три независимых
+child-сценария из одного и того же parent state, 1..64 uint64 значения без
+overflow. Базовый child без fixture по-прежнему останавливается на RDTSC.
+В opt-in сценарии инструкция не исполняется: EDX:EAX получает очередное
+явное значение, EIP продвигается, EFLAGS сохраняются. Исчерпание sequence
+останавливает опыт. RDTSCP, random и privileged инструкции не разрешаются.
+Это выбранные исследователем входные данные, не native timestamps и не
+продвижение часов. Полные sequences и использованные значения журналируются.
+
+Прошли **406 synthetic tests**, включая flags/high-low DWORD/exhaustion,
+изолированные сценарии с одинаковыми clone hashes и Python/Rust parent parity.
+Реальный опыт ЭРА с этой новой fixture **ещё не выполнен**; последнее
+подтверждённое наблюдение остаётся RDTSC@`0x106928f4`, 843 инструкции.

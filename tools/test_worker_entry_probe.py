@@ -143,6 +143,71 @@ class WorkerProbeTests(unittest.TestCase):
                 self.assertEqual(result['operation'], 'fetch')
                 self.assertEqual(result['instructions'], 0)
 
+    def test_rdtsc_default_and_empty_sequence_remain_stop_only(self):
+        for values in ((), []):
+            result = self.run_probe(bytes.fromhex('0f31 c20400'), rdtsc_values=values)
+            self.assertEqual(result['reason'], 'unsupported_instruction')
+            self.assertEqual(result['instructions'], 0)
+            self.assertEqual(result['rdtsc_events'], [])
+            self.assertEqual(result['registers']['eip'], '0x10000')
+
+    def test_rdtsc_uint64_split_flags_and_return(self):
+        # xor sets ZF/PF, stc sets CF: EFLAGS is 0x47 before RDTSC.
+        code = bytes.fromhex('31c0 f9 0f31 c20400')
+        for value in (0, 0x12345678abcdef01, 0xffffffffffffffff):
+            result = self.run_probe(code, rdtsc_values=[value])
+            self.assertEqual(result['reason'], 'returned')
+            self.assertEqual(result['registers']['eax'], hex(value & 0xffffffff))
+            self.assertEqual(result['registers']['edx'], hex(value >> 32))
+            self.assertEqual(result['registers']['eflags'], '0x47')
+            self.assertEqual(result['instructions'], 4)
+            self.assertEqual(result['rdtsc_events'], [dict(address='0x10003', instruction_index=2,
+                                                          value=hex(value))])
+            self.assertEqual(result['fixture']['rdtsc_values'], [hex(value)])
+
+    def test_rdtsc_skips_actual_instruction_and_stops_at_next_boundary(self):
+        result = self.run_probe(bytes.fromhex('0f31 b8ffffffff'), rdtsc_values=(7,),
+                                stop_addresses={0x10002: 'fixture!next'})
+        self.assertEqual(result['reason'], 'external_boundary')
+        self.assertEqual(result['registers']['eip'], '0x10002')
+        self.assertEqual(result['registers']['eax'], '0x7')
+        self.assertEqual(result['instructions'], 1)
+        self.assertEqual(result['tail_instruction_addresses'], ['0x10000'])
+
+    def test_rdtsc_sequence_and_exhaustion(self):
+        code = bytes.fromhex('0f31 89c6 89d7 0f31 c20400')
+        values = (0x123456789abcdef0, 0xfedcba9876543210)
+        result = self.run_probe(code, rdtsc_values=values)
+        self.assertEqual(result['reason'], 'returned')
+        self.assertEqual(result['registers']['esi'], '0x9abcdef0')
+        self.assertEqual(result['registers']['edi'], '0x12345678')
+        self.assertEqual(result['registers']['eax'], '0x76543210')
+        self.assertEqual(result['registers']['edx'], '0xfedcba98')
+        self.assertEqual([e['instruction_index'] for e in result['rdtsc_events']], [0, 3])
+        exhausted = self.run_probe(code, rdtsc_values=values[:1])
+        stopped = self.run_probe(code, rdtsc_values=values[:1], stop_addresses={0x10006: 'fixture!next'})
+        self.assertEqual(exhausted['reason'], 'rdtsc_fixture_exhausted')
+        self.assertEqual(exhausted['registers'], stopped['registers'])
+        self.assertEqual(exhausted['instructions'], 3)
+        self.assertEqual(len(exhausted['rdtsc_events']), 1)
+
+    def test_rdtsc_input_validation_and_count_budget(self):
+        for values in (None, '1', (True,), (-1,), (2**64,), (1.0,), [0] * 65, iter([1])):
+            with self.subTest(values=repr(values)), self.assertRaisesRegex(ValueError, 'uint64'):
+                self.run_probe(bytes.fromhex('0f31'), rdtsc_values=values)
+        result = self.run_probe(bytes.fromhex('0f31 ebfc'), rdtsc_values=[0] * 64,
+                                max_instructions=3)
+        self.assertEqual(result['reason'], 'instruction_limit')
+        self.assertEqual(result['instructions'], 3)
+        self.assertEqual(len(result['rdtsc_events']), 2)
+
+    def test_rdtsc_fixture_does_not_enable_rdtscp_or_random(self):
+        for code in ('0f01f9', '0fc7f0', '0f32', '0f30'):
+            result = self.run_probe(bytes.fromhex(code), rdtsc_values=[1])
+            self.assertEqual(result['reason'], 'unsupported_instruction')
+            self.assertEqual(result['rdtsc_events'], [])
+            self.assertEqual(result['instructions'], 0)
+
 
 if __name__ == '__main__':
     unittest.main()
