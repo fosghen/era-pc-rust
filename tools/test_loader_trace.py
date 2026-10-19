@@ -4,7 +4,7 @@ import struct
 import tempfile
 import unittest
 
-from loader_trace import trace, validate_limits
+from loader_trace import trace, validate_limits, module_base
 from pe_module_model import ModuleModel, utf16_z
 from startup_model import VIRTUAL_BASE
 import unicorn as uc
@@ -79,6 +79,36 @@ def stopped_api_caller(api, arguments, payload=b''):
 
 
 class LoaderTraceTests(unittest.TestCase):
+    def test_module_base_argument_parsing_and_explicit_reference_requirement(self):
+        self.assertEqual(module_base('OLEAUT32.dll=0x61000000'), ('OLEAUT32.dll', 0x61000000))
+        self.assertEqual(module_base('sample.dll=4096'), ('sample.dll', 4096))
+        for value in ('no-delimiter', '=0x1000', 'foo.dll=bad', '../foo.dll=0x1000', 'C:\\foo.dll=4096'):
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                module_base(value)
+        with self.assertRaisesRegex(ValueError, 'require explicit reference modules'):
+            self.run_image(synthetic_pe(b'\xc3'), module_bases=[('missing.dll', 0x61000000)])
+
+    def test_relocated_reference_exports_stop_before_execution(self):
+        from test_pe_relocation import relocation_image
+        with tempfile.TemporaryDirectory(prefix='era-relocated-trace-') as directory:
+            path = Path(directory) / 'kernel32.dll'
+            path.write_bytes(relocation_image())
+            caller = resolver_caller()
+            # Read a relocated pointer, resolve both exports at the new base,
+            # then call Probe. Its original int3 must never execute.
+            code = bytes.fromhex('8b0dc0130061 68a0114000 ff1560114000 68c0114000 50 ba10100061 ffd2 ffd0 cc')
+            caller[512:512 + len(code)] = code
+            result = self.run_image(caller, modules=[path], module_bases=[('kernel32.dll', 0x61000000)])
+            self.assertEqual(result['reason'], 'external_import')
+            self.assertEqual(result['external_import'], 'kernel32.dll!Probe')
+            self.assertEqual(result['registers']['ecx'], '0x61001020')
+            self.assertEqual(result['registers']['eip'], '0x61001020')
+            self.assertEqual(result['image_write_events'], 0)
+            self.assertEqual(result['module_model']['resolver_events'][0]['result'], '0x61000000')
+            self.assertEqual(result['module_model']['resolver_events'][1]['result'], '0x61001020')
+            self.assertEqual(result['module_model']['modules'][0]['relocation_highlow_count'], 1)
+            self.assertTrue(result['module_model']['modules'][0]['input_unchanged'])
+
     def test_limits_are_bounded_for_cli_and_library_entry(self):
         validate_limits(1, .001)
         validate_limits(600_000_000, 900)

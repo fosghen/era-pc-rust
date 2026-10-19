@@ -41,8 +41,102 @@ def utf16_z(machine, address, limit=260):
     raise ValueError('String exceeds model limit')
 
 
+def raw_image_range(pe, raw, rva, length):
+    """Read an unambiguous, fully file-backed RVA interval, never zero padding."""
+    image_size = pe.OPTIONAL_HEADER.SizeOfImage
+    if not 0 <= rva < image_size or not 0 < length <= image_size - rva:
+        raise ValueError('Relocation directory outside image')
+    spans = [(0, pe.OPTIONAL_HEADER.SizeOfHeaders, 0)]
+    spans += [(s.VirtualAddress, s.VirtualAddress + s.SizeOfRawData, s.PointerToRawData)
+              for s in pe.sections if s.SizeOfRawData]
+    output = bytearray()
+    end = rva + length
+    while rva < end:
+        matches = [(start, stop, offset) for start, stop, offset in spans if start <= rva < stop]
+        if len(matches) != 1:
+            raise ValueError('Relocation directory is not uniquely file-backed')
+        start, stop, offset = matches[0]
+        limit = min([end, stop] + [a for a, _, _ in spans if rva < a < end])
+        position = offset + rva - start
+        count = limit - rva
+        if not 0 <= position <= len(raw) - count:
+            raise ValueError('Truncated raw relocation directory')
+        output.extend(raw[position:position + count])
+        rva = limit
+    return bytes(output)
+
+
+def relocate_reference_image(pe, raw, image, actual_base):
+    """Strict x86 ABSOLUTE/HIGHLOW subset, applied only to a private bytearray.
+
+    PE/COFF .reloc specifies actual-minus-preferred addition modulo 2**32.
+    We do not rewrite OptionalHeader.ImageBase: it describes the preferred base.
+    https://learn.microsoft.com/en-us/windows/win32/debug/pe-format#the-reloc-section-image-only
+    """
+    delta = actual_base - pe.OPTIONAL_HEADER.ImageBase
+    if not delta:
+        return 0
+    if pe.FILE_HEADER.Characteristics & 1:
+        raise ValueError('Reference image has stripped relocations')
+    directories = pe.OPTIONAL_HEADER.DATA_DIRECTORY
+    if len(directories) <= 5 or not directories[5].VirtualAddress or not directories[5].Size:
+        raise ValueError('Reference image has no relocation directory')
+    directory = directories[5]
+    if directory.VirtualAddress % 4:
+        raise ValueError('Relocation directory is not 4-byte aligned')
+    table = raw_image_range(pe, raw, directory.VirtualAddress, directory.Size)
+    image_size = pe.OPTIONAL_HEADER.SizeOfImage
+    fixups = []
+    cursor = 0
+    while cursor < len(table):
+        if len(table) - cursor < 8:
+            raise ValueError('Truncated relocation block header')
+        page, block_size = struct.unpack_from('<II', table, cursor)
+        if page % 4096 or page >= image_size:
+            raise ValueError('Invalid relocation page RVA')
+        if block_size < 8 or block_size % 4 or block_size > len(table) - cursor:
+            raise ValueError('Invalid or truncated relocation block size')
+        for position in range(cursor + 8, cursor + block_size, 2):
+            entry = struct.unpack_from('<H', table, position)[0]
+            kind, offset = entry >> 12, entry & 0xfff
+            if kind == 0:
+                continue
+            if kind != 3:
+                raise ValueError(f'Unsupported x86 relocation type {kind}')
+            target = page + offset
+            if target > image_size - 4:
+                raise ValueError('Relocation fixup outside image')
+            fixups.append(target)
+        cursor += block_size
+    ordered = sorted(fixups)
+    if any(right < left + 4 for left, right in zip(ordered, ordered[1:])):
+        raise ValueError('Overlapping relocation fixups')
+    # Validate the entire directory first, including overlaps across blocks.
+    image.extend(bytes(max(0, image_size - len(image))))
+    for target in fixups:
+        value = struct.unpack_from('<I', image, target)[0]
+        struct.pack_into('<I', image, target, (value + delta) & 0xffffffff)
+    return len(fixups)
+
+
 class ModuleModel:
-    def __init__(self, machine, paths, occupied, import_markers=False):
+    def __init__(self, machine, paths, occupied, import_markers=False, module_bases=()):
+        paths = [Path(path) for path in paths]
+        path_names = [path.name.lower() for path in paths]
+        if len(set(path_names)) != len(path_names):
+            raise ValueError('Duplicate module basename')
+        overrides = {}
+        for name, base in module_bases:
+            if not isinstance(name, str) or not name or name in ('.', '..') or any(c in name for c in '/\\:\0'):
+                raise ValueError('Module base requires a basename')
+            name = name.lower()
+            if name in overrides:
+                raise ValueError('Duplicate module base override')
+            if name not in path_names:
+                raise ValueError('Module base override names an unknown reference module')
+            if type(base) is not int or not 0 < base < 2**32 or base % 4096:
+                raise ValueError('Module base must be a positive 4-KiB-aligned 32-bit integer')
+            overrides[name] = base
         self.machine = machine
         self.modules = {}
         self.guest_modules = {}
@@ -69,34 +163,38 @@ class ModuleModel:
                 raise ValueError('Duplicate module basename')
             raw = path.read_bytes()
             pe = pefile.PE(data=raw)
-            base = pe.OPTIONAL_HEADER.ImageBase
+            preferred_base = pe.OPTIONAL_HEADER.ImageBase
+            base = overrides.get(name, preferred_base)
             size = (pe.OPTIONAL_HEADER.SizeOfImage + 4095) & ~4095
-            if pe.FILE_HEADER.Machine != 0x14c or not 0 < size <= 32 * 1024 * 1024:
+            if (pe.FILE_HEADER.Machine != 0x14c or pe.OPTIONAL_HEADER.Magic != 0x10b
+                    or not 0 < size <= 32 * 1024 * 1024):
                 raise ValueError('Module must be a bounded x86 PE image')
             if base % 4096 or base + size > 2**32:
                 raise ValueError('Invalid module address range')
             if any(base < start + length and base + size > start for start, length in self.reserved):
-                raise ValueError(f'Module {name} at {base:#x}..{base + size:#x} overlaps existing memory; relocation not modeled')
+                raise ValueError(f'Module {name} at {base:#x}..{base + size:#x} overlaps existing memory; choose an explicit nonoverlapping base')
             image = bytearray(pe.get_memory_mapped_image())
             if len(image) > size:
                 raise ValueError('Mapped module exceeds declared size')
+            relocation_count = relocate_reference_image(pe, raw, image, base)
             if import_markers:
                 for descriptor in getattr(pe, 'DIRECTORY_ENTRY_IMPORT', []):
                     for imp in descriptor.imports:
                         marker = REFERENCE_IMPORT_REGIONS[0][0] + 16 * len(self.import_bindings)
                         if marker >= sum(REFERENCE_IMPORT_REGIONS[0]):
                             raise ValueError('Reference import marker budget exceeded')
-                        offset = imp.address - base
+                        offset = imp.address - preferred_base
                         if not 0 <= offset <= len(image) - 4:
                             raise ValueError('Reference IAT outside mapped image')
                         symbol = imp.name.decode('ascii') if imp.name else f'ordinal:{imp.ordinal}'
                         imported_name = descriptor.dll.decode('ascii') + '!' + symbol
-                        if imp.address in bound_slots:
+                        slot = base + offset
+                        if slot in bound_slots:
                             raise ValueError('Duplicate reference IAT slot')
-                        bound_slots.add(imp.address)
+                        bound_slots.add(slot)
                         struct.pack_into('<I', image, offset, marker)
                         self.address_names[marker] = [imported_name]
-                        self.import_bindings.append(dict(source_module=name, iat_va=hex(imp.address),
+                        self.import_bindings.append(dict(source_module=name, iat_va=hex(slot),
                             marker=hex(marker), imported_name=imported_name))
             machine.mem_map(base, size)
             machine.mem_write(base, bytes(image))
@@ -117,6 +215,8 @@ class ModuleModel:
                     self.address_names.setdefault(base + symbol.address, []).append(name + '!' + label)
             self.modules[name] = dict(path=path, sha256=hashlib.sha256(raw).hexdigest(),
                                       base=base, size=size, names=by_name, ordinals=by_ordinal,
+                                      preferred_base=preferred_base, relocation_delta=base - preferred_base,
+                                      relocation_highlow_count=relocation_count, explicit_base=name in overrides,
                                       loadlibrary_acquisitions=0)
         self.range_start = min((m['base'] for m in self.modules.values()), default=2**32)
         self.range_end = max((m['base'] + m['size'] for m in self.modules.values()), default=0)
@@ -224,6 +324,10 @@ class ModuleModel:
             if not unchanged:
                 raise RuntimeError('Reference module changed during trace')
             records.append(dict(name=name, sha256=module['sha256'], base=hex(module['base']),
+                                preferred_base=hex(module['preferred_base']),
+                                relocation_delta=module['relocation_delta'],
+                                relocation_highlow_count=module['relocation_highlow_count'],
+                                explicit_base=module['explicit_base'],
                                 mapped_size=module['size'], input_unchanged=unchanged,
                                 loadlibrary_acquisitions=module['loadlibrary_acquisitions']))
         return dict(modules=records, resolver_events=self.events,
@@ -233,4 +337,4 @@ class ModuleModel:
                     observed_resolver_calls=self.observed_calls,
                     reference_import_markers=self.import_markers_enabled,
                     reference_import_bindings=self.import_bindings,
-                    limitations='Preferred bases only; optional ordinary IAT stop markers are synthetic call boundaries, not resolved Windows addresses; no delayed-import binding, DLL initialization, relocation, API-set schema loading, last-error state or OS execution; unknown operations stop')
+                    limitations='Preferred bases by default; explicit reference-only x86 ABSOLUTE/HIGHLOW relocation; optional ordinary IAT stop markers are synthetic call boundaries, not resolved Windows addresses; no delayed-import binding, DLL initialization, automatic address placement, other relocation types, API-set schema loading, last-error state or OS execution; unknown operations stop')

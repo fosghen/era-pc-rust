@@ -36,6 +36,13 @@ def address_size(text):
     return integer(address), integer(size)
 
 
+def module_base(text):
+    name, address = text.split('=', 1)
+    if not name or '/' in name or '\\' in name:
+        raise ValueError('Expected module basename=address')
+    return name, integer(address)
+
+
 def validate_limits(max_instructions, max_seconds):
     if (type(max_instructions) is not int or not 1 <= max_instructions <= 4_000_000_000
             or not 0 < max_seconds <= 900):
@@ -45,7 +52,7 @@ def validate_limits(max_instructions, max_seconds):
 def trace(path, export, argument, max_instructions, max_seconds, modules=(), thread_model=False,
           dll_attach=False, observe=(), watch=(), startup_model=False, nls_codepage=None, nls_sort=None, nls_case=None,
           after_attach_export=None, reference_import_markers=False, host_after_attach=None, critical_section_layout=None,
-          observer='python', memory_observer=None):
+          observer='python', memory_observer=None, module_bases=()):
     validate_limits(max_instructions, max_seconds)
     if observer not in ('python', 'rust'):
         raise ValueError('Observer must be python or rust')
@@ -59,6 +66,8 @@ def trace(path, export, argument, max_instructions, max_seconds, modules=(), thr
         raise ValueError('Host continuation requires DLL attach without an explicit export call')
     if reference_import_markers and not modules:
         raise ValueError('Reference import markers require explicit modules')
+    if module_bases and not modules:
+        raise ValueError('Module base overrides require explicit reference modules')
     if (nls_codepage or nls_sort or nls_case) and not startup_model:
         raise ValueError('NLS references require the explicit startup model')
     if after_attach_export and not dll_attach:
@@ -130,7 +139,8 @@ def trace(path, export, argument, max_instructions, max_seconds, modules=(), thr
             data = section.get_data()
             if data:
                 machine.mem_write(host['base'] + section.VirtualAddress, data)
-    module_model = ModuleModel(machine, modules, [(base, mapped_size)] + reserved_regions, reference_import_markers)
+    module_model = ModuleModel(machine, modules, [(base, mapped_size)] + reserved_regions,
+                              reference_import_markers, module_bases=module_bases)
     if host:
         module_model.register_guest(path.name, pe)
         module_model.register_guest(host_after_attach.name, host['pe'], is_main=True)
@@ -578,6 +588,8 @@ def main():
                         help='Compare a VA:SIZE memory range before/after; hashes/counts only, no bytes')
     parser.add_argument('--module', action='append', type=Path, default=[],
                         help='Opt-in read-only reference PE for module/export resolution; repeatable')
+    parser.add_argument('--module-base', action='append', type=module_base, default=[],
+                        help='Explicit reference-only NAME=ADDRESS placement using bounded PE32 HIGHLOW relocations')
     parser.add_argument('--max-instructions', type=integer, default=20_000_000)
     parser.add_argument('--max-seconds', type=float, default=45.)
     parser.add_argument('--observer', choices=['python', 'rust'], default='python',
@@ -595,7 +607,8 @@ def main():
     result = trace(args.file, args.export, args.argument, args.max_instructions, args.max_seconds,
                    args.module, args.thread_model, args.dll_attach, args.observe, args.watch, args.startup_model,
                    args.nls_codepage, args.nls_sort, args.nls_case, args.after_attach_export, args.reference_import_markers,
-                   args.host_after_attach, args.critical_section_layout, args.observer, args.memory_observer)
+                   args.host_after_attach, args.critical_section_layout, args.observer, args.memory_observer,
+                   args.module_base)
     with args.report.open('x', encoding='utf-8') as output:
         json.dump(result, output, indent=2, ensure_ascii=False)
         output.write('\n')
