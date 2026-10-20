@@ -1,0 +1,334 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-20",
+  "parent_commit": "7d079d79d9d5dbeb847dc0408cb6c2d869477128",
+  "path_base": "workspace root containing era-rust and reverse_engineering",
+  "status": "A1/P1 auxiliary hypothesis only: Rust matches 135/137 pairs, 51/52 unique numeric cases. Independent high-precision formula matches 137/137; two f64 Xm boundary failures preserved.",
+  "files": [
+    {
+      "path": "era-rust/Cargo.lock",
+      "sha256": "eddc4aa9c82ff1ce3b27402d40c483a0d1528b9e896d758651f8f0c21760adb2"
+    },
+    {
+      "path": "era-rust/Cargo.toml",
+      "sha256": "00a9e49290cd2c690dcfa1551642e51c0c0b6be1d34fb2e7c59947e8543baaed"
+    },
+    {
+      "path": "era-rust/docs/AREA_AUXILIARY_STUDY.md",
+      "sha256": "9907e65ba4c71a32ef72de4ece0de228689765821771da2a2130ae5ac4cf888b"
+    },
+    {
+      "path": "era-rust/docs/HYBRID_VALIDATION.md",
+      "sha256": "e128689dc0bb218596176bda4319a87a4ba8dfefd45d2d9967319f2aafe3e641"
+    },
+    {
+      "path": "era-rust/examples/archive_source_compare.rs",
+      "sha256": "fa52ed2861921f77dce73f32df50250dccdde51421cdc28c0aefe42f1e0333b8"
+    },
+    {
+      "path": "era-rust/src/dispersion.rs",
+      "sha256": "6dd1960477840c0d1566ddeb0d5c02bf37f7916d67f3b8c02317de20bb982fd4"
+    },
+    {
+      "path": "era-rust/tools/archive_source_fixture.py",
+      "sha256": "589ec44fc75620499f050fced17b8dfb1f2a64912ff34abe6585f2e3bcdd5fb1"
+    },
+    {
+      "path": "era-rust/tools/project_batch_compare.py",
+      "sha256": "20b0ce3ede097e6c30162267da7cc190c9da336a38e516d809c4342447281988"
+    },
+    {
+      "path": "era-rust/tools/project_snapshot.py",
+      "sha256": "afd38af7ffb18dbb5a50dcd48d5812944c148ad0b6c513e3299ddf85b93fdea1"
+    },
+    {
+      "path": "era-rust/tools/project_source_fixture.py",
+      "sha256": "2d957cafc35d68ac5da83f715944dca976a04d760c46ba1505459c403ca07353"
+    },
+    {
+      "path": "era-rust/tools/verify_checkpoint.py",
+      "sha256": "235a1c96268395f8e2bcd240403de5864929dcd796e9d667ae26fca3f1040696"
+    },
+    {
+      "path": "reverse_engineering/analyze_area_auxiliary.py",
+      "sha256": "673b93a6c8ba32ffa189ee65331c5eaf09e64fc1a9b5834faa247df704b92e12"
+    },
+    {
+      "path": "reverse_engineering/area_auxiliary_analysis_01.json",
+      "sha256": "cb943a5fb05f14471c438fd290da3fe0c83209b6c6053b416d6b0751ff2f0dd3"
+    },
+    {
+      "path": "reverse_engineering/area_auxiliary_probe.py",
+      "sha256": "e3f2ad59b898ceddc53d6834ed2b0587342b66723791c86cd17fcbac1324a483"
+    },
+    {
+      "path": "reverse_engineering/area_auxiliary_probe_01/000_cases.json",
+      "sha256": "68db753f12211981cfcf12d38e3d1aa2387589f58f450d4f158a26c775719fed"
+    },
+    {
+      "path": "reverse_engineering/area_auxiliary_probe_01/000_comparison.json",
+      "sha256": "cb1e6df7907b5615b461c44ea0f4bb87f517c96a3d5c1ee3b7d2afc9388b6d5c"
+    },
+    {
+      "path": "reverse_engineering/area_auxiliary_probe_01/000_notes.json",
+      "sha256": "c46e816748dfd7e70ff8e60da5cbb2ed8de3d2a81add3a319e35a22dc5bd961c"
+    },
+    {
+      "path": "reverse_engineering/area_auxiliary_probe_01/001_cases.json",
+      "sha256": "26f03d4d6e3a3ff91df0c31818fe9816bf423548fd589016f2901e56a53ca29c"
+    },
+    {
+      "path": "reverse_engineering/area_auxiliary_probe_01/001_notes.json",
+      "sha256": "1727eb426ae3384a97f2b72a9d6555efb9f16bae10268b45c8e7038d3149338b"
+    },
+    {
+      "path": "reverse_engineering/area_auxiliary_probe_01/002_cases.json",
+      "sha256": "77a0a6c0cce0df61ea0770cc88d014794231127df1b1c1de67f42b90c03aa652"
+    },
+    {
+      "path": "reverse_engineering/area_auxiliary_probe_01/002_comparison.json",
+      "sha256": "3ae2dc97bb749dcc74091ea618ba468b69c444b5be60cd337a246b3e5affe47d"
+    },
+    {
+      "path": "reverse_engineering/area_auxiliary_probe_01/002_notes.json",
+      "sha256": "f7905204964b19604046ae6726b4f7cc40b76d580dc0233e94635018788954cf"
+    },
+    {
+      "path": "reverse_engineering/area_auxiliary_probe_01/003_cases.json",
+      "sha256": "3fbcd12566225994d0c72c826935fa07c24ccf4536570fd9246f608295d0af7c"
+    },
+    {
+      "path": "reverse_engineering/area_auxiliary_probe_01/003_comparison.json",
+      "sha256": "0b5b9af3490cc018d8f6f80579876bcbe1eca0809b59105797d15f8dccf9da24"
+    },
+    {
+      "path": "reverse_engineering/area_auxiliary_probe_01/003_notes.json",
+      "sha256": "be3e4b7fd3db7e2f5ae331e3e5e1b92fafe2a4c04ca9bb2d751bfce3cee401ea"
+    },
+    {
+      "path": "reverse_engineering/area_auxiliary_probe_01/004_cases.json",
+      "sha256": "0b3d863cce16886b9245754d62756aa11ca8ec54e47b1655742ff74382fcbef2"
+    },
+    {
+      "path": "reverse_engineering/area_auxiliary_probe_01/004_comparison.json",
+      "sha256": "97f02b0b24b9cac528289db3edba59bdbfe7ddcf98cf54bc583516baccc01d51"
+    },
+    {
+      "path": "reverse_engineering/area_auxiliary_probe_01/004_notes.json",
+      "sha256": "22ab3b288072e58a9deda2c44615293ecfeedc168fc45531e1fd56c4f1e26175"
+    },
+    {
+      "path": "reverse_engineering/area_auxiliary_probe_01/005_cases.json",
+      "sha256": "36fbc9618d4c124967e9ee5e1fd57eceae88025c203f85b548893f4033509d97"
+    },
+    {
+      "path": "reverse_engineering/area_auxiliary_probe_01/005_comparison.json",
+      "sha256": "a66a15d5f20b0b50c17961cd81a99545100fa4d7f5d164202ebe6c1220b48d25"
+    },
+    {
+      "path": "reverse_engineering/area_auxiliary_probe_01/005_notes.json",
+      "sha256": "da6ffa35b16e67dbfdd38821d11c699f38acdbde07b3d4b2238f7feefeda7b89"
+    },
+    {
+      "path": "reverse_engineering/area_auxiliary_probe_01/006_cases.json",
+      "sha256": "b19dfd59ebbff4ac63775fa1bfacb11fd2ef45ade639bbf13d5dce6caa185b80"
+    },
+    {
+      "path": "reverse_engineering/area_auxiliary_probe_01/006_comparison.json",
+      "sha256": "9b6fa2d2dd29313ece2883e5626f036c9b369b4934d39700a5bb454e0e372b10"
+    },
+    {
+      "path": "reverse_engineering/area_auxiliary_probe_01/006_notes.json",
+      "sha256": "8f9f116bbfab378428d3eee80dcdeb8b05ea51d18855a3816fc0c3f7f406b5df"
+    },
+    {
+      "path": "reverse_engineering/area_auxiliary_probe_01/007_cases.json",
+      "sha256": "0cb28b6f8f00aa0f329a767c120b52899d55dc4b775a02e6063c861cad7bcb99"
+    },
+    {
+      "path": "reverse_engineering/area_auxiliary_probe_01/007_comparison.json",
+      "sha256": "6f0aee18a01e278e9997a1fc124fd3ac42051b5cdf4481a4f9695bc771badd05"
+    },
+    {
+      "path": "reverse_engineering/area_auxiliary_probe_01/007_notes.json",
+      "sha256": "d4914378e173118c9347950358c4f73ceb9c34add4dac1ad8e615754acf7d9de"
+    },
+    {
+      "path": "reverse_engineering/area_auxiliary_probe_01/008_cases.json",
+      "sha256": "3d2e1c3dd2b83db5dfbe4ed00e5b331c03aa5c27ed56949c6049efd0c2faac40"
+    },
+    {
+      "path": "reverse_engineering/area_auxiliary_probe_01/008_comparison.json",
+      "sha256": "245af3672e22804fe3052ea0daa1aa0f49655ab3c6aecf4890dab0801e08ade6"
+    },
+    {
+      "path": "reverse_engineering/area_auxiliary_probe_01/008_notes.json",
+      "sha256": "fe2f5340c7c166fc4d228dac46994313e3292a3f92d0caa06fb68ec942fdbf99"
+    },
+    {
+      "path": "reverse_engineering/area_auxiliary_probe_01/009_cases.json",
+      "sha256": "ec53e1ae729cf46491c34cde2ed38895a256e94bf37360a2506e1630bede3aba"
+    },
+    {
+      "path": "reverse_engineering/area_auxiliary_probe_01/009_comparison.json",
+      "sha256": "4ffd8bab8862ceb7cb03c2fae765d687470d57b2175bc798699129dac9873f58"
+    },
+    {
+      "path": "reverse_engineering/area_auxiliary_probe_01/009_notes.json",
+      "sha256": "99c9cce36d928be2af7c95f4c28a51cf1218b9dc8377ef3e79fc24a04249afb8"
+    },
+    {
+      "path": "reverse_engineering/area_auxiliary_probe_01/010_cases.json",
+      "sha256": "fb35e23fda9ac96f37f08bafd3caa8516cc9c7e07e3f5195c06069c3adfa58d9"
+    },
+    {
+      "path": "reverse_engineering/area_auxiliary_probe_01/010_comparison.json",
+      "sha256": "af6a3504ae6fdb375c5eeb6bc3b38555fbcab0db9d7cb66056b71b9761fb63f7"
+    },
+    {
+      "path": "reverse_engineering/area_auxiliary_probe_01/010_notes.json",
+      "sha256": "d9f1c50785d8a8bdde04fd2d376dfdcb7ea7bba5c77a5f6e2a77868775d27f69"
+    },
+    {
+      "path": "reverse_engineering/area_auxiliary_probe_01/011_cases.json",
+      "sha256": "ea9343fa46d4577ab88c21491107f1b1565bdc92496f1df29d87e10512f63467"
+    },
+    {
+      "path": "reverse_engineering/area_auxiliary_probe_01/011_comparison.json",
+      "sha256": "a2c4b58c600c8bc59f47d1c33fe45a3e345da4d32b444bf623f3ab40db36fd28"
+    },
+    {
+      "path": "reverse_engineering/area_auxiliary_probe_01/011_notes.json",
+      "sha256": "e4f77e7963eea3ac33e5430eb807ab0a0666b47c3e3cfab73e8542b6d8446e4f"
+    },
+    {
+      "path": "reverse_engineering/area_auxiliary_probe_01/012_cases.json",
+      "sha256": "a5404e8efd94278e91a375208f2d6568b37607ee1f3765eb2831ee4b0c37a2b4"
+    },
+    {
+      "path": "reverse_engineering/area_auxiliary_probe_01/012_comparison.json",
+      "sha256": "9798427c8faf84157f115329db28d5ad1e1a8944463963e2b51a7b62550b8c3b"
+    },
+    {
+      "path": "reverse_engineering/area_auxiliary_probe_01/012_notes.json",
+      "sha256": "4dcfba5ac308e92609bc063bb777f2cf427485b2888096dfe9b32c3ecaeafda9"
+    },
+    {
+      "path": "reverse_engineering/area_auxiliary_probe_01/013_cases.json",
+      "sha256": "e6ea833b495c2170605f5f1ddb7b972ea59920ce44638d5108b25d201af6700f"
+    },
+    {
+      "path": "reverse_engineering/area_auxiliary_probe_01/013_notes.json",
+      "sha256": "6c28219f29fa3d48a605ec395aee933d25fd7dfad35f243d3e7dbf0db1f085f1"
+    },
+    {
+      "path": "reverse_engineering/area_auxiliary_probe_01/014_cases.json",
+      "sha256": "ede627cdbf0f0831514eb3425c8ba21c75d34fd2775e1d815fad4aea081919d8"
+    },
+    {
+      "path": "reverse_engineering/area_auxiliary_probe_01/014_notes.json",
+      "sha256": "562ae004c95384e918adfb42050f9f4077970a29d3318f38a9983dcebfbdaaca"
+    },
+    {
+      "path": "reverse_engineering/area_auxiliary_probe_01/015_cases.json",
+      "sha256": "6cceb1808341498e040475a16579769e0c32e8c711937f6214392b561a5bc6af"
+    },
+    {
+      "path": "reverse_engineering/area_auxiliary_probe_01/015_notes.json",
+      "sha256": "ae1dd8f8f604566170f5403163a18e71cc1c81ffedbc93b9bb8a2eb9fc946f05"
+    },
+    {
+      "path": "reverse_engineering/area_auxiliary_probe_01/016_cases.json",
+      "sha256": "9f51153a91589c198dea3a766de932b81f3b1ca85a2005b04874b5cb7568bdc0"
+    },
+    {
+      "path": "reverse_engineering/area_auxiliary_probe_01/016_notes.json",
+      "sha256": "ec334d0ba6e1f0ec156bbf79b10e88291273e13c0841b8799925610f7dbd5921"
+    },
+    {
+      "path": "reverse_engineering/area_auxiliary_probe_01/017_cases.json",
+      "sha256": "34c69e507c75682d3466af47ee22613b7f51d83a808297420b76b85162b6905c"
+    },
+    {
+      "path": "reverse_engineering/area_auxiliary_probe_01/017_comparison.json",
+      "sha256": "19b4aca35a91542a51df09aa27c5004424d31e8a41291f82281cd97bf3041e4e"
+    },
+    {
+      "path": "reverse_engineering/area_auxiliary_probe_01/017_notes.json",
+      "sha256": "aedc1c4f2b9f42bd7259455b3bc66d32834f0b9755478e186675c183c338f268"
+    },
+    {
+      "path": "reverse_engineering/area_auxiliary_probe_01/018_cases.json",
+      "sha256": "b555a02dcccb65c48a646255b6f8c710f0f6e5859658c20bac5ddb98f5539616"
+    },
+    {
+      "path": "reverse_engineering/area_auxiliary_probe_01/018_comparison.json",
+      "sha256": "c995adfd07e9011fb96c73aa8a416143bca9bc7594b7708c2dd4f8f83ac31ce1"
+    },
+    {
+      "path": "reverse_engineering/area_auxiliary_probe_01/018_notes.json",
+      "sha256": "22930ec15d00718abac6a60059c2a7175b8a71416dbc74a92bf73b8f1479fcb1"
+    },
+    {
+      "path": "reverse_engineering/area_auxiliary_probe_01/019_cases.json",
+      "sha256": "8f2243ebad9ade37d4766860ebe302b17ef30afb664ab4e7765bacac41bd3360"
+    },
+    {
+      "path": "reverse_engineering/area_auxiliary_probe_01/019_comparison.json",
+      "sha256": "5e66cc7b0055edac1a600121e5436d1205dce1510fc81f5108edac54c708d040"
+    },
+    {
+      "path": "reverse_engineering/area_auxiliary_probe_01/019_notes.json",
+      "sha256": "97f78637c7b8f82e97e0d7ce2d8568aaa4c9869bc7833493f74882592a6747f8"
+    },
+    {
+      "path": "reverse_engineering/area_auxiliary_probe_01/020_cases.json",
+      "sha256": "ce6deaab6c83969bfa0e63f662682a6326e66bef37310731974973f1da89a5a8"
+    },
+    {
+      "path": "reverse_engineering/area_auxiliary_probe_01/020_comparison.json",
+      "sha256": "4e94f6c8425cd6094dc298e62e4f75dab30b7ae5c808e4bc9b93c7300f610a21"
+    },
+    {
+      "path": "reverse_engineering/area_auxiliary_probe_01/020_notes.json",
+      "sha256": "c9f1598a21e6d0a699162ba09ba6977d3005d22bc2d2c96682656b2bacc3f5ea"
+    },
+    {
+      "path": "reverse_engineering/area_auxiliary_probe_01/summary.json",
+      "sha256": "70777d55d1b68d7a58f90bbdfe8395dc664798fb35b3943289cca2c7aa731c9e"
+    },
+    {
+      "path": "reverse_engineering/test_area_auxiliary_probe.py",
+      "sha256": "587c1e477fa420fd1181b903cfae2d70c2cb44f2d6c4c77e3eb22c23a8ac3dc0"
+    }
+  ],
+  "external_artifact_hashes_not_bundled": [
+    {
+      "path": "extracted/app/INSTR/era_2_main.pdf",
+      "sha256": "ac5e057bef70363c59fe75e81d4de05a6cdd730707c88c0cd51f842a6093a305"
+    },
+    {
+      "path": "extracted/app/INSTR/МРР-2017.pdf",
+      "sha256": "f5574200d9962cf405e5467d0494be3ec9665b7f88fe5b13f9c2a920364de0ca"
+    },
+    {
+      "path": "era-rust/target/release/examples/archive_source_compare",
+      "sha256": "90895f88bd94ac30df8f02c6420dda439cdd86e730f7ef448803c1e7311f3314"
+    }
+  ],
+  "tests": {
+    "private_synthetic_tests_passed": 5,
+    "decimal_decisions_stable_at_digits": [
+      80,
+      120
+    ]
+  },
+  "limitations": [
+    "Not an implementation or validation of the area-source field integral.",
+    "Generated proxy source D/w/V/T differ from original zero placeholders and are recorded explicitly.",
+    "34 non-unit terrain occurrences excluded; scientific report and other pre-existing skips outside target set remain unvalidated.",
+    "Strict f64 failures are retained; no tolerance relaxation.",
+    "Original files and vendor PDFs are not bundled; private generated fixtures are never published.",
+    "Pre-existing local kernel/dependency changes remain excluded from commits."
+  ]
+}

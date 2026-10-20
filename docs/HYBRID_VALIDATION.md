@@ -93,3 +93,6 @@ The public repository contains the guard, synthetic tests and aggregate findings
 
 The subsequent [paired replay and full-grid study](FIELD_REPLAY.md) extends the
 initial sample to both complete grids and separates wind replay from wind search.
+
+The [P1 auxiliary-parameter study](AREA_AUXILIARY_STUDY.md) investigates an
+additional source type without treating a parameter match as area-field support.
