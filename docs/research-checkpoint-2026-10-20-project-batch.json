@@ -1,0 +1,176 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-20",
+  "parent_commit": "c2f533a5a8b47770739b33f0918a545541a8e8e6",
+  "path_base": "workspace root containing era-rust and reverse_engineering",
+  "status": "Three additional projects checked offline; 10 accepted source-parameter matches and 8 separate exploratory matches with conflicting inputs. No field equivalence or original execution.",
+  "files": [
+    {
+      "path": "era-rust/tools/project_source_fixture.py",
+      "sha256": "5fb67a97741774c3050a1d95ffe9f5e331d63acf4b5d6de16918cd20c1bfbdb6"
+    },
+    {
+      "path": "era-rust/tools/test_project_source_fixture.py",
+      "sha256": "6219e5f48aaf042eac66ebac7d3e0603320d905aa0af11f75dd5ea5f374736f8"
+    },
+    {
+      "path": "era-rust/tools/archive_source_fixture.py",
+      "sha256": "ec4e4b122db1ae40e9eae6eb6d1670e33608301a52d28d418ffa54354d9fbdb3"
+    },
+    {
+      "path": "era-rust/examples/archive_source_compare.rs",
+      "sha256": "fa52ed2861921f77dce73f32df50250dccdde51421cdc28c0aefe42f1e0333b8"
+    },
+    {
+      "path": "era-rust/docs/PROJECT_BATCH_VALIDATION.md",
+      "sha256": "1234d27d2534b85cd80c56c266d44fbf83e046dc1d8cbc503271729fb470943c"
+    },
+    {
+      "path": "era-rust/src/dispersion.rs",
+      "sha256": "6dd1960477840c0d1566ddeb0d5c02bf37f7916d67f3b8c02317de20bb982fd4"
+    },
+    {
+      "path": "era-rust/Cargo.toml",
+      "sha256": "00a9e49290cd2c690dcfa1551642e51c0c0b6be1d34fb2e7c59947e8543baaed"
+    },
+    {
+      "path": "era-rust/Cargo.lock",
+      "sha256": "eddc4aa9c82ff1ce3b27402d40c483a0d1528b9e896d758651f8f0c21760adb2"
+    },
+    {
+      "path": "era-rust/tools/verify_checkpoint.py",
+      "sha256": "235a1c96268395f8e2bcd240403de5864929dcd796e9d667ae26fca3f1040696"
+    },
+    {
+      "path": "reverse_engineering/project_batch_checks_01.json",
+      "sha256": "2b624dbc81805c83e4952e8e5c99e95ebc3e7a378e2147b615ed153307469f42"
+    },
+    {
+      "path": "reverse_engineering/G202_printed-speed_cases_02.json",
+      "sha256": "997674ee94d87274e5b5560589c30407d5fb387799e99bb9a6ff4ab9f33d8b88"
+    },
+    {
+      "path": "reverse_engineering/G202_printed-speed_notes_02.json",
+      "sha256": "fdbcd9edc656a6cbc000cf4c0c3cab41d472479d06d1dbdc6670ee1d77903673"
+    },
+    {
+      "path": "reverse_engineering/G202_printed-speed_comparison_02.json",
+      "sha256": "21ce7f70b30ebc32c6bef22d3621826c2c56ecdb54b8ecd315d064c43327be46"
+    },
+    {
+      "path": "reverse_engineering/G202_stored-volume_cases_02.json",
+      "sha256": "4b85d43db2a2d38b11aad4bdf7198dab958804f88e8e0e747acce6f498459b91"
+    },
+    {
+      "path": "reverse_engineering/G202_stored-volume_notes_02.json",
+      "sha256": "ad5ca5398de3ee4819f24285750f2a2333c73ffe4e6e3fd37de3fb28042fbcec"
+    },
+    {
+      "path": "reverse_engineering/G202_stored-volume_comparison_02.json",
+      "sha256": "df198c095d9e6868031f86abdbb4afe32e0760e5e9a24ec919a5cb9c5271082d"
+    },
+    {
+      "path": "reverse_engineering/G212_printed-speed_cases_02.json",
+      "sha256": "393938dc0241baa4b561e6c6b90a3afb05d8b01d78e649c594947e9a605d48f6"
+    },
+    {
+      "path": "reverse_engineering/G212_printed-speed_notes_02.json",
+      "sha256": "0a5e46a2bc129532c7cf9fd8f6083703eb982c49464e31249860a0ef26c6d30e"
+    },
+    {
+      "path": "reverse_engineering/G212_printed-speed_comparison_02.json",
+      "sha256": "5a11356a4772432a6859d5d97b9da01281410a5807706e676242f605e59d69e6"
+    },
+    {
+      "path": "reverse_engineering/G212_stored-volume_cases_02.json",
+      "sha256": "df06817d25dfa2f5b76dd2065069aada0d1a566efb62711e01c6dbbee456e259"
+    },
+    {
+      "path": "reverse_engineering/G212_stored-volume_notes_02.json",
+      "sha256": "3996c394c7554baf4f641dc6fc3b6237d29d8057608a67f522a495f22ef5f67c"
+    },
+    {
+      "path": "reverse_engineering/G398_printed-speed_cases_02.json",
+      "sha256": "ff0e6c7d5863130152a0a3942272ca869ed3852af179fa1d4fd8b123598b61e8"
+    },
+    {
+      "path": "reverse_engineering/G398_printed-speed_notes_02.json",
+      "sha256": "5ef7fc86b31ff8a63c9a0cba67c896689b502c316a9322049295ccf63203168c"
+    },
+    {
+      "path": "reverse_engineering/G398_stored-volume_cases_02.json",
+      "sha256": "ff0e6c7d5863130152a0a3942272ca869ed3852af179fa1d4fd8b123598b61e8"
+    },
+    {
+      "path": "reverse_engineering/G398_stored-volume_notes_02.json",
+      "sha256": "d357602c5acc8109a2e57c3932c839e3ffb1edea40eb3cf876815e2254384737"
+    },
+    {
+      "path": "reverse_engineering/G202_volume_hypothesis_cases_01.json",
+      "sha256": "6d46a5fdec75ff036167e0e74adafca5844dbc546bfe5fef6ce20cf2aef6e7ef"
+    },
+    {
+      "path": "reverse_engineering/G202_volume_hypothesis_notes_01.json",
+      "sha256": "d1757cf3ac01390495a013fad6fd44d9e59c05da2b9ac15b93646510ae158c6b"
+    },
+    {
+      "path": "reverse_engineering/G202_volume_hypothesis_comparison_01.json",
+      "sha256": "a148e1bbd08c85d11a6a2e71ce63bc75d555212f9e0609d7d18bd030f908471d"
+    },
+    {
+      "path": "reverse_engineering/G212_volume_hypothesis_cases_01.json",
+      "sha256": "3e89f5fe30503f15c03b325a65eb15dd1b7bd72dd27bfa2a165f0666a6491460"
+    },
+    {
+      "path": "reverse_engineering/G212_volume_hypothesis_notes_01.json",
+      "sha256": "6583b4d7f5715cf4b011c3719f892b50f51a72311f03eff2215342d1d64e5880"
+    },
+    {
+      "path": "reverse_engineering/G212_volume_hypothesis_comparison_01.json",
+      "sha256": "59dc2e7f218feecaedac67d23409248c1f4dc84c623df665042ffa8e25a5aa56"
+    }
+  ],
+  "tests": {
+    "python": 466
+  },
+  "findings": {
+    "projects": 3,
+    "cm_reports": 66,
+    "wind_control_files": 72,
+    "controls_with_fixed_wind": 0,
+    "checked_project_files": 288,
+    "changed_project_files": 0,
+    "accepted_profile": {
+      "G202": {
+        "compared": 10,
+        "passed": 10
+      },
+      "G212": {
+        "compared": 0,
+        "status": "no_eligible_cases"
+      },
+      "G398": {
+        "compared": 0,
+        "status": "no_eligible_cases"
+      }
+    },
+    "exploratory_conflicting_flow_not_accepted": {
+      "G202": 1,
+      "G212": 7
+    },
+    "unsupported_pair_counts": {
+      "negative_temperature_difference": 43,
+      "area_source": 50,
+      "above_kernel_speed_limit": 7
+    },
+    "conflicting_flow_pairs": 8,
+    "summation_group_reports": 18
+  },
+  "workspace_note": "Pre-existing kernel/Cargo/test/documentation changes preserved, not included in this task commit. Current kernel and dependency snapshots retained privately.",
+  "limitations": [
+    "Zero eligible cases is not a pass.",
+    "Conflicting-flow exploratory results are not added to accepted comparisons.",
+    "No fixed-wind verification or new original program launch.",
+    "No original project payload in checkpoint; derived fixtures/results remain private."
+  ]
+}

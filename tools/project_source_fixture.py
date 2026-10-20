@@ -110,8 +110,14 @@ def make_case(values, row, ctx, case_id, evidence, flow):
     if values[2] != 'P' or row[4] != 'Т':
         raise ValueError('Unsupported non-point source')
     air = winter if n[3] < 0 else summer
-    if n[3] == 0 or n[4] != 0 or n[15] != 1 or n[5] <= 0 or n[6] <= 0 or n[8] < air:
-        raise ValueError('Unsupported height/terrain/flow/temperature')
+    if n[3] == 0 or n[4] != 0:
+        raise ValueError('Unsupported source height specification')
+    if n[15] != 1:
+        raise ValueError('Terrain coefficient other than one unsupported')
+    if n[5] <= 0 or n[6] <= 0:
+        raise ValueError('Nonpositive outlet diameter or speed unsupported')
+    if n[8] < air:
+        raise ValueError('Gas temperature below ambient unsupported')
     resolution = Decimal(10) ** decimal(row[3]).as_tuple().exponent
     if abs(decimal(values[17]) - decimal(row[3])) > resolution / 2:
         raise ValueError('Input/report emission mismatch')
@@ -122,6 +128,8 @@ def make_case(values, row, ctx, case_id, evidence, flow):
     if flow == 'stored-volume' and (n[7] <= 0 or not within_speed_rounding):
         raise ValueError('Volume-derived speed outside printed-speed rounding interval')
     speed = n[6] if flow == 'printed-speed' else velocity_from_volume
+    if speed > 330:
+        raise ValueError('Selected exit velocity above kernel limit 330 m/s')
     case = dict(case_id=case_id, coefficient_a=a, air_temperature_c=air, pdk_mg_m3=pdk,
         source=dict(id=values[0] + ':' + values[1], x_m=n[9], y_m=n[10], height_m=abs(n[3]),
             outlet=dict(shape='circular', diameter_m=n[5]), exit_velocity_m_s=speed,

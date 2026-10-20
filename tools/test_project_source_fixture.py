@@ -89,6 +89,26 @@ class ProjectFixtureTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'uniqueness'):
             rows(cm.replace('Коды источников уникальны в рамках всего предприятия', ''))
 
+    def test_kernel_speed_limit_is_an_explicit_skip_not_batch_failure(self):
+        data = project_members()
+        key = f'DAT/{VARIANT}/ist_0301.txt'
+        data[key] = data[key].replace('4.00 3.1415927', '400.00 314.1592654')
+        for flow in ['printed-speed', 'stored-volume']:
+            fixture, _ = self.run_build(data, flow)
+            self.assertEqual(fixture['cases'], [])
+            self.assertIn('330 m/s', fixture['skipped'][0]['reason'])
+        data[key] = data[key].replace('400.00 314.1592654', '330.00 259.1813939')
+        self.assertEqual(len(self.run_build(data)[0]['cases']), 1)
+
+    def test_negative_delta_temperature_is_not_replaced_with_zero(self):
+        data = project_members()
+        key = f'DAT/{VARIANT}/ist_0301.txt'
+        data[key] = data[key].replace('50.0 2.0', '19.0 2.0')
+        fixture, _ = self.run_build(data)
+        self.assertEqual(fixture['cases'], [])
+        self.assertEqual(fixture['skipped'][0]['reason'],
+                         'Gas temperature below ambient unsupported')
+
     def test_path_and_selection_limits(self):
         with tempfile.TemporaryDirectory() as directory:
             project = Project(directory)
