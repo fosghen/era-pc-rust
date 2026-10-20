@@ -90,3 +90,6 @@ calculations. Public executables remain deferred until the agreed usable release
 
 Project fixtures, coordinates and diagnostic requests/results remain private.
 The public repository contains the guard, synthetic tests and aggregate findings.
+
+The subsequent [paired replay and full-grid study](FIELD_REPLAY.md) extends the
+initial sample to both complete grids and separates wind replay from wind search.

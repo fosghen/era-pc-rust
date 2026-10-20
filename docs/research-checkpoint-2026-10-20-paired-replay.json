@@ -1,0 +1,229 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-20",
+  "parent_commit": "16f0ad38d9a19d191559486c61e782c70d129c6e",
+  "path_base": "workspace root containing era-rust and reverse_engineering",
+  "status": "Paired Rust replay and complete 20,402-point diagnostic corpus; separate coordinate hypotheses, rounding probes and own wind-search refinements. Not accepted field equivalence.",
+  "files": [
+    {
+      "path": "era-rust/.github/workflows/ci.yml",
+      "sha256": "853e110062575ddfd0a85615fe52505721d391d691f8ec8686761dba2701a95b"
+    },
+    {
+      "path": "era-rust/Cargo.lock",
+      "sha256": "eddc4aa9c82ff1ce3b27402d40c483a0d1528b9e896d758651f8f0c21760adb2"
+    },
+    {
+      "path": "era-rust/Cargo.toml",
+      "sha256": "00a9e49290cd2c690dcfa1551642e51c0c0b6be1d34fb2e7c59947e8543baaed"
+    },
+    {
+      "path": "era-rust/docs/FIELD_REPLAY.md",
+      "sha256": "90c3f672b792a144bb55cd0a33d6a71e43dca877caf61f2be3d06f4c098f6689"
+    },
+    {
+      "path": "era-rust/docs/HYBRID_VALIDATION.md",
+      "sha256": "20dfae29eb0dfc24d5079e20a9f7b1e4a084ff0298a6a10217b4ca402c6e4d69"
+    },
+    {
+      "path": "era-rust/examples/field_replay.rs",
+      "sha256": "a837e1718134b28982ee42e7d72162c8b1d2b8519d3de0931b7871d1a5aefce9"
+    },
+    {
+      "path": "era-rust/src/dispersion.rs",
+      "sha256": "6dd1960477840c0d1566ddeb0d5c02bf37f7916d67f3b8c02317de20bb982fd4"
+    },
+    {
+      "path": "era-rust/src/dispersion_replay.rs",
+      "sha256": "7a8cb16162d4ee7a32148935dfe31d070e52ac6893b6d39591ac33157c37aa22"
+    },
+    {
+      "path": "era-rust/src/lib.rs",
+      "sha256": "8542d2944fb5b78211789b8f7b9d30e0c602e3acc0bd93cc34ecf5ca9063ed0c"
+    },
+    {
+      "path": "era-rust/src/wind_search.rs",
+      "sha256": "7709030be7153f2bd757712f906021db024514edf73910dfc2760b9c9ca8f1b1"
+    },
+    {
+      "path": "era-rust/tests/dispersion_replay.rs",
+      "sha256": "18956f2a0807e65f5b4db3d706d51cc12abdd7ad57af7f9179b4cdfa5f5d099d"
+    },
+    {
+      "path": "era-rust/tools/archive_source_fixture.py",
+      "sha256": "589ec44fc75620499f050fced17b8dfb1f2a64912ff34abe6585f2e3bcdd5fb1"
+    },
+    {
+      "path": "era-rust/tools/project_batch_compare.py",
+      "sha256": "20b0ce3ede097e6c30162267da7cc190c9da336a38e516d809c4342447281988"
+    },
+    {
+      "path": "era-rust/tools/project_snapshot.py",
+      "sha256": "afd38af7ffb18dbb5a50dcd48d5812944c148ad0b6c513e3299ddf85b93fdea1"
+    },
+    {
+      "path": "era-rust/tools/project_source_fixture.py",
+      "sha256": "2d957cafc35d68ac5da83f715944dca976a04d760c46ba1505459c403ca07353"
+    },
+    {
+      "path": "era-rust/tools/verify_checkpoint.py",
+      "sha256": "235a1c96268395f8e2bcd240403de5864929dcd796e9d667ae26fca3f1040696"
+    },
+    {
+      "path": "reverse_engineering/full_grid_replay.py",
+      "sha256": "e552c30af36604e376ba8ae6ca74ae8d5035c98089c7061c25008a4452a84d86"
+    },
+    {
+      "path": "reverse_engineering/full_grid_replay_01/G419_0001p01.V1/as-exported_request.json",
+      "sha256": "17f729e45c4c57aa55d35c1fe85c9acebecc108b8d255ee82c2050c54db50832"
+    },
+    {
+      "path": "reverse_engineering/full_grid_replay_01/G419_0001p01.V1/as-exported_result.json",
+      "sha256": "96532c181e1053b84346f1b004d9b8da4b205e9d4054173e511549b4b64f42a7"
+    },
+    {
+      "path": "reverse_engineering/full_grid_replay_01/G419_0001p01.V1/as-exported_summary.json",
+      "sha256": "26acb48abcb0a716cf9fa526615b2b729385085dd60803aeed392a437af1ba9f"
+    },
+    {
+      "path": "reverse_engineering/full_grid_replay_01/G419_0001p01.V1/expected.json",
+      "sha256": "0541b248770b742f767ee9a5d3b5a3bec7021e782deb6fea937cf2cc462f0cad"
+    },
+    {
+      "path": "reverse_engineering/full_grid_replay_01/G419_0001p01.V1/float32-source-coordinates_request.json",
+      "sha256": "ac463d1bb79206977ea3083ec92d6ddd723123c72f77bc3770329025b50bde6c"
+    },
+    {
+      "path": "reverse_engineering/full_grid_replay_01/G419_0001p01.V1/float32-source-coordinates_result.json",
+      "sha256": "70d0235749100ad72a631433ba11f70e6bed07b910c89044843a1435950ce2d9"
+    },
+    {
+      "path": "reverse_engineering/full_grid_replay_01/G419_0001p01.V1/float32-source-coordinates_summary.json",
+      "sha256": "743fd982fa444ef5a453c193bc64e3d4a608af7bcb89090286c3922bdc19532b"
+    },
+    {
+      "path": "reverse_engineering/full_grid_replay_01/G419_0002p01.V6/as-exported_request.json",
+      "sha256": "225bcfca3a76c0ae37fdd468bdce93c176df00715e9806ed34d348a5fe80be3f"
+    },
+    {
+      "path": "reverse_engineering/full_grid_replay_01/G419_0002p01.V6/as-exported_result.json",
+      "sha256": "7ee01abb668805305be5ae944549da772f9e1d40f9bc2596935ea03a42373955"
+    },
+    {
+      "path": "reverse_engineering/full_grid_replay_01/G419_0002p01.V6/as-exported_summary.json",
+      "sha256": "b841dc4415d2a9a744423549a30c5e4ac7030331678c268651ab06e8a6bc000d"
+    },
+    {
+      "path": "reverse_engineering/full_grid_replay_01/G419_0002p01.V6/expected.json",
+      "sha256": "e5907647b28ab9fa81b5024ce41527f19da7ecb053aa8c4084d21e681670290d"
+    },
+    {
+      "path": "reverse_engineering/full_grid_replay_01/G419_0002p01.V6/float32-source-coordinates_request.json",
+      "sha256": "cbc615d74cddd2be62af262c8d19260e4ec28e24c4854e14b8641dd5e2c0bdbd"
+    },
+    {
+      "path": "reverse_engineering/full_grid_replay_01/G419_0002p01.V6/float32-source-coordinates_result.json",
+      "sha256": "3fec732b0c85c4f590cfe851737de0ede4e54d83b4bdf3af3346ea9ded2ba12f"
+    },
+    {
+      "path": "reverse_engineering/full_grid_replay_01/G419_0002p01.V6/float32-source-coordinates_summary.json",
+      "sha256": "4a3c2ddeeb6988e9b10429666d43c1048dc4ff448afcd5bbefdeae43215e6671"
+    },
+    {
+      "path": "reverse_engineering/full_grid_replay_01/summary.json",
+      "sha256": "fc484d5415381c62a8a39cb24429e76ba30946f1572e96e106490a70ec02daaf"
+    },
+    {
+      "path": "reverse_engineering/grid_wind_checks.py",
+      "sha256": "a53ed1e0e7a42b48ec5fb6ec73bcc33db43fc000a85a19c58025c7edf27999f0"
+    },
+    {
+      "path": "reverse_engineering/grid_wind_checks_01/G419_0001p01.V1/rounding_request.json",
+      "sha256": "846eee39876d256d997b946da4b56d2d39bd93f46345841339de224ff8144b9d"
+    },
+    {
+      "path": "reverse_engineering/grid_wind_checks_01/G419_0001p01.V1/rounding_result.json",
+      "sha256": "0daaf3e3a5ce16d86e9bee43b335b1a4a472f67aa6489d5e128c6f1500066a08"
+    },
+    {
+      "path": "reverse_engineering/grid_wind_checks_01/G419_0001p01.V1/search_request.json",
+      "sha256": "86cd3e20ee49eaa747ff64e18ec8206dcdf3c7930dfb8bd0b393c6476f6407d7"
+    },
+    {
+      "path": "reverse_engineering/grid_wind_checks_01/G419_0001p01.V1/search_result.json",
+      "sha256": "db56f4be4a5d25ee13d2a5a014466b0f7b96f82ff6b2d68d3beac4e849a40068"
+    },
+    {
+      "path": "reverse_engineering/grid_wind_checks_01/G419_0001p01.V1/summary.json",
+      "sha256": "9e3d845cf6333facb95e03c5d6b8b8f88339d82244184d09f5ca9f49df0cc616"
+    },
+    {
+      "path": "reverse_engineering/grid_wind_checks_01/G419_0002p01.V6/rounding_request.json",
+      "sha256": "29ab3ba2baf37310299ab35a819335ea88c92d0052425dd8106609f5b1e8fe27"
+    },
+    {
+      "path": "reverse_engineering/grid_wind_checks_01/G419_0002p01.V6/rounding_result.json",
+      "sha256": "ca74bcec9a6384fd129392f418cac338934ad28529e052ae363bac486c32ed01"
+    },
+    {
+      "path": "reverse_engineering/grid_wind_checks_01/G419_0002p01.V6/search_request.json",
+      "sha256": "1236318e731daa1ac83f81347366dbace7a5ad03f8b976edb01fdbc7b4e70ea1"
+    },
+    {
+      "path": "reverse_engineering/grid_wind_checks_01/G419_0002p01.V6/search_result.json",
+      "sha256": "8fa0e6c505aa449e61603aa605a90efaff546559a0e503f4eda801b7ee261b85"
+    },
+    {
+      "path": "reverse_engineering/grid_wind_checks_01/G419_0002p01.V6/summary.json",
+      "sha256": "5b6cb0d1c8f29d58d7830c8aab4f2e40dfea7123c5967c7f177c9bcf7f032e97"
+    },
+    {
+      "path": "reverse_engineering/grid_wind_refined_01/request.json",
+      "sha256": "ed00be928011d0473cc74678557d18dc10e796fc63545a5454506376787826e5"
+    },
+    {
+      "path": "reverse_engineering/grid_wind_refined_01/result.json",
+      "sha256": "af2d08f9e4daf6cdbafb85d7fe655b1926d769422f922d4caa5d80db429957d1"
+    },
+    {
+      "path": "reverse_engineering/grid_wind_refined_01/summary.json",
+      "sha256": "e014ef64794f897b80090f020dd965f6c74b9671da9ecf2feea0000f9615e52e"
+    },
+    {
+      "path": "reverse_engineering/refine_grid_wind_search.py",
+      "sha256": "5e3925f0ae54ffbc6fbc8ff7de30c8021ceba764847980422b70cb522a4c7dca"
+    },
+    {
+      "path": "reverse_engineering/test_full_grid_replay.py",
+      "sha256": "07a6641cca166ab82c65b3d11d48d8dbfa948a8ec838d40745b19355fe7bb8d3"
+    }
+  ],
+  "external_artifact_hashes_not_bundled": [
+    {
+      "path": "era-rust/target/release/examples/field_replay",
+      "sha256": "02a07ed8682c47df3740c0e1d74e4804b23629a3119156b1108f5741c69d1839"
+    },
+    {
+      "path": "era-rust/target/release/era-engine",
+      "sha256": "966a1f9e21bd09179224f9779425e4fbb54a21055078c6be0065d42f65330075"
+    },
+    {
+      "path": "extracted/app/INSTR/era_3_rb.pdf",
+      "sha256": "f887ec893831ab01de416d64631885af2ba0caca7b5a1fe4303a05281c9d0efb"
+    }
+  ],
+  "tests": {
+    "rust_all_targets_passed": 89,
+    "python_tools_passed": 481,
+    "private_grid_parser_passed": 3,
+    "clippy_and_format": "passed"
+  },
+  "limitations": [
+    "Original projects, vendor PDF and executables are not in the checkpoint archive.",
+    "Generated project fixtures and reports remain private.",
+    "Coordinate binary32 conversion is a diagnostic intervention, not a kernel change.",
+    "Buildings enabled-state and historical snapshot freshness remain unresolved.",
+    "Kernel/dependency snapshots include pre-existing local changes, excluded from this commit.",
+    "Grid stability is not a guarantee of global optimum."
+  ]
+}

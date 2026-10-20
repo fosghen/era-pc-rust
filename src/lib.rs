@@ -2,6 +2,7 @@ pub mod data;
 pub mod demo;
 pub mod dispersion;
 pub mod dispersion_compare;
+pub mod dispersion_replay;
 pub mod engine;
 pub mod expr;
 pub mod range;

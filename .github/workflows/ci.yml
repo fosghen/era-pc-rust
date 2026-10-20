@@ -46,6 +46,8 @@ jobs:
         run: cargo +1.90.0 test --locked --example native_trace_report
       - name: Test saved archive source parameter comparisons
         run: cargo +1.90.0 test --locked --example archive_source_compare
+      - name: Test paired field replay without original projects
+        run: cargo +1.90.0 test --locked --example field_replay
       - run: cargo +1.90.0 run --locked -- demo
       - name: Build Windows x64 release
         if: matrix.os == 'windows-latest'
