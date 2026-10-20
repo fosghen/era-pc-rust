@@ -13,9 +13,16 @@ const MAX_PRINTED: usize = 32;
 
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
-struct Provenance {
-    archive_name: String,
-    archive_sha256: String,
+#[serde(untagged)]
+enum Provenance {
+    Archive {
+        archive_name: String,
+        archive_sha256: String,
+    },
+    Project {
+        project_name: String,
+        selected_files_manifest_sha256: String,
+    },
 }
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -208,8 +215,22 @@ fn compare(input: Input) -> Result<Report, String> {
     if input.cases.is_empty() || input.cases.len() > MAX_CASES || input.skipped.len() > MAX_CASES {
         return Err("Require 1..=10000 cases and <=10000 skipped entries".into());
     }
-    bounded_text("archive_name", &input.provenance.archive_name, 1024)?;
-    sha256(&input.provenance.archive_sha256)?;
+    match &input.provenance {
+        Provenance::Archive {
+            archive_name,
+            archive_sha256,
+        } => {
+            bounded_text("archive_name", archive_name, 1024)?;
+            sha256(archive_sha256)?;
+        }
+        Provenance::Project {
+            project_name,
+            selected_files_manifest_sha256,
+        } => {
+            bounded_text("project_name", project_name, 1024)?;
+            sha256(selected_files_manifest_sha256)?;
+        }
+    }
     let mut ids = BTreeSet::new();
     for id in input
         .cases
@@ -268,10 +289,10 @@ fn compare(input: Input) -> Result<Report, String> {
     };
     Ok(Report {
         schema_version: 1,
-        scope: "individual_source_parameters_vs_saved_archive_exports",
+        scope: "individual_source_parameters_vs_saved_exports",
         limitations: [
-            "Saved archive exports only; not live ERA execution or a complete calculation comparison.",
-            "Provenance hashes are supplied by the extractor; this comparator does not open or verify the archive.",
+            "Saved archive/project exports only; not live ERA execution or a complete calculation comparison.",
+            "Provenance hashes are supplied by the extractor; this comparator does not open or verify source files.",
             "Cm is calculated in mg/m3 and divided by the supplied PDK in mg/m3; flat-terrain kernel assumptions apply.",
             "Pass uses an inclusive exact decimal half-step interval; displayed numeric errors use f64 arithmetic. Skipped cases are not validated.",
         ],
@@ -481,6 +502,15 @@ mod tests {
         assert!(checked(value).is_err());
         let mut value = fixture();
         value["provenance"]["archive_sha256"] = json!("bad");
+        assert!(checked(value).is_err());
+    }
+    #[test]
+    fn project_provenance_is_explicit_and_strict() {
+        let mut value = fixture();
+        value["provenance"] = json!({"project_name":"synthetic-project",
+            "selected_files_manifest_sha256":"c".repeat(64)});
+        assert!(checked(value.clone()).unwrap().summary.all_passed);
+        value["provenance"]["archive_name"] = json!("ambiguous.zip");
         assert!(checked(value).is_err());
     }
     #[test]

@@ -1,0 +1,135 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-20",
+  "parent_commit": "71d1ca3222ee314c8b855d001c39d78c48f3570e",
+  "path_base": "workspace root containing era-rust and reverse_engineering",
+  "status": "Offline saved-project source comparison. Printed-speed profile 9/33; volume-derived-speed profile 33/33. No complete project equivalence or original executable launch.",
+  "files": [
+    {
+      "path": "era-rust/tools/project_source_fixture.py",
+      "sha256": "07c125bda98fda24d619fb64658e90e886c769f0cdea9ecf2959ad9ec34d2801"
+    },
+    {
+      "path": "era-rust/tools/test_project_source_fixture.py",
+      "sha256": "b9c54bb4bd4c1a99223c95abc3de325d6759c2986c8e507393b5501bcae11cf7"
+    },
+    {
+      "path": "era-rust/tools/archive_source_fixture.py",
+      "sha256": "ec4e4b122db1ae40e9eae6eb6d1670e33608301a52d28d418ffa54354d9fbdb3"
+    },
+    {
+      "path": "era-rust/examples/archive_source_compare.rs",
+      "sha256": "fa52ed2861921f77dce73f32df50250dccdde51421cdc28c0aefe42f1e0333b8"
+    },
+    {
+      "path": "era-rust/docs/PROJECT_SOURCE_VALIDATION.md",
+      "sha256": "fec5d745811527006ddaeafbe4c1f967069099080934aed11004c76ced0f624d"
+    },
+    {
+      "path": "era-rust/src/dispersion.rs",
+      "sha256": "6dd1960477840c0d1566ddeb0d5c02bf37f7916d67f3b8c02317de20bb982fd4"
+    },
+    {
+      "path": "era-rust/Cargo.toml",
+      "sha256": "00a9e49290cd2c690dcfa1551642e51c0c0b6be1d34fb2e7c59947e8543baaed"
+    },
+    {
+      "path": "era-rust/Cargo.lock",
+      "sha256": "eddc4aa9c82ff1ce3b27402d40c483a0d1528b9e896d758651f8f0c21760adb2"
+    },
+    {
+      "path": "era-rust/tools/verify_checkpoint.py",
+      "sha256": "235a1c96268395f8e2bcd240403de5864929dcd796e9d667ae26fca3f1040696"
+    },
+    {
+      "path": "reverse_engineering/archive_source_baseline_dispersion_01.rs",
+      "sha256": "5213851ba5e7965b79f17865b57e88be380e3ec328f3a7120101248bc4570da5"
+    },
+    {
+      "path": "reverse_engineering/archive_source_baseline_Cargo_01.toml",
+      "sha256": "88cfe4e2f912c38091634907c8b95ebc4b4465eaf25796485008e40395cb0cf9"
+    },
+    {
+      "path": "reverse_engineering/project_printed-speed_cases_02.json",
+      "sha256": "9d9c023cea2daefb853b23e84aef135aebfd25608b509aabdf5ee653d14c2104"
+    },
+    {
+      "path": "reverse_engineering/project_printed-speed_notes_02.json",
+      "sha256": "ab7c0de70d9df4b62fe36a0271dc8f0d0ffd8d7a06280ada7cdb8961b95b6e16"
+    },
+    {
+      "path": "reverse_engineering/project_printed-speed_comparison_02.json",
+      "sha256": "cbc29ce759615082d7a52f08a97c09dab7b8bad433f5d89ec38ec65ab0ca6d9d"
+    },
+    {
+      "path": "reverse_engineering/project_printed-speed_comparison_baseline_02.json",
+      "sha256": "cbc29ce759615082d7a52f08a97c09dab7b8bad433f5d89ec38ec65ab0ca6d9d"
+    },
+    {
+      "path": "reverse_engineering/project_stored-volume_cases_02.json",
+      "sha256": "23e31c54f51223016c29c27dce841f3fb27027e8896f3ad0ad1531533685e23b"
+    },
+    {
+      "path": "reverse_engineering/project_stored-volume_notes_02.json",
+      "sha256": "ac76f74d1a2a64b8ea54c0153a006ddd35a34eaa761bb49f6cb563ad67b89bf3"
+    },
+    {
+      "path": "reverse_engineering/project_stored-volume_comparison_02.json",
+      "sha256": "13f066ab3c436902b45fdabd0cb3f2ade9af72feff6c13ae6b43099f85f4f13d"
+    },
+    {
+      "path": "reverse_engineering/project_stored-volume_comparison_baseline_02.json",
+      "sha256": "31290cfd32c6d82a0770eec3ae71bcdde580c490627366100e55b7ef73a60fd4"
+    },
+    {
+      "path": "reverse_engineering/project_grid0184_request_01.json",
+      "sha256": "56076898a123e3eca4616b9a05f7fa0696ccfced340e60e51aa39c793f874735"
+    },
+    {
+      "path": "reverse_engineering/project_grid0184_result_01.json",
+      "sha256": "24d8c11425e3238cb5a7c7943085394fbff4c89dcba7f3905d939cd8d720a799"
+    },
+    {
+      "path": "reverse_engineering/project_grid0184_notes_01.json",
+      "sha256": "f98fdd896a4773848e4875f1b36c9066f102be21af7ce16f77cbc85753f3e14d"
+    }
+  ],
+  "tests": {
+    "python": 464,
+    "rust_comparison_example": 10,
+    "clippy_all_targets": "PASS -D warnings",
+    "fmt": "PASS"
+  },
+  "findings": {
+    "report_tables": 28,
+    "single_pollutant_source_pairs": 68,
+    "point_source_pairs": 49,
+    "area_source_pairs": 19,
+    "compared_pairs": 33,
+    "compared_pollutants": 15,
+    "physical_configurations": 19,
+    "unique_source_ids": 14,
+    "printed_speed_pass": 9,
+    "volume_derived_speed_pass": 33,
+    "skip_records": 40,
+    "unsupported_negative_temperature_difference": 16,
+    "skipped_area_source_pairs": 19,
+    "skipped_summation_reports": 5,
+    "selected_project_files": 138,
+    "selected_project_hashes_unchanged": true
+  },
+  "baseline": {
+    "kernel_commit": "f71d18ffc3828e4abb5db02703d3395368c054bb",
+    "same_pass_fail_decisions": true,
+    "printed_profile_json_identical": true,
+    "volume_profile_changed_numeric_metrics": 3,
+    "volume_profile_max_numeric_difference": 1.1368683772161603e-13
+  },
+  "workspace_note": "Pre-existing Cargo/kernel/test/documentation edits remain uncommitted and unmodified by this task. Both kernel/dependency snapshots retained privately.",
+  "limitations": [
+    "Saved files may be stale or rounded; no live licensed ERA oracle.",
+    "Source flow interpretations are explicit, no formula or tolerance fitting.",
+    "Diagnostic grid point is not counted as a validation pass.",
+    "Original project and databases excluded; fixtures, notes and results remain private."
+  ]
+}
