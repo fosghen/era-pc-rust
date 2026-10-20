@@ -1,0 +1,440 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-20",
+  "parent_commit": "45720f31071f237ebc582ddb9712432b6b82e9a7",
+  "path_base": "workspace root containing era-rust and reverse_engineering",
+  "status": "Replacement projects inventoried and compared offline; five accepted stored-volume source-parameter matches. Cold-gas intervention is diagnostic only: 80/81 pairs, one rounding-boundary failure.",
+  "files": [
+    {
+      "path": "era-rust/Cargo.lock",
+      "sha256": "eddc4aa9c82ff1ce3b27402d40c483a0d1528b9e896d758651f8f0c21760adb2"
+    },
+    {
+      "path": "era-rust/Cargo.toml",
+      "sha256": "00a9e49290cd2c690dcfa1551642e51c0c0b6be1d34fb2e7c59947e8543baaed"
+    },
+    {
+      "path": "era-rust/docs/REPLACEMENT_PROJECT_VALIDATION.md",
+      "sha256": "3fe7fe4cb9903c63f259cf4337090e15ad253861042543ae3de5e7ec23a7eb85"
+    },
+    {
+      "path": "era-rust/examples/archive_source_compare.rs",
+      "sha256": "fa52ed2861921f77dce73f32df50250dccdde51421cdc28c0aefe42f1e0333b8"
+    },
+    {
+      "path": "era-rust/src/dispersion.rs",
+      "sha256": "6dd1960477840c0d1566ddeb0d5c02bf37f7916d67f3b8c02317de20bb982fd4"
+    },
+    {
+      "path": "era-rust/tools/archive_source_fixture.py",
+      "sha256": "589ec44fc75620499f050fced17b8dfb1f2a64912ff34abe6585f2e3bcdd5fb1"
+    },
+    {
+      "path": "era-rust/tools/project_batch_compare.py",
+      "sha256": "20b0ce3ede097e6c30162267da7cc190c9da336a38e516d809c4342447281988"
+    },
+    {
+      "path": "era-rust/tools/project_source_fixture.py",
+      "sha256": "958a9699062c91a07a845b00566362a3ba81d41238e3bd39044e698931d35dd4"
+    },
+    {
+      "path": "era-rust/tools/test_project_batch_compare.py",
+      "sha256": "11ed23b20f5b2dbac74bfd578b13fedeb834e0848e7f1c536f15c5e0bf2b780d"
+    },
+    {
+      "path": "era-rust/tools/test_project_source_fixture.py",
+      "sha256": "4d1da19d1f705d8be4a39f03589199b50741db70440f1819cac698af64247a04"
+    },
+    {
+      "path": "era-rust/tools/verify_checkpoint.py",
+      "sha256": "235a1c96268395f8e2bcd240403de5864929dcd796e9d667ae26fca3f1040696"
+    },
+    {
+      "path": "reverse_engineering/G008_cold_hypothesis_cases_01.json",
+      "sha256": "d60afb3e41995e6b506bb4e1f1eaf36d8a183dd0c20174ce4cd5cc0d25a670d9"
+    },
+    {
+      "path": "reverse_engineering/G008_cold_hypothesis_comparison_01.json",
+      "sha256": "73f29f9d0a299e193c7edf66d4ee583e43fd55e9aa0783636be43a0b2d20ce91"
+    },
+    {
+      "path": "reverse_engineering/G008_cold_hypothesis_notes_01.json",
+      "sha256": "49dea4b31c890167056c43cc816c9da88ba3a4fc63f66dc25142571a3bff1ff4"
+    },
+    {
+      "path": "reverse_engineering/G009_cold_hypothesis_cases_01.json",
+      "sha256": "f4f532181b4cedac288978b9d345674206f5e73b11f237edab9dd6a1d82458b4"
+    },
+    {
+      "path": "reverse_engineering/G009_cold_hypothesis_comparison_01.json",
+      "sha256": "aa4ebffcddcfb1dd01664578a06778b76b5a2333bc88bcd202eba28bf85120d1"
+    },
+    {
+      "path": "reverse_engineering/G009_cold_hypothesis_notes_01.json",
+      "sha256": "32ce1d1df6867b36387fd86ca37e58930c3a596a8d1833797d6bf6ab47b852f9"
+    },
+    {
+      "path": "reverse_engineering/G056_cold_hypothesis_cases_01.json",
+      "sha256": "fafa3777d87e21d1f68d6dea1fc17a91ae7e3bea684c28576dbe7d87efd179af"
+    },
+    {
+      "path": "reverse_engineering/G056_cold_hypothesis_comparison_01.json",
+      "sha256": "468d05c5364ccdf2b0b36a3d852bd42c237eb0eb5006dd184096e300ee8fb7bb"
+    },
+    {
+      "path": "reverse_engineering/G056_cold_hypothesis_notes_01.json",
+      "sha256": "dc78c175f035a8e7a9a58e337f3902f1a365ccf7f7fc2f95af6c7cbead337dd0"
+    },
+    {
+      "path": "reverse_engineering/G060_cold_hypothesis_cases_01.json",
+      "sha256": "518337c72b6430e9189c88ecf0d9545e6a973a0cc2a99277bce67158559eafd3"
+    },
+    {
+      "path": "reverse_engineering/G060_cold_hypothesis_comparison_01.json",
+      "sha256": "4ee6c7790bbaf772f12527fcbc6b14d449ab4defddd00189d257a4e3c608b259"
+    },
+    {
+      "path": "reverse_engineering/G060_cold_hypothesis_notes_01.json",
+      "sha256": "5bc53b7e9d7219a1f7548fb493480d17b3951ac4c88a855b4552317ccd94bb06"
+    },
+    {
+      "path": "reverse_engineering/probe_cold_project_inputs.py",
+      "sha256": "12048b074e55f54b1b9539d972b84e16b22bb655ec0f04c3821783844e3c70f3"
+    },
+    {
+      "path": "reverse_engineering/replacement_batch_02/000_printed-speed_cases.json",
+      "sha256": "0f3cf7533c946b4a7869c303f77c449b6298ac7aec4359373fdf41a9d8487594"
+    },
+    {
+      "path": "reverse_engineering/replacement_batch_02/000_printed-speed_comparison.json",
+      "sha256": "b00a88e31cd8556ffe485c4e8f3fc80098b57ca9f2d21f96edb01e512aefad4c"
+    },
+    {
+      "path": "reverse_engineering/replacement_batch_02/000_printed-speed_notes.json",
+      "sha256": "302d12622a483cfa52b229170c6f82ff9e6ab2ce3e9b00e4005a5e661220ba59"
+    },
+    {
+      "path": "reverse_engineering/replacement_batch_02/000_stored-volume_cases.json",
+      "sha256": "c9332994de216ee3999d8b46f31d48236e1d16db587d9b8018819b8e312a7122"
+    },
+    {
+      "path": "reverse_engineering/replacement_batch_02/000_stored-volume_comparison.json",
+      "sha256": "c82db33577805252ba48f360db87d4e07258afb48a7cfcb7bd1729da81e18a75"
+    },
+    {
+      "path": "reverse_engineering/replacement_batch_02/000_stored-volume_notes.json",
+      "sha256": "bf2cb7d41bfe6ad05cd3f9b43adf4305c8d91764a88aea4781efe09b1e9f0309"
+    },
+    {
+      "path": "reverse_engineering/replacement_batch_02/001_printed-speed_cases.json",
+      "sha256": "c61e7ecbab50c16ec637f6a0a6322126722157354f71fc7b3437222bef738616"
+    },
+    {
+      "path": "reverse_engineering/replacement_batch_02/001_printed-speed_notes.json",
+      "sha256": "ba1e737b262bfab9da6e8f1b19800eb98c42ff4d5cc60abb8cbb5eb827348fd4"
+    },
+    {
+      "path": "reverse_engineering/replacement_batch_02/001_stored-volume_cases.json",
+      "sha256": "c61e7ecbab50c16ec637f6a0a6322126722157354f71fc7b3437222bef738616"
+    },
+    {
+      "path": "reverse_engineering/replacement_batch_02/001_stored-volume_notes.json",
+      "sha256": "6ec08b62db31b2c6d58ce7cc8664ba3834cde39951d9a0c62c99e911b241e2cc"
+    },
+    {
+      "path": "reverse_engineering/replacement_batch_02/002_printed-speed_cases.json",
+      "sha256": "ec61a882009d31b845dafb0b15c15ccf4292f32be04471d396c9b704b7e8abeb"
+    },
+    {
+      "path": "reverse_engineering/replacement_batch_02/002_printed-speed_notes.json",
+      "sha256": "e43792904038320b592d6f6869f4dda66f1e8193e35875857f801b09f153efdb"
+    },
+    {
+      "path": "reverse_engineering/replacement_batch_02/002_stored-volume_cases.json",
+      "sha256": "ec61a882009d31b845dafb0b15c15ccf4292f32be04471d396c9b704b7e8abeb"
+    },
+    {
+      "path": "reverse_engineering/replacement_batch_02/002_stored-volume_notes.json",
+      "sha256": "f2813d649c9faa89c41fe77ff03c73525d38dc181a92caa794250dae12602ef0"
+    },
+    {
+      "path": "reverse_engineering/replacement_batch_02/003_printed-speed_cases.json",
+      "sha256": "4b2f97912e717fc098b30f2289785cb75bf4b8bcda1ec9db1dd0d384910964f0"
+    },
+    {
+      "path": "reverse_engineering/replacement_batch_02/003_printed-speed_notes.json",
+      "sha256": "9ad1b6f693286b60af4e451d04e922075927040d5ab9ed3f656a8d530ac6e981"
+    },
+    {
+      "path": "reverse_engineering/replacement_batch_02/003_stored-volume_cases.json",
+      "sha256": "4b2f97912e717fc098b30f2289785cb75bf4b8bcda1ec9db1dd0d384910964f0"
+    },
+    {
+      "path": "reverse_engineering/replacement_batch_02/003_stored-volume_notes.json",
+      "sha256": "ce816b55c5935a5e6e6f24e536d2a800a455cb3f75fd0f161c304194ab87a5ce"
+    },
+    {
+      "path": "reverse_engineering/replacement_batch_02/005_printed-speed_cases.json",
+      "sha256": "05048f163b3e098e8e55acf0206a2a1bbdb63e9f2b860836775420778c3beecd"
+    },
+    {
+      "path": "reverse_engineering/replacement_batch_02/005_printed-speed_notes.json",
+      "sha256": "916e4b4ce7a59b3d3935ecf2a7d0e57edd9f512f68a9a80bb608f887a5b71f6b"
+    },
+    {
+      "path": "reverse_engineering/replacement_batch_02/005_stored-volume_cases.json",
+      "sha256": "05048f163b3e098e8e55acf0206a2a1bbdb63e9f2b860836775420778c3beecd"
+    },
+    {
+      "path": "reverse_engineering/replacement_batch_02/005_stored-volume_notes.json",
+      "sha256": "eaf25d6129e056d6880ead555fd43dc7da6e0afcb89b2baf6f08f64a2d6cc5c0"
+    },
+    {
+      "path": "reverse_engineering/replacement_batch_02/006_printed-speed_cases.json",
+      "sha256": "2d0d3887d338601ca0926f4d332f36d259f70f4384333cfda3035356f11ba081"
+    },
+    {
+      "path": "reverse_engineering/replacement_batch_02/006_printed-speed_notes.json",
+      "sha256": "64fef04f36a5a3ca0334c71ab5a841f226be6698cae7cb6193f09940c84dfa6e"
+    },
+    {
+      "path": "reverse_engineering/replacement_batch_02/006_stored-volume_cases.json",
+      "sha256": "2d0d3887d338601ca0926f4d332f36d259f70f4384333cfda3035356f11ba081"
+    },
+    {
+      "path": "reverse_engineering/replacement_batch_02/006_stored-volume_notes.json",
+      "sha256": "5e713c24c4b065f21e3d536380cd24eecad748631147970e5d5f84c24012a5e2"
+    },
+    {
+      "path": "reverse_engineering/replacement_batch_02/007_printed-speed_cases.json",
+      "sha256": "b81b2b53d02c2cb576d33ab0313fccc603e7a0a13ef2223a2281274308a2c777"
+    },
+    {
+      "path": "reverse_engineering/replacement_batch_02/007_printed-speed_notes.json",
+      "sha256": "1a41e3c4b07322b60ae2bd10424613a18d341e9fdb511e31ccef3cdc97af9167"
+    },
+    {
+      "path": "reverse_engineering/replacement_batch_02/007_stored-volume_cases.json",
+      "sha256": "b81b2b53d02c2cb576d33ab0313fccc603e7a0a13ef2223a2281274308a2c777"
+    },
+    {
+      "path": "reverse_engineering/replacement_batch_02/007_stored-volume_notes.json",
+      "sha256": "90dea8c95ed8eb5060b8e5ac90137bb284f20f3b36904b13cc7dbf4600a4007f"
+    },
+    {
+      "path": "reverse_engineering/replacement_batch_02/008_printed-speed_cases.json",
+      "sha256": "9f4dd23790ad27e98f866d8adbe82aa992aec9356f23fedce80ca12098fdfa58"
+    },
+    {
+      "path": "reverse_engineering/replacement_batch_02/008_printed-speed_notes.json",
+      "sha256": "a7a6ca7a7b141ca8736f6bbaef026f24d88f3b9ea1f54c315a2b4952513ba3a8"
+    },
+    {
+      "path": "reverse_engineering/replacement_batch_02/008_stored-volume_cases.json",
+      "sha256": "9f4dd23790ad27e98f866d8adbe82aa992aec9356f23fedce80ca12098fdfa58"
+    },
+    {
+      "path": "reverse_engineering/replacement_batch_02/008_stored-volume_notes.json",
+      "sha256": "84e3083ac090c04c706e7693108dfb527d85fe966fb226691fbf4cc5bb4a2d03"
+    },
+    {
+      "path": "reverse_engineering/replacement_batch_02/010_printed-speed_cases.json",
+      "sha256": "58a1f5bb218023df7ef37ef75498cf3304ad16dcd16abcdb98f325113b3158d3"
+    },
+    {
+      "path": "reverse_engineering/replacement_batch_02/010_printed-speed_notes.json",
+      "sha256": "3755bb13460915921f9ef68c088d2ad29233db2c5bc60c245c6b22a31433405b"
+    },
+    {
+      "path": "reverse_engineering/replacement_batch_02/010_stored-volume_cases.json",
+      "sha256": "58a1f5bb218023df7ef37ef75498cf3304ad16dcd16abcdb98f325113b3158d3"
+    },
+    {
+      "path": "reverse_engineering/replacement_batch_02/010_stored-volume_notes.json",
+      "sha256": "ac4c84ab02e4a573d27074b3d840e67c7d131c1dbaa1f589a2f96b5d21a1baae"
+    },
+    {
+      "path": "reverse_engineering/replacement_batch_02/011_printed-speed_cases.json",
+      "sha256": "978bfa912c2fb8a330b726f04291f24536888f4fbe052c6e21e83f084a30bd37"
+    },
+    {
+      "path": "reverse_engineering/replacement_batch_02/011_printed-speed_notes.json",
+      "sha256": "16f3bf90a29ba536f9f95267399d2ced9dd96d6470b3e0e1a2da94c073d79c7a"
+    },
+    {
+      "path": "reverse_engineering/replacement_batch_02/011_stored-volume_cases.json",
+      "sha256": "978bfa912c2fb8a330b726f04291f24536888f4fbe052c6e21e83f084a30bd37"
+    },
+    {
+      "path": "reverse_engineering/replacement_batch_02/011_stored-volume_notes.json",
+      "sha256": "0eca9f69f05d6d63ac98aaa76e493adb33a4a0e66742cba48a098543306444fe"
+    },
+    {
+      "path": "reverse_engineering/replacement_batch_02/012_printed-speed_cases.json",
+      "sha256": "0f529074b8c7a7add93313ea3cd807b27d39fa042e244c009331a0d2c221ca77"
+    },
+    {
+      "path": "reverse_engineering/replacement_batch_02/012_printed-speed_notes.json",
+      "sha256": "0a882e8c5acad940012718da697989ac15d9f4a77e85d5294b0b0003b69ef9c6"
+    },
+    {
+      "path": "reverse_engineering/replacement_batch_02/012_stored-volume_cases.json",
+      "sha256": "0f529074b8c7a7add93313ea3cd807b27d39fa042e244c009331a0d2c221ca77"
+    },
+    {
+      "path": "reverse_engineering/replacement_batch_02/012_stored-volume_notes.json",
+      "sha256": "8345f17e323e8add0bd858bacbf086dc5bf7028b79d6b73594e39d1e43ffe1b0"
+    },
+    {
+      "path": "reverse_engineering/replacement_batch_02/013_printed-speed_cases.json",
+      "sha256": "5b2d583defbdfc64dbf656d8dcfaf4b9f2790f4c640f52f8c480e4cb29e0fa5b"
+    },
+    {
+      "path": "reverse_engineering/replacement_batch_02/013_printed-speed_notes.json",
+      "sha256": "90cb3f7ebfbfef6b9a8a286104101131f3fa3a067e902521fd01ce3a7a9ccff1"
+    },
+    {
+      "path": "reverse_engineering/replacement_batch_02/013_stored-volume_cases.json",
+      "sha256": "5b2d583defbdfc64dbf656d8dcfaf4b9f2790f4c640f52f8c480e4cb29e0fa5b"
+    },
+    {
+      "path": "reverse_engineering/replacement_batch_02/013_stored-volume_notes.json",
+      "sha256": "0a9f1b07c33b1261fef85ed0d3e95b3e56ceed24764dd1b853204c281b06390a"
+    },
+    {
+      "path": "reverse_engineering/replacement_batch_02/014_printed-speed_cases.json",
+      "sha256": "9f642cadabccf5a3e242e065b534362105451d1dfe3635271497bad1adda7cb2"
+    },
+    {
+      "path": "reverse_engineering/replacement_batch_02/014_printed-speed_notes.json",
+      "sha256": "213f0b7c615885b5e290be3b7d2e4272e157ec43a60ef4982e0a23182abb983d"
+    },
+    {
+      "path": "reverse_engineering/replacement_batch_02/014_stored-volume_cases.json",
+      "sha256": "9f642cadabccf5a3e242e065b534362105451d1dfe3635271497bad1adda7cb2"
+    },
+    {
+      "path": "reverse_engineering/replacement_batch_02/014_stored-volume_notes.json",
+      "sha256": "fe5c0618740bb6b96c8b3caae8e6a9fe0b6d55d2c6c518db66a500fcf8b2f977"
+    },
+    {
+      "path": "reverse_engineering/replacement_batch_02/015_printed-speed_cases.json",
+      "sha256": "54224d4f8936d78fec7bdf6f605f4a2ba0ceb5a4b05b167695a20d5bf8427add"
+    },
+    {
+      "path": "reverse_engineering/replacement_batch_02/015_printed-speed_notes.json",
+      "sha256": "97fa44e1132fd3a9584811a2710b356740fb2e8cf1cb267b43d984449d35cca9"
+    },
+    {
+      "path": "reverse_engineering/replacement_batch_02/015_stored-volume_cases.json",
+      "sha256": "54224d4f8936d78fec7bdf6f605f4a2ba0ceb5a4b05b167695a20d5bf8427add"
+    },
+    {
+      "path": "reverse_engineering/replacement_batch_02/015_stored-volume_notes.json",
+      "sha256": "12c37abcab1bab6b174535a4a6ad0d8a5318b28e3c9459e186910e6248649e32"
+    },
+    {
+      "path": "reverse_engineering/replacement_batch_02/016_printed-speed_cases.json",
+      "sha256": "4137a8461526a01ffae94b143346db270fd2beac18518cbc7960507695623885"
+    },
+    {
+      "path": "reverse_engineering/replacement_batch_02/016_printed-speed_notes.json",
+      "sha256": "3b838cbb1b3a6af71cda63658f978b613e514b78f9c18c021b85a8c7ac5665ee"
+    },
+    {
+      "path": "reverse_engineering/replacement_batch_02/016_stored-volume_cases.json",
+      "sha256": "4137a8461526a01ffae94b143346db270fd2beac18518cbc7960507695623885"
+    },
+    {
+      "path": "reverse_engineering/replacement_batch_02/016_stored-volume_notes.json",
+      "sha256": "22e0a502900dcdb7eec55fb069c8659b8b2662531bd24880c71295a2749de78f"
+    },
+    {
+      "path": "reverse_engineering/replacement_batch_02/017_printed-speed_cases.json",
+      "sha256": "935e34aab19bafeec1cfdfd515eb01a54f8bb5692ee118ca05f9dafdb4841464"
+    },
+    {
+      "path": "reverse_engineering/replacement_batch_02/017_printed-speed_comparison.json",
+      "sha256": "b3e31cb59763a5550b473df8a581a583eadd91442fb1a1745f8aa0cdf8940d15"
+    },
+    {
+      "path": "reverse_engineering/replacement_batch_02/017_printed-speed_notes.json",
+      "sha256": "9e0cc06e30a551cf8b769e622d06abbc3eff7b2d676506392c8da188e4144e08"
+    },
+    {
+      "path": "reverse_engineering/replacement_batch_02/017_stored-volume_cases.json",
+      "sha256": "106382f2a639d289eba8e91b9d6cc61248b74e270a9a887e9ef750bcad6f4727"
+    },
+    {
+      "path": "reverse_engineering/replacement_batch_02/017_stored-volume_notes.json",
+      "sha256": "2caa119f80329fc913e9e7f6c19f2d439f70c98b4cc6d739dbc98abd7105715c"
+    },
+    {
+      "path": "reverse_engineering/replacement_batch_02/018_printed-speed_cases.json",
+      "sha256": "bc10b4b9ab3c0d5bf6b1269b0adddb523347f88fdffbe7ffce5dd9c24b8ea080"
+    },
+    {
+      "path": "reverse_engineering/replacement_batch_02/018_printed-speed_comparison.json",
+      "sha256": "134fc6f1e343240de52f8fa0db92250b4927800aa5185db3f9d371e8f2d7d00c"
+    },
+    {
+      "path": "reverse_engineering/replacement_batch_02/018_printed-speed_notes.json",
+      "sha256": "d85753b1ce5285808c104d429d1bdd26804ab1e9a1060f9879d1754cdbc99045"
+    },
+    {
+      "path": "reverse_engineering/replacement_batch_02/018_stored-volume_cases.json",
+      "sha256": "727fb0ce47008da9c450ac85de2dafc581f02c5c5d95481e73e4b30d1b5603e5"
+    },
+    {
+      "path": "reverse_engineering/replacement_batch_02/018_stored-volume_notes.json",
+      "sha256": "6b1945813b4157c2df33592344c7cf965e3257a02fc108d82f41b679a6f780d2"
+    },
+    {
+      "path": "reverse_engineering/replacement_batch_02/summary.json",
+      "sha256": "afe82f662eabe160b8f73e529becd5ab8b822857b43e57ea1eaec95cf3c74fe9"
+    },
+    {
+      "path": "reverse_engineering/replacement_inventory_01.json",
+      "sha256": "b982a6cc68d133d60ecde6e275b8fb1b70203b2b09be3973c008481f4d6d9fe8"
+    },
+    {
+      "path": "reverse_engineering/test_probe_cold_project_inputs.py",
+      "sha256": "f0d878b4a919d877ef5e6f2bcceec1ef4c2b9f6c7e6e15b9d326141de93f5ed9"
+    }
+  ],
+  "tests": {
+    "python_suite": 477,
+    "private_probe_tests": 3,
+    "all_passed": true
+  },
+  "findings": {
+    "collections": 7,
+    "project_versions": 19,
+    "cm_tables": 255,
+    "controls": 266,
+    "all_controls_automatic_wind_search": true,
+    "printed_speed": {
+      "compared": 29,
+      "passed": 5,
+      "failed": 24
+    },
+    "stored_volume": {
+      "compared": 5,
+      "passed": 5,
+      "failed": 0
+    },
+    "cold_hypothesis": {
+      "compared": 81,
+      "passed": 80,
+      "failed": 1,
+      "production_support": false
+    }
+  },
+  "limitations": [
+    "No original program execution or full spatial-field validation.",
+    "Private generated fixtures contain project data and are not published.",
+    "Negative-temperature intervention changes diagnostic fixture inputs only; it is not accepted validation.",
+    "Local kernel/dependency snapshots include pre-existing uncommitted changes, preserved outside this commit.",
+    "Skipped, empty and missing-input jobs are not passes."
+  ]
+}

@@ -6,7 +6,7 @@ import sys
 import tempfile
 import unittest
 
-from project_source_fixture import Project, build, rows
+from project_source_fixture import Project, build, rows, source_decimal
 from test_archive_source_fixture import members, VARIANT
 
 
@@ -108,6 +108,35 @@ class ProjectFixtureTests(unittest.TestCase):
         self.assertEqual(fixture['cases'], [])
         self.assertEqual(fixture['skipped'][0]['reason'],
                          'Gas temperature below ambient unsupported')
+
+    def test_scientific_source_input_preserves_value_not_report_tolerance(self):
+        data = project_members()
+        key = f'DAT/{VARIANT}/ist_0301.txt'
+        data[key] = data[key].replace('0.0100000', '1e-2')
+        fixture, _ = self.run_build(data)
+        self.assertEqual(fixture['cases'][0]['source']['emission_g_s'], 0.01)
+        data[f'RESNEW/{VARIANT}/4_Cm0301.txt'] = data[f'RESNEW/{VARIANT}/4_Cm0301.txt'].replace(
+            '0.123456', '1.23456e-1')
+        self.assertEqual(self.run_build(data)[0]['cases'], [])
+
+    def test_scientific_source_number_bounds(self):
+        for value in ['NaN', 'Inf', '1e309', '1e-309', '1e1000', '1e', '.1e2',
+                      ' 1e2', '1,0e2', '9' * 33, '9' * 32 + 'e308',
+                      '0.00000000000000001e-308']:
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                source_decimal(value)
+        self.assertEqual(source_decimal('6.24e-6'), source_decimal('0.00000624'))
+        self.assertEqual(source_decimal('1E+2'), source_decimal('100'))
+        self.assertEqual(source_decimal('0e-308'), 0)
+
+    def test_extreme_source_geometry_is_skipped_without_arithmetic_exception(self):
+        for diameter in ['1e-200', '1e200']:
+            data = project_members()
+            key = f'DAT/{VARIANT}/ist_0301.txt'
+            data[key] = data[key].replace('1.000 4.00', diameter + ' 4.00')
+            fixture, _ = self.run_build(data)
+            self.assertEqual(fixture['cases'], [])
+            self.assertIn('area', fixture['skipped'][0]['reason'])
 
     def test_path_and_selection_limits(self):
         with tempfile.TemporaryDirectory() as directory:

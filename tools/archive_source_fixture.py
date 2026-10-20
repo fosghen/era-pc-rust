@@ -100,7 +100,7 @@ class Archive:
         return data.decode('cp1251'), dict(member=info.filename, sha256=hashlib.sha256(data).hexdigest())
 
 
-def sources(text, pollutant):
+def sources(text, pollutant, parse_number=decimal):
     outer = block(text, 'I')
     if not outer or outer[0] != 'beg' + pollutant or outer[-1] != 'end' + pollutant:
         raise ValueError('Only a single pollutant in begI is supported')
@@ -115,7 +115,7 @@ def sources(text, pollutant):
         if key in rows:
             raise ValueError('Duplicate source/regime')
         for value in values[3:]:
-            decimal(value)
+            parse_number(value)
         rows[key] = values
     return rows
 

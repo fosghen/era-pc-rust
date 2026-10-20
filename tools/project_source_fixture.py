@@ -15,6 +15,22 @@ import re
 from archive_source_fixture import NUMBER, block, decimal, one, sources
 
 
+def source_decimal(text):
+    """Scientific notation is allowed in input rows, not printed tolerances."""
+    if not isinstance(text, str) or len(text) > 48:
+        raise ValueError('Invalid source number')
+    match = re.fullmatch(r'(-?[0-9]+(?:\.[0-9]+)?)(?:[eE]([+-]?[0-9]{1,3}))?', text)
+    if not match or len(match[1]) > 32:
+        raise ValueError('Invalid source number')
+    if match[2] is not None and not -308 <= int(match[2]) <= 308:
+        raise ValueError('Source exponent outside supported range')
+    value = Decimal(text)
+    as_float = float(value)
+    if not math.isfinite(as_float) or (value != 0 and as_float == 0):
+        raise ValueError('Source number overflows or underflows f64')
+    return value
+
+
 class Project:
     def __init__(self, root):
         self.root = Path(root).resolve(strict=True)
@@ -104,7 +120,7 @@ def context(city, cm, data, control, printed_inputs, pollutant):
 
 def make_case(values, row, ctx, case_id, evidence, flow):
     obj, a, summer, winter, pdk, _ = ctx
-    n = [None, None, None] + [float(decimal(s)) for s in values[3:]]
+    n = [None, None, None] + [float(source_decimal(s)) for s in values[3:]]
     if not values[0].startswith(obj):
         raise ValueError('Object/source mismatch')
     if values[2] != 'P' or row[4] != 'Т':
@@ -119,11 +135,16 @@ def make_case(values, row, ctx, case_id, evidence, flow):
     if n[8] < air:
         raise ValueError('Gas temperature below ambient unsupported')
     resolution = Decimal(10) ** decimal(row[3]).as_tuple().exponent
-    if abs(decimal(values[17]) - decimal(row[3])) > resolution / 2:
+    if abs(source_decimal(values[17]) - decimal(row[3])) > resolution / 2:
         raise ValueError('Input/report emission mismatch')
-    volume_from_printed_speed = math.pi * n[5] ** 2 * n[6] / 4
-    velocity_from_volume = 4 * n[7] / (math.pi * n[5] ** 2)
-    speed_resolution = float(Decimal(10) ** decimal(values[6]).as_tuple().exponent)
+    outlet_area = math.pi * (n[5] * n[5]) / 4
+    if not math.isfinite(outlet_area) or outlet_area <= 0:
+        raise ValueError('Outlet area overflows or underflows f64')
+    volume_from_printed_speed = outlet_area * n[6]
+    velocity_from_volume = n[7] / outlet_area
+    if not math.isfinite(volume_from_printed_speed) or not math.isfinite(velocity_from_volume):
+        raise ValueError('Flow arithmetic overflows f64')
+    speed_resolution = float(Decimal(10) ** source_decimal(values[6]).as_tuple().exponent)
     within_speed_rounding = abs(velocity_from_volume - n[6]) <= speed_resolution / 2
     if flow == 'stored-volume' and (n[7] <= 0 or not within_speed_rounding):
         raise ValueError('Volume-derived speed outside printed-speed rounding interval')
@@ -174,7 +195,7 @@ def build(project, folder, flow):
             ctx = context(city, cm, data, control, printed_inputs, code)
             headers.add(ctx[-1])
             mapped = {}
-            for (_, regime), values in sources(source, code).items():
+            for (_, regime), values in sources(source, code, parse_number=source_decimal).items():
                 key = (values[0][-4:], regime)
                 if key in mapped:
                     raise ValueError('Ambiguous input short source code/regime')
