@@ -1,0 +1,558 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-20",
+  "parent_commit": "84b502c6260b7ea4f9d625a07b1ae0ea9088b564",
+  "path_base": "workspace root containing era-rust and reverse_engineering",
+  "status": "Report-side point-source consistency guard; 112/112 accepted pairs preserved. 67 field replay samples and separate coordinate precision hypotheses, not field validation.",
+  "files": [
+    {
+      "path": "era-rust/Cargo.lock",
+      "sha256": "eddc4aa9c82ff1ce3b27402d40c483a0d1528b9e896d758651f8f0c21760adb2"
+    },
+    {
+      "path": "era-rust/Cargo.toml",
+      "sha256": "00a9e49290cd2c690dcfa1551642e51c0c0b6be1d34fb2e7c59947e8543baaed"
+    },
+    {
+      "path": "era-rust/docs/HYBRID_VALIDATION.md",
+      "sha256": "0f4cb8be8d10b11329653cb41a8bb49eaf7632d042739b244b875ff4b907f72b"
+    },
+    {
+      "path": "era-rust/examples/archive_source_compare.rs",
+      "sha256": "fa52ed2861921f77dce73f32df50250dccdde51421cdc28c0aefe42f1e0333b8"
+    },
+    {
+      "path": "era-rust/src/dispersion.rs",
+      "sha256": "6dd1960477840c0d1566ddeb0d5c02bf37f7916d67f3b8c02317de20bb982fd4"
+    },
+    {
+      "path": "era-rust/tools/archive_source_fixture.py",
+      "sha256": "589ec44fc75620499f050fced17b8dfb1f2a64912ff34abe6585f2e3bcdd5fb1"
+    },
+    {
+      "path": "era-rust/tools/project_batch_compare.py",
+      "sha256": "20b0ce3ede097e6c30162267da7cc190c9da336a38e516d809c4342447281988"
+    },
+    {
+      "path": "era-rust/tools/project_snapshot.py",
+      "sha256": "afd38af7ffb18dbb5a50dcd48d5812944c148ad0b6c513e3299ddf85b93fdea1"
+    },
+    {
+      "path": "era-rust/tools/project_source_fixture.py",
+      "sha256": "2d957cafc35d68ac5da83f715944dca976a04d760c46ba1505459c403ca07353"
+    },
+    {
+      "path": "era-rust/tools/test_project_source_fixture.py",
+      "sha256": "72d51e9f348cc36e713f655cea233d45be40a56716f250f2a50f9fc8ef03cf9f"
+    },
+    {
+      "path": "era-rust/tools/verify_checkpoint.py",
+      "sha256": "235a1c96268395f8e2bcd240403de5864929dcd796e9d667ae26fca3f1040696"
+    },
+    {
+      "path": "reverse_engineering/final_grid_replay_01/G419_0001p01.V1/request.json",
+      "sha256": "a6b7a85c5115b5916b737a5719018a2dc592849480bbcd1c7ae5cef7706d69ac"
+    },
+    {
+      "path": "reverse_engineering/final_grid_replay_01/G419_0001p01.V1/result.json",
+      "sha256": "a3f90cf9e62f208cdfc003c5be8817d9b3c717d61e59ccf465b4b4122d9eed7e"
+    },
+    {
+      "path": "reverse_engineering/final_grid_replay_01/G419_0001p01.V1/summary.json",
+      "sha256": "f37d39a189ff2e13cf7fcef1cc6ae0cde548172a206da65d7682e6faa0cec7fa"
+    },
+    {
+      "path": "reverse_engineering/final_grid_replay_01/G419_0002p01.V6/request.json",
+      "sha256": "2c989a70bdabcc1f3668d008f43c30feaafc75ba7340cae70153b476966dd88b"
+    },
+    {
+      "path": "reverse_engineering/final_grid_replay_01/G419_0002p01.V6/result.json",
+      "sha256": "11d23cdef71205a3f77828b1ee53a26006d37c22e81ef7ff3195f03523b4669a"
+    },
+    {
+      "path": "reverse_engineering/final_grid_replay_01/G419_0002p01.V6/summary.json",
+      "sha256": "d91005252a2fb56d1df7aff144b6b137bf89c4c81d4b57965012095d318e9ed2"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/000_printed-speed_cases.json",
+      "sha256": "1c7311f054e4b4d141587d46efca6e60c03d3414b87af73e7bc5d9c3af8dc98e"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/000_printed-speed_notes.json",
+      "sha256": "1cbd5f274552a4145ee4e98fde3c0628a64492966c9ecc034fa0e119c071d308"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/000_stored-volume_cases.json",
+      "sha256": "1c7311f054e4b4d141587d46efca6e60c03d3414b87af73e7bc5d9c3af8dc98e"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/000_stored-volume_notes.json",
+      "sha256": "84d5c39e9f64785d43a4e8e450c1de35429f03d010c730470ddda24b48d00f47"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/001_printed-speed_cases.json",
+      "sha256": "99ae077e4064dae70c41d23f46b95e5b9525a9723c120fa1a20228b580820cb6"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/001_printed-speed_notes.json",
+      "sha256": "2c2048a5df0cc27a3eab1d491f9c69d164f716eae1f6f009292959b926d40881"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/001_stored-volume_cases.json",
+      "sha256": "99ae077e4064dae70c41d23f46b95e5b9525a9723c120fa1a20228b580820cb6"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/001_stored-volume_notes.json",
+      "sha256": "95339b5be6f2c9973cfbfb41e166ac4ca229ce5664ccc4d47b5f6d5da7d35a59"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/002_printed-speed_cases.json",
+      "sha256": "d9167569b27a4a0803ccdaa2d9ad342cee438f62131cfbca41ebb75569052af1"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/002_printed-speed_notes.json",
+      "sha256": "c552ad5a665163cb94975fa9d3d956733116591e61d9ab7dac4991aac72082cf"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/002_stored-volume_cases.json",
+      "sha256": "d9167569b27a4a0803ccdaa2d9ad342cee438f62131cfbca41ebb75569052af1"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/002_stored-volume_notes.json",
+      "sha256": "8d7dcaa2dce781ee4daae56fc141249e1a1d54f35ee5d4ab6590109a2ce223d5"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/003_printed-speed_cases.json",
+      "sha256": "6f35d3ebc12084046976658d6abba09678b4a19260554427fdb6ecd43c08fd3d"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/003_printed-speed_notes.json",
+      "sha256": "d844abd7ebf65a471ee7738c94d6838bf7100e0179beb7a382b7fd28acabe1af"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/003_stored-volume_cases.json",
+      "sha256": "6f35d3ebc12084046976658d6abba09678b4a19260554427fdb6ecd43c08fd3d"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/003_stored-volume_notes.json",
+      "sha256": "2610f2abcdb672eb540a9df7419195fb2006d776a8fc6634580a689c0c5c1da7"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/004_printed-speed_cases.json",
+      "sha256": "4d2f86456953a9bc78080dff2db773e570cc5f2c4a32e75839d745fc85c7721a"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/004_printed-speed_comparison.json",
+      "sha256": "5a52476bb06a37c7eaadcb3fd3b1823a715ede4a94d5d3e828efc6799e7cde3c"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/004_printed-speed_notes.json",
+      "sha256": "2603f574e5b1c6a5f9b2dc8f96779b9dde827707bfb83a83f89d9c481fbbe817"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/004_stored-volume_cases.json",
+      "sha256": "43f4e740763e8e6c8d40540f5b7766243aa21d152c94c796a5db38dee7fa0d93"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/004_stored-volume_comparison.json",
+      "sha256": "b55a6c32264f40dc6941ab5361bf71ee2bbd4022daa8f471c84a3f3569a1296c"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/004_stored-volume_notes.json",
+      "sha256": "f99f836713ed0a6aba8889e092cf407b80d17d145b59ff217a103790cfd7fd6a"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/005_printed-speed_cases.json",
+      "sha256": "495b9ea06f1bc45e1f8f22149644e94dea197df12ba057f52c90523bd4f92453"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/005_printed-speed_comparison.json",
+      "sha256": "3fcb6379a799abf43ef2dbaa57940cc43959085dac0c62cb36e1cdeca210f463"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/005_printed-speed_notes.json",
+      "sha256": "3bd4ad1bba29234315b5aed84a4a07338fc3fbc35548d444b0927452f4d15fe9"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/005_stored-volume_cases.json",
+      "sha256": "fb0aa05e08b2cfe7c3e6fe4f4dd65068d2d2ce0900d7063f67f843e77a80c19c"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/005_stored-volume_comparison.json",
+      "sha256": "03e31089e92c5520ff08534a7391358484e6ad6dcaff4204b6959f0f453da779"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/005_stored-volume_notes.json",
+      "sha256": "3fa9aa3b2e398674f1cb9ad3921866a8868737c5a332a0d24e0d9ba783e719c0"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/006_printed-speed_cases.json",
+      "sha256": "af685f67c913d42594893c736182b5cb05801af762496dec29ad67fb8e16f9a2"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/006_printed-speed_comparison.json",
+      "sha256": "21076c110b0a8baa3f278c2e1d0c53b1efa6d1901d0e448f6e4826b575ce8ac5"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/006_printed-speed_notes.json",
+      "sha256": "24bdd98d31f47f3450a804526edce27ad97bd06a7b8b37ab8dfbfeb03fea2d98"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/006_stored-volume_cases.json",
+      "sha256": "6ed0e55780975f0fc7e8b914c11411c4f2d43d5b631784f5f8a4e94f99befb98"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/006_stored-volume_comparison.json",
+      "sha256": "afe49cacf943b32b13b485e86aa86c094453ae657363e069c7ef75b78c55d094"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/006_stored-volume_notes.json",
+      "sha256": "03f4ad42fcda6c890953394a284b94ce4e79ed9b05229ba564a6e96e6faaaf79"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/007_printed-speed_cases.json",
+      "sha256": "b448614caf6fd190e30cf377a6159f494e37abb28389e0edc33de48850f93822"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/007_printed-speed_comparison.json",
+      "sha256": "61043a01e7a71a27561f867109a10ee3b0120ac5f54054034e750e330f3a52af"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/007_printed-speed_notes.json",
+      "sha256": "33974a8522617ebf70ada2b47ad60bfa8c57d8d37440f91f42104b87ac500993"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/007_stored-volume_cases.json",
+      "sha256": "affaae34d7744a1e74ba908d7855d487b05ce2489b39bc5c4828d1d18887089b"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/007_stored-volume_notes.json",
+      "sha256": "6878a308acbd10dd7ebbea680f11a8501f52ddc83eaf72f9a125f717bed81379"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/008_printed-speed_cases.json",
+      "sha256": "84d30972e484f6b894c3fcde76b54648598ca103f2e72997bda49c0d8414838d"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/008_printed-speed_comparison.json",
+      "sha256": "ec0f2184115f7017eb184af08616f6c806c1ed18fcfa64402614ae93296433f2"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/008_printed-speed_notes.json",
+      "sha256": "33974a8522617ebf70ada2b47ad60bfa8c57d8d37440f91f42104b87ac500993"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/008_stored-volume_cases.json",
+      "sha256": "300507760b55e06b6bc60f468baa5aadc6272b1d231c13f424cbf178cf4fb092"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/008_stored-volume_notes.json",
+      "sha256": "6878a308acbd10dd7ebbea680f11a8501f52ddc83eaf72f9a125f717bed81379"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/009_printed-speed_cases.json",
+      "sha256": "fc79dda38f2eb2735e5b449a180b2247289a98155228ffe59afe0bbe67b3e5e6"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/009_printed-speed_comparison.json",
+      "sha256": "d209f32e6e875720189fac1a92eee7355e728900d30316e03926c5ae9c25e21b"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/009_printed-speed_notes.json",
+      "sha256": "b3707536c81dacf62b0a57b4ac46febdcbb5a6bed4bbcb6260c8da2d416f7c02"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/009_stored-volume_cases.json",
+      "sha256": "f56739087740da2e73641e69da8b91d7d02190ecd29e00d8d744fc138b9853ba"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/009_stored-volume_comparison.json",
+      "sha256": "797bdc61fba9dfe0ab011ebb585c38a3c43ac2083450dfb13bf17f253431f3fb"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/009_stored-volume_notes.json",
+      "sha256": "412336169fc0e14a2bb97e080d9b16ee247eccb095800560db936e4a96f75ee8"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/010_printed-speed_cases.json",
+      "sha256": "48f59f369b818f497b49aa522f311192b6937f7cfbcd4e7d4026732e1b66353a"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/010_printed-speed_comparison.json",
+      "sha256": "85deb4e8ad918be4f437a5652aba8243d41e159e0f20dbc063f219a1609bea7d"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/010_printed-speed_notes.json",
+      "sha256": "f0366fe6c8219fe08fc2a24369ee4c02a597071d6b7b586e3d3d50f74932591a"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/010_stored-volume_cases.json",
+      "sha256": "6445d78355ed4ab9058ad93632c722ed3e3bd835fbaf852562fb2253aab961a3"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/010_stored-volume_notes.json",
+      "sha256": "f76821a7fb5480ab59a9a7c290f12cb12fea767eae86d28ef822e2c41dbe4eea"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/011_printed-speed_cases.json",
+      "sha256": "c47b7e98e37867d8db3cbb6791a9b356e644a41eba23f826ddcaa870d29f7879"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/011_printed-speed_comparison.json",
+      "sha256": "01b6a6fea21dc122524a3cd917c103f7bd1d84e9c71db7e7cc151ca48b6626c5"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/011_printed-speed_notes.json",
+      "sha256": "33974a8522617ebf70ada2b47ad60bfa8c57d8d37440f91f42104b87ac500993"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/011_stored-volume_cases.json",
+      "sha256": "7ca52a6b0f24661ce245cc45e8d82236e6677ea9b9894c8c179a23b57954659d"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/011_stored-volume_notes.json",
+      "sha256": "6878a308acbd10dd7ebbea680f11a8501f52ddc83eaf72f9a125f717bed81379"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/012_printed-speed_cases.json",
+      "sha256": "cee7c861ff45df81a6f2532761ac5adfd810d722b796899a4f66135dc1bcd044"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/012_printed-speed_comparison.json",
+      "sha256": "41ffb9239ebdf70381434861d9f82ebbcb9cac4dd7c70a57cb86e7411bbb5d6b"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/012_printed-speed_notes.json",
+      "sha256": "5607fefe6bb7c03f179e0c6ae775938373948ce40d8809e4374a562f8fb97a83"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/012_stored-volume_cases.json",
+      "sha256": "47c26c54c19396980ed1244063b3171e943e8db2e917b301071847c24452a06e"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/012_stored-volume_comparison.json",
+      "sha256": "1ea3b4097347658c6adb01d12aa20702ce4ed2a697efbf98e913eaa7c4eb85e1"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/012_stored-volume_notes.json",
+      "sha256": "b97aabb96cd6f9dbcef484e579a765f1d0773ba20fd8c032cb05b79dd0e4acd4"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/013_printed-speed_cases.json",
+      "sha256": "569d6d833986330e2622cd70e57d564567c81900903ef8351c43fb31856fa2c8"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/013_printed-speed_notes.json",
+      "sha256": "0dca4805d2c00588bbbbd63abd80022265ab43398a1f98db646f256e215a1425"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/013_stored-volume_cases.json",
+      "sha256": "569d6d833986330e2622cd70e57d564567c81900903ef8351c43fb31856fa2c8"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/013_stored-volume_notes.json",
+      "sha256": "08233f086e4a7c478004316a9cd9a9176824a71565d93f0d6af07dbe6892a292"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/014_printed-speed_cases.json",
+      "sha256": "ebc30dbcbb684d536b8c5d057c4c8ea2fd50c96efc63ac1ceb53815c8ec09f10"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/014_printed-speed_notes.json",
+      "sha256": "0dca4805d2c00588bbbbd63abd80022265ab43398a1f98db646f256e215a1425"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/014_stored-volume_cases.json",
+      "sha256": "ebc30dbcbb684d536b8c5d057c4c8ea2fd50c96efc63ac1ceb53815c8ec09f10"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/014_stored-volume_notes.json",
+      "sha256": "08233f086e4a7c478004316a9cd9a9176824a71565d93f0d6af07dbe6892a292"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/015_printed-speed_cases.json",
+      "sha256": "6938f7cd0788f5af38c7eb1d3443030dca918e954c33c62692758413c4f8390c"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/015_printed-speed_notes.json",
+      "sha256": "433ed31a3a54108b9dcb477402dd90730815209eacdabceb31c1697372545521"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/015_stored-volume_cases.json",
+      "sha256": "6938f7cd0788f5af38c7eb1d3443030dca918e954c33c62692758413c4f8390c"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/015_stored-volume_notes.json",
+      "sha256": "c9691d13db4ec921246dcdc39179d6c9be93de446dff343385d0d63d4bbd1ace"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/016_printed-speed_cases.json",
+      "sha256": "afd40fa1875c8d1b3a372e13b1a57a450d174dc7ace12d7a40ac3f1f004d4d5f"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/016_printed-speed_notes.json",
+      "sha256": "9b4a3602a56dd025cdb72332c5076c81331a43ecf7607d160e40805c4e8c4e13"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/016_stored-volume_cases.json",
+      "sha256": "afd40fa1875c8d1b3a372e13b1a57a450d174dc7ace12d7a40ac3f1f004d4d5f"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/016_stored-volume_notes.json",
+      "sha256": "069a8c2ea86382e1cc36326e948178cd535b036d2c28f9dab04dbc99cd2d1e0e"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/018_printed-speed_cases.json",
+      "sha256": "66371f7a0dd9f96b20a86c77ae73f1ca4e93c70b214dc496139a0efb6ba932c8"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/018_printed-speed_comparison.json",
+      "sha256": "f91d78447c87b76f607824b220b027274535776a715014baad45ee743caa9cc2"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/018_printed-speed_notes.json",
+      "sha256": "ad88e2ac0d2bfd1bb999540d3d6b7c5f01e8949bfc2575249f1011357a867c08"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/018_stored-volume_cases.json",
+      "sha256": "0dc33ac51cba6a56d9bef26158e176785ccf6a9d90398b5d6a118b1d8db051f4"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/018_stored-volume_notes.json",
+      "sha256": "c759e967cd9687b29ceed5fa79ddeae5b2008fe14be238f236d7eef7ef8acec1"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/019_printed-speed_cases.json",
+      "sha256": "14c3c465c37a7fbca75f4e2b90418358af017d7dedd1158e4daf496b150a494c"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/019_printed-speed_comparison.json",
+      "sha256": "44529683ab9589ccffea4c2a56d948c948cbc340c9f55e21165ef01c33dccb02"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/019_printed-speed_notes.json",
+      "sha256": "ad88e2ac0d2bfd1bb999540d3d6b7c5f01e8949bfc2575249f1011357a867c08"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/019_stored-volume_cases.json",
+      "sha256": "4e429dca65ccfdeb416fd9cf3f717d899398cd3c7ddf88b06d5147e0d7d99f12"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/019_stored-volume_notes.json",
+      "sha256": "c759e967cd9687b29ceed5fa79ddeae5b2008fe14be238f236d7eef7ef8acec1"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/020_printed-speed_cases.json",
+      "sha256": "f3e5c6f1246816bba0468d692e3e10d4b0562f6aa728aba51c618aad3f600b42"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/020_printed-speed_comparison.json",
+      "sha256": "e306a52a36b2cc3e24a5aa94dfc3d8062c9eb30e7ec355a365c128a8d591bd4d"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/020_printed-speed_notes.json",
+      "sha256": "2d2810c063a4065327c9b7bfd21ceb2e3ea78e61b613e21e2312a59ac72d6f94"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/020_stored-volume_cases.json",
+      "sha256": "2cc274ec06f04f45199434ee1c785993d071d2b4e5abd748b8a418fc5ea935e3"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/020_stored-volume_comparison.json",
+      "sha256": "45544dafe15169ec0e02ad60b9b99350e86e3e2b2e0803919ccbec03a9d4a36a"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/020_stored-volume_notes.json",
+      "sha256": "6f35e103ea12c793b41194ea098f2b1861414a324d45a504e0c664760bd2d741"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/021_printed-speed_cases.json",
+      "sha256": "2e2721efd8bf4489ccb06b6825d4a52d5777ec9ed41e7bff657b8fb9d921a9c8"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/021_printed-speed_comparison.json",
+      "sha256": "a1bee2dde5cfdbedbf8bd42b375bed1578c21475e1a14a6c37fe52b97dd9e34f"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/021_printed-speed_notes.json",
+      "sha256": "b77fc3a5315ad97451dc03cb524dd47b3d4f99ce629840a7a97d4273e88997fe"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/021_stored-volume_cases.json",
+      "sha256": "bd315f07d182edb6cb2803aaf83a67840aa6d8f92122faf9660575b963ec7a4d"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/021_stored-volume_notes.json",
+      "sha256": "638b147ec86801ec597bcf3140e2e1ad4ccab22db2ef744ac820ae327525b333"
+    },
+    {
+      "path": "reverse_engineering/final_projects_snapshot_guard_02/summary.json",
+      "sha256": "02e59c635d7cadd02bd5b35b1b868a2b68c41bd626f1dc01e0508dcf4af9fa5a"
+    },
+    {
+      "path": "reverse_engineering/grid_coordinate_hypotheses_01/G419_0001p01.V1_float32-source-coordinates_request.json",
+      "sha256": "478d540d5563f0c742f34cd9bc2539ba13b3e55f2d5a5ddb35948403705f0066"
+    },
+    {
+      "path": "reverse_engineering/grid_coordinate_hypotheses_01/G419_0001p01.V1_float32-source-coordinates_result.json",
+      "sha256": "39be2d28ad84e5c0a61406f2b562b9c00adb5912bfcf8417181344ee20b4505d"
+    },
+    {
+      "path": "reverse_engineering/grid_coordinate_hypotheses_01/G419_0001p01.V1_float32-source-coordinates_summary.json",
+      "sha256": "cdc2404f6a811aa2687b2138d7421d945a05abc407682303cd7c8c64ce0761ab"
+    },
+    {
+      "path": "reverse_engineering/grid_coordinate_hypotheses_01/G419_0001p01.V1_printed-coordinates_request.json",
+      "sha256": "8973957f37bad7abd9768884fef351bb8967fac4e175b7e6b2625407b0782485"
+    },
+    {
+      "path": "reverse_engineering/grid_coordinate_hypotheses_01/G419_0001p01.V1_printed-coordinates_result.json",
+      "sha256": "6e677f73a49296aca2033b371aea0af654f109efc24e619665f349ab7bcc8d1f"
+    },
+    {
+      "path": "reverse_engineering/grid_coordinate_hypotheses_01/G419_0001p01.V1_printed-coordinates_summary.json",
+      "sha256": "3b227a6f3ad54f05c77780f567b9e034618b4bfe2f82abf589ef33b9bf16be9e"
+    },
+    {
+      "path": "reverse_engineering/grid_coordinate_hypotheses_01/G419_0002p01.V6_float32-source-coordinates_request.json",
+      "sha256": "37de9a24a38ab69cb80f13cf63eac228b121d35dc3a6cf63983a7949e16c5478"
+    },
+    {
+      "path": "reverse_engineering/grid_coordinate_hypotheses_01/G419_0002p01.V6_float32-source-coordinates_result.json",
+      "sha256": "3dd460c51ef1dda7a9b8d45540449afb6dc7d53a377a4393d8d8bae9742ecf34"
+    },
+    {
+      "path": "reverse_engineering/grid_coordinate_hypotheses_01/G419_0002p01.V6_float32-source-coordinates_summary.json",
+      "sha256": "6104ef1c6740acefcecb9a629404c71ddcd33460fc7cfb5b9be793760223a693"
+    },
+    {
+      "path": "reverse_engineering/grid_coordinate_hypotheses_01/G419_0002p01.V6_printed-coordinates_request.json",
+      "sha256": "37de9a24a38ab69cb80f13cf63eac228b121d35dc3a6cf63983a7949e16c5478"
+    },
+    {
+      "path": "reverse_engineering/grid_coordinate_hypotheses_01/G419_0002p01.V6_printed-coordinates_result.json",
+      "sha256": "3dd460c51ef1dda7a9b8d45540449afb6dc7d53a377a4393d8d8bae9742ecf34"
+    },
+    {
+      "path": "reverse_engineering/grid_coordinate_hypotheses_01/G419_0002p01.V6_printed-coordinates_summary.json",
+      "sha256": "d753f718232360af59409881f71f23784e9dacb7476a5f6302a15d7c13298e41"
+    },
+    {
+      "path": "reverse_engineering/probe_grid_coordinate_precision.py",
+      "sha256": "c55eee7f74b6a9cc345f39ab9c3b18f517ba1a8f48a008cd156b21c069fdeb45"
+    },
+    {
+      "path": "reverse_engineering/replay_final_grid_samples.py",
+      "sha256": "61d63d588e35d6c18e1e6b59f9bd15c92a8a2c9753aae15e241902ce084f29cf"
+    }
+  ],
+  "tests": {
+    "python_tests_passed": 481
+  },
+  "limitations": [
+    "Original projects and diagnostic fixtures remain private.",
+    "Field replay assumes receptor height 2 m and uses rounded wind exports.",
+    "Coordinate conversion is diagnostic only; production kernel unchanged.",
+    "Kernel/dependency snapshots include pre-existing local changes excluded from this commit."
+  ]
+}

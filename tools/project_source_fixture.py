@@ -13,6 +13,7 @@ from pathlib import Path, PurePosixPath
 import re
 
 from archive_source_fixture import NUMBER, block, decimal, one, sources
+from project_snapshot import source_table, check_source
 
 
 def source_decimal(text):
@@ -193,6 +194,7 @@ def build(project, folder, flow):
             cm, city, data, source, control, printed_inputs = [v[0] for v in read]
             evidence = [v[1] for v in read]
             ctx = context(city, cm, data, control, printed_inputs, code)
+            snapshot = source_table(printed_inputs)
             headers.add(ctx[-1])
             mapped = {}
             for (_, regime), values in sources(source, code, parse_number=source_decimal).items():
@@ -205,6 +207,8 @@ def build(project, folder, flow):
                 try:
                     if key not in mapped:
                         raise ValueError('Reported source missing from input')
+                    if mapped[key][2] == 'P' and row[4] == 'Т':
+                        check_source(mapped[key], snapshot, source_decimal)
                     case, detail = make_case(mapped[key], row, ctx, case_id, evidence, flow)
                     cases.append(case)
                     details.append(detail)
@@ -222,6 +226,7 @@ def build(project, folder, flow):
     notes = dict(schema_version=1, scope='source_parameter_diagnostic_not_complete_project_validation',
         flow_interpretation=flow, report_headers=sorted(headers), evidence=manifest, details=details,
         limitations=['Saved snapshots may be stale and text exports rounded.',
+            'Report-side source parameters checked at printed precision; coordinates and full snapshot freshness not established.',
             'No field/optimizer/background/buildings/area-source validation.',
             'Flow profiles are explicit interpretations, not proof of original internal arithmetic.',
             'Manifest hashes only files read, not the entire project.'])

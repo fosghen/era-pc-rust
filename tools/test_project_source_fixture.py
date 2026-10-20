@@ -8,6 +8,20 @@ import unittest
 
 from project_source_fixture import Project, build, rows, source_decimal
 from test_archive_source_fixture import members, VARIANT
+from project_snapshot import HEADERS, source_table, check_source
+
+
+def sync_report_source(data):
+    """Make an explicitly matching synthetic report, never used by importer."""
+    from archive_source_fixture import sources
+    values = next(iter(sources(data[f'DAT/{VARIANT}/ist_0301.txt'],
+                               '0301', source_decimal).values()))
+    cells = [values[0][-4:], values[1], 'Т', *values[3:18], '1.290']
+    widths = [max(len(h), len(c)) + 2 for h, c in zip(HEADERS, cells)]
+    header = '|'.join(h.center(w) for h, w in zip(HEADERS, widths))
+    row = ' '.join(c.rjust(w) for c, w in zip(cells, widths))
+    data[f'RESNEW/{VARIANT}/3_is0301.txt'] = (
+        'Признак для зимы - отрицательное значение высоты\n' + header + '\n' + row + '\n')
 
 
 def project_members():
@@ -20,6 +34,7 @@ def project_members():
     data[f'RESNEW/{VARIANT}/2_go0301.txt'] += 'Температура зимняя = -20.0\n'
     data[f'RESNEW/{VARIANT}/3_is0301.txt'] = 'Признак для зимы - отрицательное значение высоты\n'
     data[f'DAT/{VARIANT}/upr_0301.txt'] = 'begC\n+Season               = Max\nendC\n'
+    sync_report_source(data)
     return data
 
 
@@ -53,6 +68,7 @@ class ProjectFixtureTests(unittest.TestCase):
         data = project_members()
         key = f'DAT/{VARIANT}/ist_0301.txt'
         data[key] = data[key].replace('P 10.0', 'P -10.0')
+        sync_report_source(data)
         fixture, notes = self.run_build(data)
         self.assertEqual(fixture['cases'][0]['air_temperature_c'], -20.)
         self.assertEqual(fixture['cases'][0]['source']['height_m'], 10.)
@@ -62,6 +78,7 @@ class ProjectFixtureTests(unittest.TestCase):
         data = project_members()
         key = f'DAT/{VARIANT}/ist_0301.txt'
         data[key] = data[key].replace('3.1415927', '4.0000000')
+        sync_report_source(data)
         raw, notes = self.run_build(data)
         self.assertEqual(len(raw['cases']), 1)
         self.assertFalse(notes['details'][0]['volume_speed_consistent_with_printed_resolution'])
@@ -93,17 +110,20 @@ class ProjectFixtureTests(unittest.TestCase):
         data = project_members()
         key = f'DAT/{VARIANT}/ist_0301.txt'
         data[key] = data[key].replace('4.00 3.1415927', '400.00 314.1592654')
+        sync_report_source(data)
         for flow in ['printed-speed', 'stored-volume']:
             fixture, _ = self.run_build(data, flow)
             self.assertEqual(fixture['cases'], [])
             self.assertIn('330 m/s', fixture['skipped'][0]['reason'])
         data[key] = data[key].replace('400.00 314.1592654', '330.00 259.1813939')
+        sync_report_source(data)
         self.assertEqual(len(self.run_build(data)[0]['cases']), 1)
 
     def test_negative_delta_temperature_is_not_replaced_with_zero(self):
         data = project_members()
         key = f'DAT/{VARIANT}/ist_0301.txt'
         data[key] = data[key].replace('50.0 2.0', '19.0 2.0')
+        sync_report_source(data)
         fixture, _ = self.run_build(data)
         self.assertEqual(fixture['cases'], [])
         self.assertEqual(fixture['skipped'][0]['reason'],
@@ -134,9 +154,53 @@ class ProjectFixtureTests(unittest.TestCase):
             data = project_members()
             key = f'DAT/{VARIANT}/ist_0301.txt'
             data[key] = data[key].replace('1.000 4.00', diameter + ' 4.00')
+            sync_report_source(data)
             fixture, _ = self.run_build(data)
             self.assertEqual(fixture['cases'], [])
             self.assertIn('area', fixture['skipped'][0]['reason'])
+
+    def test_conflicting_snapshot_rejected_before_cold_hypothesis(self):
+        data = project_members()
+        key = f'DAT/{VARIANT}/ist_0301.txt'
+        data[key] = data[key].replace('50.0 2.0', '0.0 2.0')
+        fixture, _ = self.run_build(data)
+        self.assertEqual(fixture['cases'], [])
+        self.assertEqual(fixture['skipped'][0]['reason'],
+                         'Input/report source parameter mismatch: T')
+
+    def test_area_source_does_not_receive_point_snapshot_error(self):
+        data = project_members()
+        key = f'DAT/{VARIANT}/ist_0301.txt'
+        data[key] = data[key].replace('1 P ', '1 A1 ')
+        fixture, _ = self.run_build(data)
+        self.assertEqual(fixture['cases'], [])
+        self.assertEqual(fixture['skipped'][0]['reason'], 'Unsupported non-point source')
+
+    def test_missing_or_ambiguous_snapshot_cannot_pass(self):
+        for mutation in ('missing', 'duplicate'):
+            data = project_members()
+            key = f'RESNEW/{VARIANT}/3_is0301.txt'
+            if mutation == 'missing':
+                data[key] = 'отрицательное значение высоты\n'
+            else:
+                data[key] += data[key].splitlines()[-1] + '\n'
+            fixture, _ = self.run_build(data)
+            self.assertEqual(fixture['cases'], [])
+
+    def test_snapshot_rounding_and_blank_height(self):
+        data = project_members()
+        table = source_table(data[f'RESNEW/{VARIANT}/3_is0301.txt'])
+        from archive_source_fixture import sources
+        values = next(iter(sources(data[f'DAT/{VARIANT}/ist_0301.txt'], '0301').values()))
+        row = table[('0004', 1)]
+        row[4] = ''
+        row[7] = '3.14'
+        check_source(values, table, source_decimal)
+        values[7] = '3.145'
+        check_source(values, table, source_decimal)  # inclusive decimal boundary
+        values[7] = '3.14500000000000000000001'
+        with self.assertRaisesRegex(ValueError, 'V1'):
+            check_source(values, table, source_decimal)
 
     def test_path_and_selection_limits(self):
         with tempfile.TemporaryDirectory() as directory:
